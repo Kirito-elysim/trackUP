@@ -1,0 +1,86 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: trackup-backend
+    working_dir: /app
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8080:8000"
+    environment:
+      APP_ENV: dev
+      APP_SECRET: change-me-in-production
+      DATABASE_URL: mysql://trackup:trackup@mysql:3306/trackup?serverVersion=8.4.0&charset=utf8mb4
+      MESSENGER_TRANSPORT_DSN: redis://redis:6379/messages
+      CORS_ALLOW_ORIGIN: ^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?$
+      JWT_PASSPHRASE: change-this-passphrase
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: trackup-worker
+    working_dir: /app
+    volumes:
+      - ./backend:/app
+    command: php bin/console messenger:consume async --time-limit=3600 --memory-limit=256M -vv
+    environment:
+      APP_ENV: dev
+      APP_SECRET: change-me-in-production
+      DATABASE_URL: mysql://trackup:trackup@mysql:3306/trackup?serverVersion=8.4.0&charset=utf8mb4
+      MESSENGER_TRANSPORT_DSN: redis://redis:6379/messages
+      JWT_PASSPHRASE: change-this-passphrase
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: trackup-frontend
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_BASE_URL: http://localhost:8080
+    depends_on:
+      - backend
+
+  mysql:
+    image: mysql:8.4
+    container_name: trackup-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: trackup
+      MYSQL_USER: trackup
+      MYSQL_PASSWORD: trackup
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3307:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - ./infrastructure/docker/mysql/data:/var/lib/mysql
+
+  redis:
+    image: redis:7-alpine
+    container_name: trackup-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"

@@ -1,0 +1,235 @@
+<?php
+
+namespace App\Entity;
+
+use Doctrine\ORM\Mapping as ORM;
+
+#[ORM\Entity]
+#[ORM\Table(name: 'trainings')]
+class Training
+{
+    #[ORM\Id]
+    #[ORM\GeneratedValue]
+    #[ORM\Column]
+    private ?int $id = null;
+
+    #[ORM\Column(unique: true)]
+    private int $externalId;
+
+    #[ORM\Column(length: 255)]
+    private string $title;
+
+    #[ORM\Column(length: 120, nullable: true)]
+    private ?string $reference = null;
+
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $description = null;
+
+    #[ORM\Column(length: 10, nullable: true)]
+    private ?string $language = null;
+
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $objective = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?int $eduDuration = null;
+
+    #[ORM\Column(length: 80, nullable: true)]
+    private ?string $state = null;
+
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $externalLink = null;
+
+    #[ORM\Column(length: 80, nullable: true)]
+    private ?string $type = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?bool $sequential = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $riseUpCreatedAt = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $riseUpUpdatedAt = null;
+
+    #[ORM\Column]
+    private \DateTimeImmutable $syncedAt;
+
+    public function __construct()
+    {
+        $this->syncedAt = new \DateTimeImmutable();
+    }
+
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+
+    public function getExternalId(): int
+    {
+        return $this->externalId;
+    }
+
+    public function setExternalId(int $externalId): self
+    {
+        $this->externalId = $externalId;
+
+        return $this;
+    }
+
+    public function getTitle(): string
+    {
+        return $this->title;
+    }
+
+    public function setTitle(string $title): self
+    {
+        $this->title = $title;
+
+        return $this;
+    }
+
+    public function getReference(): ?string
+    {
+        return $this->reference;
+    }
+
+    public function setReference(?string $reference): self
+    {
+        $this->reference = $reference;
+
+        return $this;
+    }
+
+    public function getDescription(): ?string
+    {
+        return $this->description;
+    }
+
+    public function setDescription(?string $description): self
+    {
+        $this->description = $description;
+
+        return $this;
+    }
+
+    public function getLanguage(): ?string
+    {
+        return $this->language;
+    }
+
+    public function setLanguage(?string $language): self
+    {
+        $this->language = $language;
+
+        return $this;
+    }
+
+    public function getObjective(): ?string
+    {
+        return $this->objective;
+    }
+
+    public function setObjective(?string $objective): self
+    {
+        $this->objective = $objective;
+
+        return $this;
+    }
+
+    public function getEduDuration(): ?int
+    {
+        return $this->eduDuration;
+    }
+
+    public function setEduDuration(?int $eduDuration): self
+    {
+        $this->eduDuration = $eduDuration;
+
+        return $this;
+    }
+
+    public function getState(): ?string
+    {
+        return $this->state;
+    }
+
+    public function setState(?string $state): self
+    {
+        $this->state = $state;
+
+        return $this;
+    }
+
+    public function getExternalLink(): ?string
+    {
+        return $this->externalLink;
+    }
+
+    public function setExternalLink(?string $externalLink): self
+    {
+        $this->externalLink = $externalLink;
+
+        return $this;
+    }
+
+    public function getType(): ?string
+    {
+        return $this->type;
+    }
+
+    public function setType(?string $type): self
+    {
+        $this->type = $type;
+
+        return $this;
+    }
+
+    public function isSequential(): ?bool
+    {
+        return $this->sequential;
+    }
+
+    public function setSequential(?bool $sequential): self
+    {
+        $this->sequential = $sequential;
+
+        return $this;
+    }
+
+    public function getRiseUpCreatedAt(): ?\DateTimeImmutable
+    {
+        return $this->riseUpCreatedAt;
+    }
+
+    public function setRiseUpCreatedAt(?\DateTimeImmutable $riseUpCreatedAt): self
+    {
+        $this->riseUpCreatedAt = $riseUpCreatedAt;
+
+        return $this;
+    }
+
+    public function getRiseUpUpdatedAt(): ?\DateTimeImmutable
+    {
+        return $this->riseUpUpdatedAt;
+    }
+
+    public function setRiseUpUpdatedAt(?\DateTimeImmutable $riseUpUpdatedAt): self
+    {
+        $this->riseUpUpdatedAt = $riseUpUpdatedAt;
+
+        return $this;
+    }
+
+    public function getSyncedAt(): \DateTimeImmutable
+    {
+        return $this->syncedAt;
+    }
+
+    public function setSyncedAt(\DateTimeImmutable $syncedAt): self
+    {
+        $this->syncedAt = $syncedAt;
+
+        return $this;
+    }
+}

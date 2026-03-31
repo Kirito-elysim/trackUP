@@ -1,0 +1,216 @@
+<?php
+
+namespace App\Service;
+
+use App\Entity\Learner;
+use App\Entity\Training;
+use App\Entity\TrainingRegistration;
+use App\Integration\RiseUp\RiseUpApiClient;
+use Doctrine\ORM\EntityManagerInterface;
+
+class TrainingRegistrationSyncService
+{
+    public function __construct(
+        private readonly RiseUpApiClient $riseUpApiClient,
+        private readonly EntityManagerInterface $entityManager,
+    ) {
+    }
+
+    /**
+     * @return array{fetched:int,created:int,updated:int,skipped:int}
+     */
+    public function sync(int $pageSize = 500, int $flushEvery = 200): array
+    {
+        $rows = $this->riseUpApiClient->getCollection('/v3/courseregistrations', [], $pageSize);
+
+        /** @var array<int, Learner> $learnersByExternalId */
+        $learnersByExternalId = [];
+        foreach ($this->entityManager->getRepository(Learner::class)->findAll() as $learner) {
+            $learnersByExternalId[$learner->getExternalId()] = $learner;
+        }
+
+        /** @var array<int, Training> $trainingsByExternalId */
+        $trainingsByExternalId = [];
+        foreach ($this->entityManager->getRepository(Training::class)->findAll() as $training) {
+            $trainingsByExternalId[$training->getExternalId()] = $training;
+        }
+
+        $created = 0;
+        $updated = 0;
+        $skipped = 0;
+        $processed = 0;
+
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $learnerExternalId = $this->requireInt($row, 'iduser');
+            $trainingExternalId = $this->requireInt($row, 'idtraining');
+
+            $learner = $learnersByExternalId[$learnerExternalId] ?? null;
+            $training = $trainingsByExternalId[$trainingExternalId] ?? null;
+
+            if (!$learner instanceof Learner || !$training instanceof Training) {
+                ++$skipped;
+
+                continue;
+            }
+
+            $externalId = $this->requireInt($row, 'id');
+            $registration = $this->entityManager->getRepository(TrainingRegistration::class)->findOneBy(['externalId' => $externalId]);
+
+            if (!$registration instanceof TrainingRegistration) {
+                $registration = (new TrainingRegistration())->setExternalId($externalId);
+                ++$created;
+            } else {
+                ++$updated;
+            }
+
+            $this->hydrateRegistration($registration, $learner, $training, $row);
+            $this->entityManager->persist($registration);
+
+            ++$processed;
+
+            if ($processed % $flushEvery === 0) {
+                $this->entityManager->flush();
+                $this->entityManager->clear();
+                $learnersByExternalId = $this->reloadLearners();
+                $trainingsByExternalId = $this->reloadTrainings();
+            }
+        }
+
+        $this->entityManager->flush();
+        $this->entityManager->clear();
+
+        return [
+            'fetched' => count($rows),
+            'created' => $created,
+            'updated' => $updated,
+            'skipped' => $skipped,
+        ];
+    }
+
+    /**
+     * @param array<mixed> $row
+     */
+    private function hydrateRegistration(TrainingRegistration $registration, Learner $learner, Training $training, array $row): void
+    {
+        $registration
+            ->setLearner($learner)
+            ->setTraining($training)
+            ->setCompanyExternalId($this->intOrNull($row['idcompany'] ?? null))
+            ->setValidatorExternalId($this->intOrNull($row['iduservalidator'] ?? null))
+            ->setRegisteredByExternalId($this->intOrNull($row['iduserregister'] ?? null))
+            ->setState($this->stringOrNull($row['state'] ?? null))
+            ->setTotalTime($this->intOrNull($row['totaltime'] ?? null))
+            ->setProgress($this->floatOrNull($row['progress'] ?? null))
+            ->setScore($this->floatOrNull($row['score'] ?? null))
+            ->setForceFinished($this->boolOrNull($row['forcefinished'] ?? null))
+            ->setReference($this->stringOrNull($row['reference'] ?? null))
+            ->setSubscribedAt($this->dateTimeOrNull($row['subscribedate'] ?? null))
+            ->setTrainingEndAt($this->dateTimeOrNull($row['trainingenddate'] ?? null))
+            ->setRiseUpCreatedAt($this->dateTimeOrNull($row['creationdate'] ?? null))
+            ->setRiseUpUpdatedAt($this->dateTimeOrNull($row['modificationdate'] ?? null))
+            ->setCoursePeriodExternalId($this->intOrNull($row['idcourseperiod'] ?? null))
+            ->setSyncedAt(new \DateTimeImmutable());
+    }
+
+    /**
+     * @param array<mixed> $row
+     */
+    private function requireInt(array $row, string $key): int
+    {
+        $value = $row[$key] ?? null;
+
+        if (!is_int($value) && !is_string($value)) {
+            throw new \RuntimeException(sprintf('Rise Up registration payload is missing required field "%s".', $key));
+        }
+
+        return (int) $value;
+    }
+
+    private function intOrNull(mixed $value): ?int
+    {
+        if (!is_int($value) && !is_string($value) && !is_float($value)) {
+            return null;
+        }
+
+        return (int) $value;
+    }
+
+    private function floatOrNull(mixed $value): ?float
+    {
+        if (!is_int($value) && !is_string($value) && !is_float($value)) {
+            return null;
+        }
+
+        return (float) $value;
+    }
+
+    private function boolOrNull(mixed $value): ?bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_int($value) || is_string($value)) {
+            return filter_var($value, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE);
+        }
+
+        return null;
+    }
+
+    private function stringOrNull(mixed $value): ?string
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+
+        $normalized = trim($value);
+
+        return $normalized === '' ? null : $normalized;
+    }
+
+    private function dateTimeOrNull(mixed $value): ?\DateTimeImmutable
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+
+        $normalized = trim($value);
+        if ($normalized === '') {
+            return null;
+        }
+
+        return new \DateTimeImmutable($normalized);
+    }
+
+    /**
+     * @return array<int, Learner>
+     */
+    private function reloadLearners(): array
+    {
+        $items = [];
+
+        foreach ($this->entityManager->getRepository(Learner::class)->findAll() as $learner) {
+            $items[$learner->getExternalId()] = $learner;
+        }
+
+        return $items;
+    }
+
+    /**
+     * @return array<int, Training>
+     */
+    private function reloadTrainings(): array
+    {
+        $items = [];
+
+        foreach ($this->entityManager->getRepository(Training::class)->findAll() as $training) {
+            $items[$training->getExternalId()] = $training;
+        }
+
+        return $items;
+    }
+}

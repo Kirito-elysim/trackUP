@@ -1,0 +1,11 @@
+framework:
+    messenger:
+        failure_transport: failed
+
+        transports:
+            async: '%env(MESSENGER_TRANSPORT_DSN)%'
+            failed: 'in-memory://'
+            sync: 'sync://'
+
+        routing:
+            App\Message\SyncRiseUpMessage: async

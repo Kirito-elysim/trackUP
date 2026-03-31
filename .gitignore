@@ -1,0 +1,11 @@
+.DS_Store
+
+backend/.env.local
+backend/config/jwt/*.pem
+backend/var/
+backend/vendor/
+
+frontend/dist/
+frontend/node_modules/
+
+infrastructure/docker/mysql/data/
