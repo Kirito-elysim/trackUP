@@ -37,10 +37,13 @@ class BootstrapRbacCommand extends Command
 
         $featureMap = [
             ['code' => 'dashboard.view', 'name' => 'Dashboard', 'category' => 'Pilotage', 'description' => 'Voir le tableau de bord global.'],
+            ['code' => 'analytics.view', 'name' => 'Analytics', 'category' => 'Pilotage', 'description' => 'Analyser l’activité, le temps tracé et la progression par période.'],
+            ['code' => 'learningpaths.view', 'name' => 'Parcours', 'category' => 'Pilotage', 'description' => 'Consulter les parcours et leur synthèse.'],
             ['code' => 'learners.view', 'name' => 'Apprenants', 'category' => 'Pilotage', 'description' => 'Consulter les apprenants et leur suivi.'],
             ['code' => 'courses.view', 'name' => 'Formations', 'category' => 'Pilotage', 'description' => 'Consulter les formations et leur avancement.'],
             ['code' => 'exports.view', 'name' => 'Exports', 'category' => 'Pilotage', 'description' => 'Accéder aux exports PDF et CSV.'],
             ['code' => 'integrations.view', 'name' => 'Intégrations', 'category' => 'Pilotage', 'description' => 'Voir l’état des synchronisations Rise Up.'],
+            ['code' => 'settings.learningpaths', 'name' => 'Parcours', 'category' => 'Administration', 'description' => 'Superviser la synchronisation des parcours Rise Up.'],
             ['code' => 'settings.roles', 'name' => 'Rôles et permissions', 'category' => 'Administration', 'description' => 'Gérer les rôles et les droits.'],
             ['code' => 'settings.users', 'name' => 'Utilisateurs', 'category' => 'Administration', 'description' => 'Gérer les comptes utilisateurs internes.'],
         ];
@@ -76,7 +79,7 @@ class BootstrapRbacCommand extends Command
             ->setDescription('Accès au pilotage sans administration.')
             ->setSystem(true);
 
-        foreach (['dashboard.view', 'learners.view', 'courses.view', 'exports.view', 'integrations.view'] as $code) {
+        foreach (['dashboard.view', 'analytics.view', 'learningpaths.view', 'learners.view', 'courses.view', 'exports.view', 'integrations.view'] as $code) {
             $managerRole->addFeature($features[$code]);
         }
         $this->entityManager->persist($managerRole);

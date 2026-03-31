@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/useAuth';
 import { apiRequest, ApiError } from '../lib/api';
 import type { Feature, Role } from '../types/auth';
 
@@ -30,7 +30,31 @@ export function RolesPage() {
   };
 
   useEffect(() => {
-    void load();
+    if (!token) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadRoles = async () => {
+      const [rolesPayload, featuresPayload] = await Promise.all([
+        apiRequest<Role[]>('/api/admin/roles', { token }),
+        apiRequest<Feature[]>('/api/admin/features', { token }),
+      ]);
+
+      if (cancelled) {
+        return;
+      }
+
+      setRoles(rolesPayload);
+      setFeatures(featuresPayload);
+    };
+
+    void loadRoles();
+
+    return () => {
+      cancelled = true;
+    };
   }, [token]);
 
   const featureGroups = useMemo(() => {

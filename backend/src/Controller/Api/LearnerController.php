@@ -4,6 +4,7 @@ namespace App\Controller\Api;
 
 use App\Entity\User;
 use App\Service\UserPermissionResolver;
+use App\Util\DurationUnit;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\ParameterType;
 use Doctrine\ORM\EntityManagerInterface;
@@ -108,7 +109,7 @@ class LearnerController extends AbstractController
             'lastActivityAt' => $row['lastActivityAt'],
             'syncedAt' => $row['syncedAt'],
             'trainingCount' => (int) $row['trainingCount'],
-            'totalTime' => (int) $row['totalTime'],
+            'totalTime' => DurationUnit::secondsToMinutesInt($row['totalTime']),
             'averageProgress' => (float) $row['averageProgress'],
             'sessionRegistrationCount' => (int) $row['sessionRegistrationCount'],
         ], $rows));
@@ -296,7 +297,7 @@ class LearnerController extends AbstractController
                 'riseUpUpdatedAt' => $learner['riseUpUpdatedAt'],
                 'syncedAt' => $learner['syncedAt'],
                 'trainingCount' => (int) $learner['trainingCount'],
-                'totalTime' => (int) $learner['totalTime'],
+                'totalTime' => DurationUnit::secondsToMinutesInt($learner['totalTime']),
                 'averageProgress' => (float) $learner['averageProgress'],
                 'sessionRegistrationCount' => (int) $learner['sessionRegistrationCount'],
                 'signedAttendanceCount' => (int) $learner['signedAttendanceCount'],
@@ -309,7 +310,7 @@ class LearnerController extends AbstractController
                 'trainingTitle' => $row['trainingTitle'],
                 'trainingState' => $row['trainingState'],
                 'state' => $row['state'],
-                'totalTime' => (int) ($row['totalTime'] ?? 0),
+                'totalTime' => DurationUnit::secondsToMinutesInt($row['totalTime'] ?? 0),
                 'progress' => $row['progress'] !== null ? (float) $row['progress'] : null,
                 'score' => $row['score'] !== null ? (float) $row['score'] : null,
                 'subscribedAt' => $row['subscribedAt'],
@@ -335,8 +336,8 @@ class LearnerController extends AbstractController
                 'id' => (int) $row['id'],
                 'externalId' => (int) $row['externalId'],
                 'state' => $row['state'],
-                'timeSpent' => $row['timeSpent'] !== null ? (int) $row['timeSpent'] : null,
-                'totalTime' => $row['totalTime'] !== null ? (int) $row['totalTime'] : null,
+                'timeSpent' => DurationUnit::secondsToMinutesIntOrNull($row['timeSpent']),
+                'totalTime' => DurationUnit::secondsToMinutesIntOrNull($row['totalTime']),
                 'score' => $row['score'] !== null ? (float) $row['score'] : null,
                 'activityAt' => $row['activityAt'],
                 'stepId' => (int) $row['stepId'],

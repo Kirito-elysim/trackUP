@@ -6,6 +6,7 @@ use App\Entity\User;
 use App\Service\UserPermissionResolver;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Attribute\Route;
 
@@ -15,6 +16,8 @@ class IntegrationController extends AbstractController
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly UserPermissionResolver $permissionResolver,
+        #[Autowire(param: 'app.riseup.base_url')]
+        private readonly string $riseUpBaseUrl,
     ) {
     }
 
@@ -40,6 +43,12 @@ class IntegrationController extends AbstractController
                 'label' => 'Formations',
                 'table' => 'trainings',
                 'command' => 'app:sync:trainings',
+            ],
+            [
+                'label' => 'Parcours',
+                'table' => 'learning_paths',
+                'secondaryTable' => 'learning_path_registrations',
+                'command' => 'app:sync:learningpaths',
             ],
             [
                 'label' => 'Inscriptions formation',
@@ -94,7 +103,7 @@ class IntegrationController extends AbstractController
             'connection' => [
                 'provider' => 'Rise Up',
                 'mode' => 'read_only',
-                'apiBaseUrl' => 'https://api.riseup.ai',
+                'apiBaseUrl' => rtrim($this->riseUpBaseUrl, '/'),
                 'health' => 'ok',
                 'lastSyncAt' => $lastSyncAt,
             ],

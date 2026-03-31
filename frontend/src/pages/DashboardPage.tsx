@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/useAuth';
 import { apiRequest, ApiError } from '../lib/api';
 import { formatDateTime, formatDuration, formatPercentage } from '../lib/format';
 import type { DashboardPayload } from '../types/trackup';

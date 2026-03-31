@@ -3,11 +3,14 @@ import { AppLayout } from './components/AppLayout';
 import { FeatureGate } from './components/FeatureGate';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AuthProvider } from './contexts/AuthContext';
+import { AnalyticsPage } from './pages/AnalyticsPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { ExportsPage } from './pages/ExportsPage';
 import { IntegrationsPage } from './pages/IntegrationsPage';
 import { LearnersPage } from './pages/LearnersPage';
+import { LearningPathsPage } from './pages/LearningPathsPage';
 import { LoginPage } from './pages/LoginPage';
+import { RiseUpLogsPage } from './pages/RiseUpLogsPage';
 import { RolesPage } from './pages/RolesPage';
 import { TrainingsPage } from './pages/TrainingsPage';
 import { UsersPage } from './pages/UsersPage';
@@ -26,6 +29,26 @@ function App() {
                 element={
                   <FeatureGate feature="dashboard.view">
                     <DashboardPage />
+                  </FeatureGate>
+                }
+              />
+              <Route
+                path="/analytics"
+                element={
+                  <FeatureGate feature="analytics.view">
+                    <AnalyticsPage />
+                  </FeatureGate>
+                }
+              />
+              <Route
+                path="/pathways"
+                element={<Navigate replace to="/learningpaths" />}
+              />
+              <Route
+                path="/learningpaths"
+                element={
+                  <FeatureGate feature="learningpaths.view">
+                    <LearningPathsPage />
                   </FeatureGate>
                 }
               />
@@ -50,6 +73,14 @@ function App() {
                 element={
                   <FeatureGate feature="exports.view">
                     <ExportsPage />
+                  </FeatureGate>
+                }
+              />
+              <Route
+                path="/riseup-logs"
+                element={
+                  <FeatureGate feature="exports.view">
+                    <RiseUpLogsPage />
                   </FeatureGate>
                 }
               />

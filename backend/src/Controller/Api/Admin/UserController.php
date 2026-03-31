@@ -48,13 +48,18 @@ class UserController extends AbstractController
             return $this->json(['message' => 'Email already exists.'], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
         }
 
+        $plainPassword = trim((string) ($data['password'] ?? ''));
+        if ($plainPassword === '') {
+            return $this->json(['message' => 'Password is required.'], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
         $user = (new User())
             ->setEmail((string) ($data['email'] ?? ''))
             ->setFirstName((string) ($data['firstName'] ?? ''))
             ->setLastName((string) ($data['lastName'] ?? ''))
             ->setActive((bool) ($data['active'] ?? true));
 
-        $user->setPassword($this->passwordHasher->hashPassword($user, (string) ($data['password'] ?? 'ChangeMe123!')));
+        $user->setPassword($this->passwordHasher->hashPassword($user, $plainPassword));
 
         $this->syncUserRoles($user, $data['roleIds'] ?? []);
 

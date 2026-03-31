@@ -4,6 +4,7 @@ namespace App\Controller\Api;
 
 use App\Entity\User;
 use App\Service\UserPermissionResolver;
+use App\Util\DurationUnit;
 use Doctrine\DBAL\ParameterType;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -114,7 +115,7 @@ class TrainingController extends AbstractController
             'language' => $row['language'],
             'syncedAt' => $row['syncedAt'],
             'learnersCount' => (int) $row['learnersCount'],
-            'totalTime' => (int) $row['totalTime'],
+            'totalTime' => DurationUnit::secondsToMinutesInt($row['totalTime']),
             'averageProgress' => (float) $row['averageProgress'],
             'moduleCount' => (int) $row['moduleCount'],
             'stepCount' => (int) $row['stepCount'],
@@ -281,7 +282,7 @@ class TrainingController extends AbstractController
                 'riseUpUpdatedAt' => $training['riseUpUpdatedAt'],
                 'syncedAt' => $training['syncedAt'],
                 'learnersCount' => (int) $training['learnersCount'],
-                'totalTime' => (int) $training['totalTime'],
+                'totalTime' => DurationUnit::secondsToMinutesInt($training['totalTime']),
                 'averageProgress' => (float) $training['averageProgress'],
                 'averageScore' => (float) $training['averageScore'],
                 'sessionCount' => (int) $training['sessionCount'],
@@ -321,7 +322,7 @@ class TrainingController extends AbstractController
                 'lastName' => $row['lastName'],
                 'fullName' => trim(sprintf('%s %s', (string) $row['firstName'], (string) $row['lastName'])),
                 'state' => $row['state'],
-                'totalTime' => (int) ($row['totalTime'] ?? 0),
+                'totalTime' => DurationUnit::secondsToMinutesInt($row['totalTime'] ?? 0),
                 'progress' => $row['progress'] !== null ? (float) $row['progress'] : null,
                 'score' => $row['score'] !== null ? (float) $row['score'] : null,
             ], $topLearners),

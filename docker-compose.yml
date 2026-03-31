@@ -84,3 +84,19 @@ services:
     restart: unless-stopped
     ports:
       - "6379:6379"
+
+  phpmyadmin:
+    image: phpmyadmin:5-apache
+    container_name: trackup-phpmyadmin
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_USER: trackup
+      PMA_PASSWORD: trackup
+      UPLOAD_LIMIT: 64M
+    depends_on:
+      mysql:
+        condition: service_healthy

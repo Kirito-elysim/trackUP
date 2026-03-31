@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/useAuth';
 import { apiRequest, ApiError } from '../lib/api';
 import type { Role, UserSummary } from '../types/auth';
 
@@ -32,7 +32,31 @@ export function UsersPage() {
   };
 
   useEffect(() => {
-    void load();
+    if (!token) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadUsers = async () => {
+      const [usersPayload, rolesPayload] = await Promise.all([
+        apiRequest<UserSummary[]>('/api/admin/users', { token }),
+        apiRequest<Role[]>('/api/admin/roles', { token }),
+      ]);
+
+      if (cancelled) {
+        return;
+      }
+
+      setUsers(usersPayload);
+      setRoles(rolesPayload);
+    };
+
+    void loadUsers();
+
+    return () => {
+      cancelled = true;
+    };
   }, [token]);
 
   const activeUsersCount = useMemo(() => users.filter((user) => user.active).length, [users]);
@@ -54,6 +78,11 @@ export function UsersPage() {
     }
 
     setMessage(null);
+
+    if (form.password.trim() === '') {
+      setMessage('Le mot de passe est obligatoire.');
+      return;
+    }
 
     try {
       await apiRequest<UserSummary>('/api/admin/users', {
@@ -195,6 +224,7 @@ export function UsersPage() {
             <label className="field">
               <span>Mot de passe</span>
               <input
+                required
                 type="password"
                 value={form.password}
                 onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}

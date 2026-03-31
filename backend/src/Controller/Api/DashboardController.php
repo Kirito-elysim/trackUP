@@ -4,6 +4,7 @@ namespace App\Controller\Api;
 
 use App\Entity\User;
 use App\Service\UserPermissionResolver;
+use App\Util\DurationUnit;
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -53,7 +54,7 @@ class DashboardController extends AbstractController
             'sessionRegistrationsCount' => (int) $connection->fetchOne('SELECT COUNT(*) FROM classroom_session_registrations'),
             'stepStatesCount' => (int) $connection->fetchOne('SELECT COUNT(*) FROM learner_step_states'),
             'signedAttendancesCount' => (int) $connection->fetchOne('SELECT COUNT(*) FROM classroom_session_signatures WHERE has_signed = 1'),
-            'totalTrackedTime' => (int) ($connection->fetchOne('SELECT COALESCE(SUM(total_time), 0) FROM training_registrations') ?: 0),
+            'totalTrackedTime' => DurationUnit::secondsToMinutesInt($connection->fetchOne('SELECT COALESCE(SUM(total_time), 0) FROM training_registrations')),
             'averageProgress' => round((float) ($connection->fetchOne('SELECT COALESCE(AVG(progress), 0) FROM training_registrations') ?: 0), 2),
         ];
     }
@@ -87,7 +88,7 @@ class DashboardController extends AbstractController
             'title' => $row['title'],
             'state' => $row['state'],
             'learnersCount' => (int) $row['learnersCount'],
-            'totalTime' => (int) $row['totalTime'],
+            'totalTime' => DurationUnit::secondsToMinutesInt($row['totalTime']),
             'averageProgress' => (float) $row['averageProgress'],
         ], $rows);
     }
@@ -130,7 +131,7 @@ class DashboardController extends AbstractController
             'state' => $row['state'],
             'lastLoginAt' => $row['lastLoginAt'],
             'trainingCount' => (int) $row['trainingCount'],
-            'totalTime' => (int) $row['totalTime'],
+            'totalTime' => DurationUnit::secondsToMinutesInt($row['totalTime']),
         ], $rows);
     }
 

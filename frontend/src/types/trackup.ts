@@ -41,6 +41,101 @@ export type DashboardPayload = {
   lastSyncAt: string | null;
 };
 
+export type AnalyticsPayload = {
+  filters: {
+    period: string;
+    startAt: string;
+    endAt: string;
+    previousStartAt: string;
+    previousEndAt: string;
+    bucket: string;
+    learningPathId: number | null;
+    learnerId: number | null;
+    availableLearningPaths: Array<{
+      id: number;
+      title: string;
+    }>;
+    availableLearners: Array<{
+      id: number;
+      fullName: string;
+    }>;
+  };
+  metrics: {
+    totalTrackedTime: number;
+    elearningTrackedTime: number;
+    masterclassTrackedTime: number;
+    activeLearnersCount: number;
+    learningPathsCount: number;
+    activityCount: number;
+    averageProgress: number;
+  };
+  comparison: {
+    totalTrackedTime: ComparisonMetric;
+    elearningTrackedTime: ComparisonMetric;
+    masterclassTrackedTime: ComparisonMetric;
+    activeLearnersCount: ComparisonMetric;
+    activityCount: ComparisonMetric;
+  };
+  timeSeries: Array<{
+    bucketKey: string;
+    label: string;
+    totalTime: number;
+    elearningTime: number;
+    masterclassTime: number;
+    activityCount: number;
+    activeLearnersCount: number;
+  }>;
+  topLearningPaths: Array<{
+    id: number;
+    title: string;
+    learnerCount: number;
+    averageProgress: number;
+    targetDuration: number;
+    totalTime: number;
+    elearningTime: number;
+    masterclassTime: number;
+    timeProgressPercent: number;
+  }>;
+  learnerPathRows: Array<{
+    learnerId: number;
+    learningPathId: number;
+    learningPathTitle: string;
+    email: string | null;
+    firstName: string | null;
+    lastName: string | null;
+    fullName: string;
+    lastLoginAt: string | null;
+    learningPathProgressPercent: number;
+    trainingProgressPercent: number;
+    pathTargetDuration: number;
+    totalTime: number;
+    elearningTime: number;
+    masterclassTime: number;
+    activityCount: number;
+    lastActivityAt: string | null;
+    timeProgressPercent: number;
+  }>;
+  trainingRows: Array<{
+    trainingId: number;
+    title: string;
+    learnerCount: number;
+    targetDuration: number;
+    averageProgress: number;
+    totalTime: number;
+    elearningTime: number;
+    masterclassTime: number;
+    timeProgressPercent: number;
+  }>;
+  lastSyncAt: string | null;
+};
+
+export type ComparisonMetric = {
+  current: number;
+  previous: number;
+  delta: number;
+  percentDelta: number;
+};
+
 export type LearnerSummary = {
   id: number;
   externalId: number;
@@ -216,42 +311,126 @@ export type TrainingDetail = {
 };
 
 export type ExportsPayload = {
+  filters: {
+    learnerId: number | null;
+    availableLearners: Array<{
+      id: number;
+      email: string;
+      fullName: string;
+    }>;
+  };
   metrics: {
     learnersReadyCount: number;
+    learningPathsCount: number;
     signedRegistrationsCount: number;
     sessionsWithoutSignatureCount: number;
     trackedTimeTotal: number;
   };
-  learnerExports: Array<{
+  selectedLearner: {
+    learner: {
+      id: number;
+      email: string;
+      firstName: string | null;
+      lastName: string | null;
+      fullName: string;
+      state: string;
+      lastLoginAt: string | null;
+      lastActivityAt: string | null;
+      trainingCount: number;
+      learningPathCount: number;
+      platformTime: number;
+      moduleTime: number;
+      masterclassTime: number;
+      signedAttendanceCount: number;
+      unsignedAttendanceCount: number;
+    };
+    learningPaths: Array<{
+      learningPathId: number;
+      title: string;
+      reference: string | null;
+      subscribedAt: string | null;
+      progress: number | null;
+      score: number | null;
+      trainingCount: number;
+      platformTime: number;
+      moduleTime: number;
+      masterclassTime: number;
+    }>;
+    trainings: Array<{
+      trainingId: number;
+      title: string;
+      state: string | null;
+      subscribedAt: string | null;
+      platformTime: number;
+      progress: number | null;
+      score: number | null;
+      learningPathTitles: string[];
+      moduleTime: number;
+      masterclassTime: number;
+    }>;
+    logs: Array<{
+      occurredAt: string | null;
+      sourceType: string;
+      sourceLabel: string | null;
+      learningPathTitle: string | null;
+      trainingTitle: string | null;
+      moduleTitle: string | null;
+      stepTitle: string | null;
+      sessionType: string | null;
+      duration: number;
+      status: string | null;
+      signed: boolean | null;
+      details: string | null;
+    }>;
+  } | null;
+};
+
+export type RiseUpActivityLogsPayload = {
+  filters: {
+    learnerQuery: string | null;
+    learningPathId: number | null;
+    trainingExternalId: number | null;
+    dateFrom: string | null;
+    dateTo: string | null;
+    availableLearningPaths: Array<{
+      id: number;
+      title: string;
+    }>;
+    availableTrainings: Array<{
+      externalId: number;
+      title: string;
+    }>;
+  };
+  pagination: {
+    page: number;
+    pageSize: number;
+    totalRows: number;
+    totalPages: number;
+  };
+  metrics: {
+    logCount: number;
+    uniqueLearnersCount: number;
+    uniqueTrainingsCount: number;
+    totalDurationSeconds: number;
+    totalDurationMinutes: number;
+  };
+  rows: Array<{
     id: number;
-    email: string;
-    firstName: string;
-    lastName: string;
-    fullName: string;
-    trainingCount: number;
-    totalTime: number;
-    averageProgress: number;
-    signedCount: number;
+    sourceFileName: string;
+    sourceImportedAt: string | null;
+    trainingExternalId: number;
+    trainingTitle: string;
+    learnerExternalId: number | null;
+    learnerEmail: string | null;
+    learnerFullName: string;
+    loginAt: string | null;
+    logoutAt: string | null;
+    durationSeconds: number;
+    durationMinutes: number;
+    device: string | null;
+    createdAt: string | null;
   }>;
-  trainingExports: Array<{
-    id: number;
-    title: string;
-    state: string | null;
-    learnersCount: number;
-    totalTime: number;
-    averageProgress: number;
-    sessionCount: number;
-  }>;
-  complianceAlerts: Array<{
-    learnerId: number;
-    email: string;
-    firstName: string;
-    lastName: string;
-    fullName: string;
-    trainingTitle: string | null;
-    sessionStartAt: string | null;
-    unsignedAttendances: number;
-  }>;
+  lastImportAt: string | null;
 };
 
 export type IntegrationsPayload = {
@@ -277,4 +456,70 @@ export type IntegrationsPayload = {
     status: string;
   }>;
   commands: string[];
+};
+
+export type LearningPathSummary = {
+  id: number;
+  externalId: number;
+  title: string;
+  reference: string | null;
+  language: string | null;
+  description: string | null;
+  sequential: boolean | null;
+  imageUrl: string | null;
+  updatedAt: string;
+  syncedAt: string;
+  trainingCount: number;
+  learnerCount: number;
+  totalTime: number;
+  averageProgress: number;
+};
+
+export type LearningPathDetail = {
+  learningPath: {
+    id: number;
+    externalId: number;
+    title: string;
+    reference: string | null;
+    language: string | null;
+    description: string | null;
+    sequential: boolean | null;
+    imageUrl: string | null;
+    riseUpCreatedAt: string | null;
+    riseUpUpdatedAt: string | null;
+    syncedAt: string;
+    trainingCount: number;
+    learnerCount: number;
+    totalTime: number;
+    averageProgress: number;
+  };
+  trainings: Array<{
+    id: number;
+    position: number | null;
+    isRequired: boolean;
+    trainingId: number;
+    trainingExternalId: number;
+    title: string;
+    state: string | null;
+    type: string | null;
+    eduDuration: number | null;
+    learnerCount: number;
+    totalTime: number;
+    averageProgress: number;
+  }>;
+  learners: Array<{
+    id: number;
+    reference: string | null;
+    score: number | null;
+    progress: number | null;
+    subscribedAt: string | null;
+    learnerId: number;
+    email: string | null;
+    firstName: string | null;
+    lastName: string | null;
+    fullName: string;
+    completedTrainingCount: number;
+    totalTime: number;
+    averageProgress: number;
+  }>;
 };

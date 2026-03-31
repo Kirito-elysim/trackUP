@@ -1,7 +1,6 @@
 import {
-  createContext,
   startTransition,
-  useContext,
+  useCallback,
   useEffect,
   useMemo,
   useState,
@@ -9,18 +8,8 @@ import {
 } from 'react';
 import { apiRequest } from '../lib/api';
 import type { AuthenticatedUser } from '../types/auth';
+import { AuthContext, type AuthContextValue } from './auth-context';
 
-type AuthContextValue = {
-  token: string | null;
-  user: AuthenticatedUser | null;
-  loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
-  refreshUser: () => Promise<void>;
-  canAccess: (featureCode: string) => boolean;
-};
-
-const AuthContext = createContext<AuthContextValue | null>(null);
 const TOKEN_STORAGE_KEY = 'trackup.auth.token';
 
 export function AuthProvider({ children }: PropsWithChildren) {
@@ -28,7 +17,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     if (!token) {
       startTransition(() => {
         setUser(null);
@@ -51,32 +40,46 @@ export function AuthProvider({ children }: PropsWithChildren) {
         setLoading(false);
       });
     }
-  };
+  }, [token]);
 
   useEffect(() => {
     void refreshUser();
-  }, [token]);
+  }, [refreshUser]);
 
-  const login = async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string) => {
     setLoading(true);
-    const response = await apiRequest<{ token: string }>('/api/auth/login', {
-      method: 'POST',
-      body: { email, password },
-    });
+    try {
+      const response = await apiRequest<{ token: string }>('/api/auth/login', {
+        method: 'POST',
+        body: { email, password },
+      });
 
-    localStorage.setItem(TOKEN_STORAGE_KEY, response.token);
-    startTransition(() => {
-      setToken(response.token);
-    });
-  };
+      localStorage.setItem(TOKEN_STORAGE_KEY, response.token);
+      startTransition(() => {
+        setToken(response.token);
+      });
+    } catch (error) {
+      startTransition(() => {
+        setLoading(false);
+      });
 
-  const logout = () => {
+      throw error;
+    }
+  }, []);
+
+  const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_STORAGE_KEY);
     startTransition(() => {
       setToken(null);
       setUser(null);
+      setLoading(false);
     });
-  };
+  }, []);
+
+  const canAccess = useCallback(
+    (featureCode: string) => Boolean(user?.isAdmin || user?.features.includes(featureCode)),
+    [user],
+  );
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -86,20 +89,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
       login,
       logout,
       refreshUser,
-      canAccess: (featureCode: string) => Boolean(user?.isAdmin || user?.features.includes(featureCode)),
+      canAccess,
     }),
-    [loading, token, user],
+    [canAccess, loading, login, logout, refreshUser, token, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
-  }
-
-  return context;
 }
