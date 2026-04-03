@@ -97,11 +97,11 @@ class LearningPathController extends AbstractController
                         SELECT
                             lpt.learning_path_id,
                             csr.learner_id,
-                            COALESCE(SUM(COALESCE(NULLIF(csr.edu_duration, 0), cs.edu_duration, 0)), 0) AS masterclass_time
+                            COALESCE(SUM(CASE WHEN css.has_signed = 1 THEN cs.edu_duration ELSE 0 END), 0) AS masterclass_time
                         FROM classroom_session_registrations csr
                         INNER JOIN classroom_sessions cs ON cs.id = csr.session_id
                         INNER JOIN learning_path_trainings lpt ON lpt.training_id = cs.training_id
-                        WHERE csr.attended = 1 OR COALESCE(csr.edu_duration, cs.edu_duration, 0) > 0
+                        LEFT JOIN classroom_session_signatures css ON css.registration_id = csr.id
                         GROUP BY lpt.learning_path_id, csr.learner_id
                     ) session_logs ON session_logs.learning_path_id = lpr.learning_path_id AND session_logs.learner_id = lpr.learner_id
                     GROUP BY lpr.learning_path_id
@@ -196,11 +196,11 @@ class LearningPathController extends AbstractController
                         SELECT
                             lpt.learning_path_id,
                             csr.learner_id,
-                            COALESCE(SUM(COALESCE(NULLIF(csr.edu_duration, 0), cs.edu_duration, 0)), 0) AS masterclass_time
+                            COALESCE(SUM(CASE WHEN css.has_signed = 1 THEN cs.edu_duration ELSE 0 END), 0) AS masterclass_time
                         FROM classroom_session_registrations csr
                         INNER JOIN classroom_sessions cs ON cs.id = csr.session_id
                         INNER JOIN learning_path_trainings lpt ON lpt.training_id = cs.training_id
-                        WHERE csr.attended = 1 OR COALESCE(csr.edu_duration, cs.edu_duration, 0) > 0
+                        LEFT JOIN classroom_session_signatures css ON css.registration_id = csr.id
                         GROUP BY lpt.learning_path_id, csr.learner_id
                     ) session_logs ON session_logs.learning_path_id = lpr.learning_path_id AND session_logs.learner_id = lpr.learner_id
                     GROUP BY lpr.learning_path_id
@@ -252,10 +252,10 @@ class LearningPathController extends AbstractController
                     SELECT
                         cs.training_id,
                         csr.learner_id,
-                        COALESCE(SUM(COALESCE(NULLIF(csr.edu_duration, 0), cs.edu_duration, 0)), 0) AS masterclass_time
+                        COALESCE(SUM(CASE WHEN css.has_signed = 1 THEN cs.edu_duration ELSE 0 END), 0) AS masterclass_time
                     FROM classroom_session_registrations csr
                     INNER JOIN classroom_sessions cs ON cs.id = csr.session_id
-                    WHERE csr.attended = 1 OR COALESCE(csr.edu_duration, cs.edu_duration, 0) > 0
+                    LEFT JOIN classroom_session_signatures css ON css.registration_id = csr.id
                     GROUP BY cs.training_id, csr.learner_id
                 ) session_logs ON session_logs.training_id = lpt.training_id AND session_logs.learner_id = lpr.learner_id
                 LEFT JOIN (
@@ -298,6 +298,8 @@ class LearningPathController extends AbstractController
                     COUNT(DISTINCT CASE WHEN tr.state = 'validated' THEN tr.training_id END) AS completedTrainingCount,
                     COALESCE(module_logs.module_time, 0) AS moduleTime,
                     COALESCE(session_logs.masterclass_time, 0) AS masterclassTime,
+                    COALESCE(session_logs.expected_time, 0) AS expectedTime,
+                    COALESCE(elearning_expected.expected_elearning_time, 0) AS expectedElearningTime,
                     ROUND(COALESCE(lpr.progress, 0), 2) AS averageProgress
                 FROM learning_path_registrations lpr
                 INNER JOIN learners l ON l.id = lpr.learner_id
@@ -306,27 +308,39 @@ class LearningPathController extends AbstractController
                 LEFT JOIN (
                     SELECT
                         lpt2.learning_path_id,
-                        lss.learner_id,
-                        COALESCE(SUM(COALESCE(NULLIF(lss.time_spent, 0), lss.total_time, 0)), 0) AS module_time
-                    FROM learner_step_states lss
-                    INNER JOIN training_steps ts ON ts.id = lss.step_id
-                    INNER JOIN training_modules tm ON tm.id = ts.module_id
-                    INNER JOIN learning_path_trainings lpt2 ON lpt2.training_id = tm.training_id
-                    GROUP BY lpt2.learning_path_id, lss.learner_id
+                        l2.id AS learner_id,
+                        COALESCE(SUM(ral.duration_seconds), 0) AS module_time
+                    FROM riseup_activity_logs ral
+                    INNER JOIN trainings t2 ON t2.external_id = ral.training_external_id
+                    INNER JOIN learning_path_trainings lpt2 ON lpt2.training_id = t2.id
+                    INNER JOIN learners l2 ON l2.external_id = ral.learner_external_id
+                    GROUP BY lpt2.learning_path_id, l2.id
                 ) module_logs ON module_logs.learning_path_id = lpr.learning_path_id AND module_logs.learner_id = lpr.learner_id
                 LEFT JOIN (
                     SELECT
                         lpt2.learning_path_id,
                         csr.learner_id,
-                        COALESCE(SUM(COALESCE(NULLIF(csr.edu_duration, 0), cs.edu_duration, 0)), 0) AS masterclass_time
+                        COALESCE(SUM(CASE WHEN css.has_signed = 1 THEN cs.edu_duration ELSE 0 END), 0) AS masterclass_time,
+                        COALESCE(SUM(cs.edu_duration), 0) AS expected_time
                     FROM classroom_session_registrations csr
                     INNER JOIN classroom_sessions cs ON cs.id = csr.session_id
                     INNER JOIN learning_path_trainings lpt2 ON lpt2.training_id = cs.training_id
-                    WHERE csr.attended = 1 OR COALESCE(csr.edu_duration, cs.edu_duration, 0) > 0
+                    LEFT JOIN classroom_session_signatures css ON css.registration_id = csr.id
                     GROUP BY lpt2.learning_path_id, csr.learner_id
                 ) session_logs ON session_logs.learning_path_id = lpr.learning_path_id AND session_logs.learner_id = lpr.learner_id
+                LEFT JOIN (
+                    SELECT
+                        lpt3.learning_path_id,
+                        COALESCE(SUM(t3.edu_duration), 0) AS expected_elearning_time
+                    FROM learning_path_trainings lpt3
+                    INNER JOIN trainings t3 ON t3.id = lpt3.training_id
+                    WHERE EXISTS (
+                        SELECT 1 FROM training_modules tm WHERE tm.training_id = t3.id
+                    )
+                    GROUP BY lpt3.learning_path_id
+                ) elearning_expected ON elearning_expected.learning_path_id = lpr.learning_path_id
                 WHERE lpr.learning_path_id = :learningPathId
-                GROUP BY lpr.id, lpr.reference, lpr.score, lpr.progress, lpr.subscribed_at, l.id, l.email, l.first_name, l.last_name, module_logs.module_time, session_logs.masterclass_time
+                GROUP BY lpr.id, lpr.reference, lpr.score, lpr.progress, lpr.subscribed_at, l.id, l.email, l.first_name, l.last_name, module_logs.module_time, session_logs.masterclass_time, session_logs.expected_time, elearning_expected.expected_elearning_time
                 ORDER BY COALESCE(module_logs.module_time, 0) DESC, COALESCE(session_logs.masterclass_time, 0) DESC, l.last_name ASC
             SQL,
             ['learningPathId' => $id],
@@ -378,8 +392,83 @@ class LearningPathController extends AbstractController
                 'fullName' => trim(sprintf('%s %s', $row['firstName'] ?? '', $row['lastName'] ?? '')) ?: ($row['email'] ?? 'Apprenant'),
                 'completedTrainingCount' => (int) $row['completedTrainingCount'],
                 'totalTime' => $this->totalMinutes($row['moduleTime'] ?? 0, $row['masterclassTime'] ?? 0),
+                'sessionTime' => DurationUnit::minutesToInt($row['masterclassTime'] ?? 0),
+                'expectedTime' => DurationUnit::minutesToInt($row['expectedTime'] ?? 0),
+                'elearningTime' => DurationUnit::secondsToMinutesInt($row['moduleTime'] ?? 0),
+                'expectedElearningTime' => DurationUnit::minutesToInt($row['expectedElearningTime'] ?? 0),
                 'averageProgress' => (float) $row['averageProgress'],
             ], $learners),
+        ]);
+    }
+
+    #[Route('/{learningPathId}/learners/{learnerId}/sessions', name: 'api_learningpaths_learner_sessions', methods: ['GET'], requirements: ['learningPathId' => '\d+', 'learnerId' => '\d+'])]
+    public function learnerSessions(int $learningPathId, int $learnerId): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = $this->getUser();
+
+        if (!$this->permissionResolver->userHasFeature($user, 'learningpaths.view')) {
+            return $this->json(['message' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        $connection = $this->entityManager->getConnection();
+
+        $sessions = $connection->fetchAllAssociative(
+            <<<SQL
+                SELECT
+                    cs.id,
+                    cs.external_id AS externalId,
+                    cs.reference AS title,
+                    cs.session_type AS sessionType,
+                    cs.start_at AS startAt,
+                    cs.end_at AS endAt,
+                    cs.edu_duration AS eduDuration,
+                    csr.id AS registrationId,
+                    csr.attended,
+                    csr.edu_duration AS learnerEduDuration,
+                    COALESCE(css.has_signed, 0) AS hasSigned,
+                    css.attendance_date AS attendanceDate,
+                    css.signature_date AS signatureDate,
+                    t.id AS trainingId,
+                    t.title AS trainingTitle,
+                    CASE WHEN css.has_signed = 1 THEN cs.edu_duration ELSE 0 END AS countedTime,
+                    CASE WHEN cs.start_at > NOW() THEN 1 ELSE 0 END AS isFuture
+                FROM classroom_sessions cs
+                INNER JOIN trainings t ON t.id = cs.training_id
+                INNER JOIN learning_path_trainings lpt ON lpt.training_id = t.id
+                LEFT JOIN classroom_session_registrations csr ON csr.session_id = cs.id AND csr.learner_id = :learnerId
+                LEFT JOIN classroom_session_signatures css ON css.registration_id = csr.id
+                WHERE lpt.learning_path_id = :learningPathId
+                  AND (csr.learner_id = :learnerId OR cs.start_at > NOW())
+                ORDER BY 
+                    CASE WHEN cs.start_at > NOW() THEN 0 ELSE 1 END,
+                    cs.start_at DESC,
+                    cs.reference ASC
+            SQL,
+            ['learningPathId' => $learningPathId, 'learnerId' => $learnerId],
+            ['learningPathId' => ParameterType::INTEGER, 'learnerId' => ParameterType::INTEGER],
+        );
+
+        return $this->json([
+            'sessions' => array_map(fn (array $row): array => [
+                'id' => (int) $row['id'],
+                'externalId' => (int) $row['externalId'],
+                'title' => $row['title'],
+                'sessionType' => $row['sessionType'],
+                'startAt' => $row['startAt'],
+                'endAt' => $row['endAt'],
+                'eduDuration' => $row['eduDuration'] !== null ? (int) $row['eduDuration'] : null,
+                'registrationId' => (int) $row['registrationId'],
+                'attended' => $row['attended'] !== null ? (bool) $row['attended'] : null,
+                'learnerEduDuration' => $row['learnerEduDuration'] !== null ? (int) $row['learnerEduDuration'] : null,
+                'hasSigned' => (bool) $row['hasSigned'],
+                'attendanceDate' => $row['attendanceDate'],
+                'signatureDate' => $row['signatureDate'],
+                'trainingId' => (int) $row['trainingId'],
+                'trainingTitle' => $row['trainingTitle'],
+                'countedTime' => DurationUnit::minutesToInt($row['countedTime']),
+                'isFuture' => (bool) $row['isFuture'],
+            ], $sessions),
         ]);
     }
 

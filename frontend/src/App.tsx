@@ -9,6 +9,7 @@ import { ExportsPage } from './pages/ExportsPage';
 import { IntegrationsPage } from './pages/IntegrationsPage';
 import { LearnersPage } from './pages/LearnersPage';
 import { LearningPathsPage } from './pages/LearningPathsPage';
+import { LearningPathDetailPage } from './pages/LearningPathDetailPage';
 import { LoginPage } from './pages/LoginPage';
 import { RiseUpLogsPage } from './pages/RiseUpLogsPage';
 import { RolesPage } from './pages/RolesPage';
@@ -49,6 +50,14 @@ function App() {
                 element={
                   <FeatureGate feature="learningpaths.view">
                     <LearningPathsPage />
+                  </FeatureGate>
+                }
+              />
+              <Route
+                path="/learningpaths/:id"
+                element={
+                  <FeatureGate feature="learningpaths.view">
+                    <LearningPathDetailPage />
                   </FeatureGate>
                 }
               />

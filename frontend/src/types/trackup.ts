@@ -1,13 +1,16 @@
 export type DashboardMetrics = {
   learnersCount: number;
   activeLearnersCount: number;
+  learningPathsCount: number;
   trainingsCount: number;
   trainingRegistrationsCount: number;
   sessionsCount: number;
+  masterclassCount: number;
   sessionRegistrationsCount: number;
   stepStatesCount: number;
   signedAttendancesCount: number;
   totalTrackedTime: number;
+  totalYearTime: number;
   averageProgress: number;
 };
 
@@ -34,8 +37,46 @@ export type DashboardLearner = {
   totalTime: number;
 };
 
+export type DashboardLearningPath = {
+  id: number;
+  externalId: number;
+  title: string;
+  imageUrl: string | null;
+  description: string | null;
+  learnerCount: number;
+  averageProgress: number;
+  totalTime: number;
+  trainingCount: number;
+  masterclassCount: number;
+};
+
+export type LearnerSession = {
+  id: number;
+  externalId: number;
+  title: string;
+  sessionType: string;
+  startAt: string | null;
+  endAt: string | null;
+  eduDuration: number | null;
+  registrationId: number;
+  attended: boolean | null;
+  learnerEduDuration: number | null;
+  hasSigned: boolean;
+  attendanceDate: string | null;
+  signatureDate: string | null;
+  trainingId: number;
+  trainingTitle: string;
+  countedTime: number;
+  isFuture: boolean;
+};
+
+export type LearnerSessionsPayload = {
+  sessions: LearnerSession[];
+};
+
 export type DashboardPayload = {
   metrics: DashboardMetrics;
+  learningPaths: DashboardLearningPath[];
   topTrainings: DashboardTraining[];
   recentLearners: DashboardLearner[];
   lastSyncAt: string | null;
@@ -520,6 +561,10 @@ export type LearningPathDetail = {
     fullName: string;
     completedTrainingCount: number;
     totalTime: number;
+    sessionTime: number;
+    expectedTime: number;
+    elearningTime: number;
+    expectedElearningTime: number;
     averageProgress: number;
   }>;
 };

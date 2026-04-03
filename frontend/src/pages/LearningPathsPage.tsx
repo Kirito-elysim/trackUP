@@ -1,19 +1,21 @@
 import { useDeferredValue, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/useAuth';
 import { apiRequest, ApiError } from '../lib/api';
-import { formatDateTime, formatDuration, formatPercentage } from '../lib/format';
-import type { LearningPathDetail, LearningPathSummary } from '../types/trackup';
+import { formatDuration, formatPercentage } from '../lib/format';
+import { Clock, Users, BookOpen, Search, TrendingUp, Eye, X } from 'lucide-react';
+import type { LearningPathSummary, LearningPathDetail } from '../types/trackup';
 
 export function LearningPathsPage() {
   const { token } = useAuth();
+  const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const deferredQuery = useDeferredValue(query);
   const [learningPaths, setLearningPaths] = useState<LearningPathSummary[]>([]);
-  const [selectedLearningPathId, setSelectedLearningPathId] = useState<number | null>(null);
-  const [selectedLearningPath, setSelectedLearningPath] = useState<LearningPathDetail | null>(null);
-  const [listLoading, setListLoading] = useState(true);
-  const [detailLoading, setDetailLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedPathDetail, setSelectedPathDetail] = useState<LearningPathDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   useEffect(() => {
     if (!token) {
@@ -23,7 +25,7 @@ export function LearningPathsPage() {
     let cancelled = false;
 
     const loadLearningPaths = async () => {
-      setListLoading(true);
+      setLoading(true);
       setError(null);
 
       const params = new URLSearchParams({ limit: '100' });
@@ -39,22 +41,14 @@ export function LearningPathsPage() {
         }
 
         setLearningPaths(payload);
-        setSelectedLearningPathId((current) => {
-          if (payload.length === 0) {
-            return null;
-          }
-
-          return current && payload.some((item) => item.id === current) ? current : payload[0].id;
-        });
       } catch (caught) {
         if (!cancelled) {
           setError(caught instanceof ApiError ? caught.message : 'Chargement des parcours impossible.');
           setLearningPaths([]);
-          setSelectedLearningPathId(null);
         }
       } finally {
         if (!cancelled) {
-          setListLoading(false);
+          setLoading(false);
         }
       }
     };
@@ -66,235 +60,381 @@ export function LearningPathsPage() {
     };
   }, [deferredQuery, token]);
 
-  useEffect(() => {
-    if (!token || !selectedLearningPathId) {
-      setSelectedLearningPath(null);
-      return;
+  const loadPathDetail = async (pathId: number) => {
+    if (!token) return;
+
+    setDetailLoading(true);
+    try {
+      const detail = await apiRequest<LearningPathDetail>(`/api/learningpaths/${pathId}`, { token });
+      setSelectedPathDetail(detail);
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.message : 'Impossible de charger les détails du parcours');
+    } finally {
+      setDetailLoading(false);
     }
+  };
 
-    let cancelled = false;
+  const closeModal = () => {
+    setSelectedPathDetail(null);
+  };
 
-    const loadDetail = async () => {
-      setDetailLoading(true);
-
-      try {
-        const payload = await apiRequest<LearningPathDetail>(`/api/learningpaths/${selectedLearningPathId}`, { token });
-
-        if (!cancelled) {
-          setSelectedLearningPath(payload);
-        }
-      } catch (caught) {
-        if (!cancelled) {
-          setError(caught instanceof ApiError ? caught.message : 'Détail parcours indisponible.');
-        }
-      } finally {
-        if (!cancelled) {
-          setDetailLoading(false);
-        }
-      }
-    };
-
-    void loadDetail();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedLearningPathId, token]);
 
   return (
     <section className="page-section">
       <div className="page-header">
         <div>
           <p className="eyebrow eyebrow-dark">Pilotage</p>
-          <h2>Parcours</h2>
+          <h2>Parcours de formation</h2>
         </div>
         <div className="header-meta">
-          <p className="muted">Parcours synchronisés depuis Rise Up, avec leurs formations liées et leurs inscriptions apprenants.</p>
-          <span className="status-chip status-chip-soft">{learningPaths.length} parcours</span>
+          <p className="muted">Explorez tous les parcours de formation synchronisés depuis Rise Up</p>
+          <span className="status-chip status-chip-soft">{learningPaths.length} parcours disponibles</span>
         </div>
       </div>
 
-      <div className="panel-card filters-panel">
-        <label className="field field-inline">
-          <span>Recherche</span>
-          <input placeholder="Titre ou référence du parcours" value={query} onChange={(event) => setQuery(event.target.value)} />
-        </label>
-        <div className="field field-inline">
-          <span>Source</span>
-          <div className="form-note">Rise Up en lecture seule</div>
+      <div className="panel-card" style={{ marginBottom: '24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '4px' }}>
+          <Search size={20} style={{ color: '#9ca3af' }} />
+          <input
+            type="text"
+            placeholder="Rechercher un parcours par titre ou référence..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            style={{
+              flex: 1,
+              border: 'none',
+              outline: 'none',
+              fontSize: '15px',
+              padding: '8px 4px',
+            }}
+          />
         </div>
       </div>
 
       {error ? <div className="panel-card error-panel">{error}</div> : null}
 
-      <div className="surface-stack">
-        <article className="hero-panel hero-panel-compact">
-          <div className="hero-copy">
-            <span className="status-chip">Source LMS</span>
-            <h3>Le parcours devient le niveau principal de lecture.</h3>
-            <p>
-              TrackUp récupère maintenant les parcours réels du tenant Rise Up, leurs formations associées et les
-              inscriptions apprenants au niveau parcours.
-            </p>
-          </div>
-        </article>
-
-        <article className="panel-card">
-          <div className="panel-card-header">
-            <div>
-              <p className="section-kicker">Catalogue</p>
-              <h3>Parcours synchronisés</h3>
-            </div>
-          </div>
-
-          {listLoading ? <p className="muted">Chargement des parcours...</p> : null}
-
-          <div className="learner-list">
-            {learningPaths.map((learningPath) => (
-              <button
-                className={`learner-list-item ${learningPath.id === selectedLearningPathId ? 'learner-list-item-active' : ''}`}
-                key={learningPath.id}
-                onClick={() => setSelectedLearningPathId(learningPath.id)}
-                type="button"
-              >
-                <div className="learner-list-main">
-                  <strong>{learningPath.title}</strong>
-                  <p>{learningPath.reference ?? `#${learningPath.externalId}`}</p>
-                </div>
-                <div className="learner-list-meta">
-                  <span>{learningPath.learnerCount} apprenants</span>
-                  <small>{learningPath.trainingCount} formations</small>
-                </div>
-              </button>
-            ))}
-
-            {!listLoading && learningPaths.length === 0 ? <p className="muted">Aucun parcours synchronisé pour le moment.</p> : null}
-          </div>
-        </article>
-
-        {selectedLearningPath ? (
-          <article className="panel-card detail-hero">
-            <div className="detail-hero-main">
-              <div>
-                <p className="section-kicker">Fiche parcours</p>
-                <h3>{selectedLearningPath.learningPath.title}</h3>
-                <p className="muted">
-                  {selectedLearningPath.learningPath.reference ?? `ID Rise Up ${selectedLearningPath.learningPath.externalId}`} ·
-                  Dernière synchro {formatDateTime(selectedLearningPath.learningPath.syncedAt)}
-                </p>
+      {loading ? (
+        <div className="panel-card" style={{ textAlign: 'center', padding: '48px' }}>
+          <p className="muted">Chargement des parcours...</p>
+        </div>
+      ) : learningPaths.length === 0 ? (
+        <div className="panel-card empty-state" style={{ textAlign: 'center', padding: '48px' }}>
+          <BookOpen size={48} style={{ margin: '0 auto 16px', color: '#9ca3af' }} />
+          <h3>Aucun parcours trouvé</h3>
+          <p className="muted">Aucun parcours ne correspond à votre recherche</p>
+        </div>
+      ) : (
+        <div className="learning-paths-grid">
+          {learningPaths.map((path) => (
+            <article
+              key={path.id}
+              className="learning-path-card"
+              onClick={() => navigate(`/learningpaths/${path.id}`)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  navigate(`/learningpaths/${path.id}`);
+                }
+              }}
+            >
+              <div className="path-image">
+                {path.imageUrl ? (
+                  <img src={path.imageUrl} alt={path.title} />
+                ) : (
+                  <div className="path-image-placeholder">
+                    <BookOpen size={40} />
+                  </div>
+                )}
               </div>
-              <div className="learning-path-hero-side">
-                <span className="status-chip">
-                  {selectedLearningPath.learningPath.sequential ? 'Séquentiel' : 'Libre'}
-                </span>
-                {selectedLearningPath.learningPath.imageUrl ? (
-                  <img
-                    alt={selectedLearningPath.learningPath.title}
-                    className="learning-path-cover"
-                    src={selectedLearningPath.learningPath.imageUrl}
-                  />
-                ) : null}
-              </div>
-            </div>
-
-            {detailLoading ? <p className="muted">Chargement du détail...</p> : null}
-
-            <div className="stats-grid stats-grid-compact">
-              <article className="metric-card">
-                <p className="metric-label">Temps cumulé</p>
-                <strong className="metric-value">{formatDuration(selectedLearningPath.learningPath.totalTime)}</strong>
-                <p className="metric-hint">Agrégé depuis l'activité e-learning et les sessions</p>
-              </article>
-              <article className="metric-card">
-                <p className="metric-label">Progression parcours</p>
-                <strong className="metric-value">{formatPercentage(selectedLearningPath.learningPath.averageProgress)}</strong>
-                <p className="metric-hint">{selectedLearningPath.learningPath.learnerCount} apprenants</p>
-              </article>
-              <article className="metric-card">
-                <p className="metric-label">Structure</p>
-                <strong className="metric-value">
-                  {selectedLearningPath.learningPath.trainingCount}/{selectedLearningPath.learningPath.learnerCount}
-                </strong>
-                <p className="metric-hint">Formations / apprenants</p>
-              </article>
-            </div>
-
-            <div className="content-grid content-grid-detail">
-              <article className="panel-card">
-                <div className="panel-card-header">
-                  <div>
-                    <p className="section-kicker">Formations du parcours</p>
-                    <h3>{selectedLearningPath.trainings.length} formation(s)</h3>
+              <div className="path-content">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '8px' }}>
+                  <div style={{ flex: 1 }}>
+                    <h4>{path.title}</h4>
+                    <p className="muted" style={{ fontSize: '13px', marginTop: '4px' }}>
+                      {path.reference ?? `Réf. #${path.externalId}`}
+                    </p>
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      loadPathDetail(path.id);
+                    }}
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #e5e7eb',
+                      background: 'white',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      color: '#374151',
+                      transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = '#f9fafb';
+                      e.currentTarget.style.borderColor = '#d1d5db';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'white';
+                      e.currentTarget.style.borderColor = '#e5e7eb';
+                    }}
+                  >
+                    <Eye size={14} />
+                    Détails
+                  </button>
+                </div>
+                <div className="path-stats">
+                  <div className="path-stat">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#6b7280', marginBottom: '4px' }}>
+                      <Users size={14} />
+                      <span style={{ fontSize: '12px' }}>Apprenants</span>
+                    </div>
+                    <strong>{path.learnerCount}</strong>
+                  </div>
+                  <div className="path-stat">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#6b7280', marginBottom: '4px' }}>
+                      <BookOpen size={14} />
+                      <span style={{ fontSize: '12px' }}>Formations</span>
+                    </div>
+                    <strong>{path.trainingCount}</strong>
+                  </div>
+                  <div className="path-stat">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#6b7280', marginBottom: '4px' }}>
+                      <Clock size={14} />
+                      <span style={{ fontSize: '12px' }}>Temps total</span>
+                    </div>
+                    <strong>{formatDuration(path.totalTime)}</strong>
                   </div>
                 </div>
-                <div className="table-shell">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Position</th>
-                        <th>Formation</th>
-                        <th>Temps</th>
-                        <th>Progression</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedLearningPath.trainings.map((training) => (
-                        <tr key={training.id}>
-                          <td>{training.position ?? '-'}</td>
-                          <td>
-                            <strong>{training.title}</strong>
-                            <span>{training.learnerCount} apprenants</span>
-                          </td>
-                          <td>{formatDuration(training.totalTime)}</td>
-                          <td>{formatPercentage(training.averageProgress)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </article>
-
-              <article className="panel-card">
-                <div className="panel-card-header">
-                  <div>
-                    <p className="section-kicker">Apprenants inscrits</p>
-                    <h3>{selectedLearningPath.learners.length} inscription(s)</h3>
+                <div className="path-progress" style={{ marginTop: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <TrendingUp size={14} style={{ color: '#10b981' }} />
+                      <span style={{ fontSize: '12px', color: '#6b7280' }}>Progression moyenne</span>
+                    </div>
+                    <strong style={{ fontSize: '14px', color: path.averageProgress >= 0.8 ? '#10b981' : '#f59e0b' }}>
+                      {formatPercentage(path.averageProgress)}
+                    </strong>
+                  </div>
+                  <div className="progress-bar">
+                    <div
+                      className="progress-fill"
+                      style={{
+                        width: `${Math.min(path.averageProgress * 100, 100)}%`,
+                        background: path.averageProgress >= 0.8
+                          ? 'linear-gradient(135deg, #34C4AC 0%, #00A67E 100%)'
+                          : 'linear-gradient(135deg, #FFB946 0%, #FF9A00 100%)',
+                      }}
+                    />
                   </div>
                 </div>
-                <div className="table-shell">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Apprenant</th>
-                        <th>Inscription</th>
-                        <th>Temps</th>
-                        <th>Progression</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedLearningPath.learners.map((learner) => (
-                        <tr key={learner.id}>
-                          <td>
-                            <strong>{learner.fullName}</strong>
-                            <span>{learner.email ?? 'Email indisponible'}</span>
-                          </td>
-                          <td>{learner.subscribedAt ? formatDateTime(learner.subscribedAt) : 'N/A'}</td>
-                          <td>{formatDuration(learner.totalTime)}</td>
-                          <td>{formatPercentage(learner.averageProgress)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+
+      {selectedPathDetail && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '20px',
+          }}
+          onClick={closeModal}
+        >
+          <div
+            style={{
+              background: 'white',
+              borderRadius: '16px',
+              maxWidth: '900px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflow: 'auto',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ padding: '20px', borderBottom: '1px solid #e5e7eb' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                <div>
+                  <h2 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '4px', color: '#111827' }}>
+                    {selectedPathDetail.learningPath.title}
+                  </h2>
+                  <p className="muted" style={{ fontSize: '13px' }}>
+                    {selectedPathDetail.learningPath.reference ?? `Réf. #${selectedPathDetail.learningPath.externalId}`}
+                  </p>
                 </div>
-              </article>
+                <button
+                  onClick={closeModal}
+                  style={{
+                    padding: '6px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: '#f3f4f6',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginTop: '16px' }}>
+                <div style={{ padding: '10px', borderRadius: '6px', background: '#f9fafb' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
+                    <Users size={14} style={{ color: '#6b7280' }} />
+                    <span style={{ fontSize: '11px', color: '#6b7280' }}>Apprenants</span>
+                  </div>
+                  <strong style={{ fontSize: '16px' }}>{selectedPathDetail.learningPath.learnerCount}</strong>
+                </div>
+                <div style={{ padding: '10px', borderRadius: '6px', background: '#f9fafb' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
+                    <BookOpen size={14} style={{ color: '#6b7280' }} />
+                    <span style={{ fontSize: '11px', color: '#6b7280' }}>Formations</span>
+                  </div>
+                  <strong style={{ fontSize: '16px' }}>{selectedPathDetail.learningPath.trainingCount}</strong>
+                </div>
+                <div style={{ padding: '10px', borderRadius: '6px', background: '#f9fafb' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
+                    <Clock size={14} style={{ color: '#6b7280' }} />
+                    <span style={{ fontSize: '11px', color: '#6b7280' }}>Temps total</span>
+                  </div>
+                  <strong style={{ fontSize: '16px' }}>{formatDuration(selectedPathDetail.learningPath.totalTime)}</strong>
+                </div>
+                <div style={{ padding: '10px', borderRadius: '6px', background: '#f9fafb' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
+                    <TrendingUp size={14} style={{ color: '#6b7280' }} />
+                    <span style={{ fontSize: '11px', color: '#6b7280' }}>Progression</span>
+                  </div>
+                  <strong style={{ fontSize: '16px' }}>{formatPercentage(selectedPathDetail.learningPath.averageProgress)}</strong>
+                </div>
+              </div>
             </div>
-          </article>
-        ) : (
-          <article className="panel-card empty-state">
-            <p>Sélectionne un parcours pour consulter ses formations liées et ses apprenants inscrits.</p>
-          </article>
-        )}
-      </div>
+
+            <div style={{ padding: '20px' }}>
+              {detailLoading ? (
+                <p className="muted" style={{ textAlign: 'center' }}>Chargement des détails...</p>
+              ) : (
+                <>
+                  <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '12px', color: '#374151' }}>
+                    Formations du parcours ({selectedPathDetail.trainings.length})
+                  </h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {selectedPathDetail.trainings.map((training, index) => (
+                      <div
+                        key={training.id}
+                        style={{
+                          padding: '12px',
+                          borderRadius: '8px',
+                          border: '1px solid #e5e7eb',
+                          background: 'white',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'start', gap: '10px' }}>
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '28px',
+                              height: '28px',
+                              borderRadius: '6px',
+                              background: '#f3f4f6',
+                              color: '#374151',
+                              fontWeight: '600',
+                              fontSize: '13px',
+                              flexShrink: 0,
+                            }}
+                          >
+                            {training.position !== null ? training.position + 1 : index + 1}
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <h4 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '2px', color: '#111827' }}>
+                              {training.title}
+                            </h4>
+                            {training.type && (
+                              <p className="muted" style={{ fontSize: '12px', marginBottom: '8px' }}>
+                                {training.type}
+                              </p>
+                            )}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+                              <div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '3px', marginBottom: '3px' }}>
+                                  <Users size={12} style={{ color: '#9ca3af' }} />
+                                  <span style={{ fontSize: '11px', color: '#6b7280' }}>Apprenants</span>
+                                </div>
+                                <strong style={{ fontSize: '13px' }}>{training.learnerCount}</strong>
+                              </div>
+                              <div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '3px', marginBottom: '3px' }}>
+                                  <Clock size={12} style={{ color: '#9ca3af' }} />
+                                  <span style={{ fontSize: '11px', color: '#6b7280' }}>Temps prévu</span>
+                                </div>
+                                <strong style={{ fontSize: '13px' }}>{training.eduDuration ? formatDuration(training.eduDuration) : '-'}</strong>
+                              </div>
+                              <div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '3px', marginBottom: '3px' }}>
+                                  <TrendingUp size={12} style={{ color: '#9ca3af' }} />
+                                  <span style={{ fontSize: '11px', color: '#6b7280' }}>Progression</span>
+                                </div>
+                                <strong
+                                  style={{
+                                    fontSize: '13px',
+                                    color: training.averageProgress >= 0.8 ? '#10b981' : '#f59e0b',
+                                  }}
+                                >
+                                  {formatPercentage(training.averageProgress)}
+                                </strong>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #e5e7eb' }}>
+                    <button
+                      onClick={() => {
+                        closeModal();
+                        navigate(`/learningpaths/${selectedPathDetail.learningPath.id}`);
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        background: '#0063F7',
+                        color: 'white',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Voir le détail complet
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

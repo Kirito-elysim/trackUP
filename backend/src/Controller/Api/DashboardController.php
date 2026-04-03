@@ -34,6 +34,7 @@ class DashboardController extends AbstractController
 
         return $this->json([
             'metrics' => $this->buildMetrics($connection),
+            'learningPaths' => $this->fetchLearningPaths($connection),
             'topTrainings' => $this->fetchTopTrainings($connection),
             'recentLearners' => $this->fetchRecentLearners($connection),
             'lastSyncAt' => $this->resolveLastSyncAt($connection),
@@ -45,16 +46,28 @@ class DashboardController extends AbstractController
      */
     private function buildMetrics(Connection $connection): array
     {
+        $currentYear = (int) date('Y');
+        $yearStart = sprintf('%d-01-01 00:00:00', $currentYear);
+        $yearEnd = sprintf('%d-12-31 23:59:59', $currentYear);
+
+        $totalYearTime = $connection->fetchOne(
+            'SELECT COALESCE(SUM(total_time), 0) FROM training_registrations WHERE subscribed_at >= ? AND subscribed_at <= ?',
+            [$yearStart, $yearEnd]
+        );
+
         return [
             'learnersCount' => (int) $connection->fetchOne('SELECT COUNT(*) FROM learners'),
             'activeLearnersCount' => (int) $connection->fetchOne("SELECT COUNT(*) FROM learners WHERE state = 'active'"),
+            'learningPathsCount' => (int) $connection->fetchOne('SELECT COUNT(*) FROM learning_paths'),
             'trainingsCount' => (int) $connection->fetchOne('SELECT COUNT(*) FROM trainings'),
             'trainingRegistrationsCount' => (int) $connection->fetchOne('SELECT COUNT(*) FROM training_registrations'),
             'sessionsCount' => (int) $connection->fetchOne('SELECT COUNT(*) FROM classroom_sessions'),
+            'masterclassCount' => (int) $connection->fetchOne("SELECT COUNT(*) FROM classroom_sessions WHERE session_type = 'masterclass'"),
             'sessionRegistrationsCount' => (int) $connection->fetchOne('SELECT COUNT(*) FROM classroom_session_registrations'),
             'stepStatesCount' => (int) $connection->fetchOne('SELECT COUNT(*) FROM learner_step_states'),
             'signedAttendancesCount' => (int) $connection->fetchOne('SELECT COUNT(*) FROM classroom_session_signatures WHERE has_signed = 1'),
             'totalTrackedTime' => DurationUnit::secondsToMinutesInt($connection->fetchOne('SELECT COALESCE(SUM(total_time), 0) FROM training_registrations')),
+            'totalYearTime' => DurationUnit::secondsToMinutesInt($totalYearTime),
             'averageProgress' => round((float) ($connection->fetchOne('SELECT COALESCE(AVG(progress), 0) FROM training_registrations') ?: 0), 2),
         ];
     }
@@ -132,6 +145,83 @@ class DashboardController extends AbstractController
             'lastLoginAt' => $row['lastLoginAt'],
             'trainingCount' => (int) $row['trainingCount'],
             'totalTime' => DurationUnit::secondsToMinutesInt($row['totalTime']),
+        ], $rows);
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function fetchLearningPaths(Connection $connection): array
+    {
+        $rows = $connection->fetchAllAssociative(
+            <<<SQL
+                SELECT
+                    lp.id,
+                    lp.external_id AS externalId,
+                    lp.title,
+                    lp.image_url AS imageUrl,
+                    lp.description,
+                    COUNT(DISTINCT lpr.learner_id) AS learnerCount,
+                    ROUND(COALESCE(AVG(lpr.progress), 0), 2) AS averageProgress,
+                    COALESCE(time_data.totalTime, 0) AS totalTime,
+                    COUNT(DISTINCT lpt.training_id) AS trainingCount,
+                    COALESCE(session_count.masterclassCount, 0) AS masterclassCount
+                FROM learning_paths lp
+                LEFT JOIN learning_path_registrations lpr ON lpr.learning_path_id = lp.id
+                LEFT JOIN learning_path_trainings lpt ON lpt.learning_path_id = lp.id
+                LEFT JOIN (
+                    SELECT
+                        lpr2.learning_path_id,
+                        SUM(COALESCE(module_logs.module_time, 0)) + SUM(COALESCE(session_logs.masterclass_time, 0) * 60) AS totalTime
+                    FROM learning_path_registrations lpr2
+                    LEFT JOIN (
+                        SELECT
+                            lpt2.learning_path_id,
+                            l2.id AS learner_id,
+                            COALESCE(SUM(ral.duration_seconds), 0) AS module_time
+                        FROM riseup_activity_logs ral
+                        INNER JOIN trainings t2 ON t2.external_id = ral.training_external_id
+                        INNER JOIN learning_path_trainings lpt2 ON lpt2.training_id = t2.id
+                        INNER JOIN learners l2 ON l2.external_id = ral.learner_external_id
+                        GROUP BY lpt2.learning_path_id, l2.id
+                    ) module_logs ON module_logs.learning_path_id = lpr2.learning_path_id AND module_logs.learner_id = lpr2.learner_id
+                    LEFT JOIN (
+                        SELECT
+                            lpt2.learning_path_id,
+                            csr.learner_id,
+                            COALESCE(SUM(CASE WHEN css.has_signed = 1 THEN cs2.edu_duration ELSE 0 END), 0) AS masterclass_time
+                        FROM classroom_session_registrations csr
+                        INNER JOIN classroom_sessions cs2 ON cs2.id = csr.session_id
+                        INNER JOIN learning_path_trainings lpt2 ON lpt2.training_id = cs2.training_id
+                        LEFT JOIN classroom_session_signatures css ON css.registration_id = csr.id
+                        GROUP BY lpt2.learning_path_id, csr.learner_id
+                    ) session_logs ON session_logs.learning_path_id = lpr2.learning_path_id AND session_logs.learner_id = lpr2.learner_id
+                    GROUP BY lpr2.learning_path_id
+                ) time_data ON time_data.learning_path_id = lp.id
+                LEFT JOIN (
+                    SELECT
+                        lpt3.learning_path_id,
+                        COUNT(DISTINCT cs3.id) AS masterclassCount
+                    FROM learning_path_trainings lpt3
+                    INNER JOIN classroom_sessions cs3 ON cs3.training_id = lpt3.training_id
+                    GROUP BY lpt3.learning_path_id
+                ) session_count ON session_count.learning_path_id = lp.id
+                GROUP BY lp.id, lp.external_id, lp.title, lp.image_url, lp.description, time_data.totalTime, session_count.masterclassCount
+                ORDER BY learnerCount DESC, lp.title ASC
+            SQL
+        );
+
+        return array_map(static fn (array $row): array => [
+            'id' => (int) $row['id'],
+            'externalId' => (int) $row['externalId'],
+            'title' => $row['title'],
+            'imageUrl' => $row['imageUrl'],
+            'description' => $row['description'],
+            'learnerCount' => (int) $row['learnerCount'],
+            'averageProgress' => (float) $row['averageProgress'],
+            'totalTime' => DurationUnit::secondsToMinutesInt($row['totalTime']),
+            'trainingCount' => (int) $row['trainingCount'],
+            'masterclassCount' => (int) $row['masterclassCount'],
         ], $rows);
     }
 
