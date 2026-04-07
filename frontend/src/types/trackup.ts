@@ -464,7 +464,7 @@ export type RiseUpActivityLogsPayload = {
     totalDurationMinutes: number;
   };
   rows: Array<{
-    id: number;
+    id: number | string;
     sourceFileName: string;
     sourceImportedAt: string | null;
     trainingExternalId: number;
@@ -478,6 +478,7 @@ export type RiseUpActivityLogsPayload = {
     durationMinutes: number;
     device: string | null;
     createdAt: string | null;
+    sourceType: string;
   }>;
   groupContext: {
     externalId: number;

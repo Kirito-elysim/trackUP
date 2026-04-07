@@ -1951,6 +1951,18 @@ textarea {
   width: fit-content;
 }
 
+.session-type-session {
+  background: linear-gradient(135deg, rgba(194, 57, 179, 0.1) 0%, rgba(255, 107, 157, 0.1) 100%);
+  color: #C239B3;
+  border: 1px solid rgba(194, 57, 179, 0.2);
+}
+
+.session-type-elearning {
+  background: linear-gradient(135deg, rgba(91, 141, 238, 0.1) 0%, rgba(0, 99, 247, 0.1) 100%);
+  color: #0063F7;
+  border: 1px solid rgba(91, 141, 238, 0.2);
+}
+
 .training-title {
   color: var(--text-soft);
   font-size: 0.875rem;

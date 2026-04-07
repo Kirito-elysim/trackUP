@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useDeferredValue } from 'react';
 import { useAuth } from '../contexts/useAuth';
 import { ApiError, apiRequest } from '../lib/api';
 import { formatDateTime, formatDuration } from '../lib/format';
-import { Clock, User, BookOpen, Calendar, Filter, Download, RefreshCw, Users, TrendingUp, Activity } from 'lucide-react';
-import type { RiseUpActivityLogsPayload } from '../types/trackup';
+import { Clock, User, BookOpen, Calendar, Filter, Download, RefreshCw, Users, TrendingUp, Activity, X, Search } from 'lucide-react';
+import type { RiseUpActivityLogsPayload, LearnerSummary } from '../types/trackup';
 
 function formatDurationClock(totalSeconds: number): string {
   const seconds = Math.max(0, totalSeconds);
@@ -16,6 +16,12 @@ function formatDurationClock(totalSeconds: number): string {
 
 export function RiseUpLogsPage() {
   const { token } = useAuth();
+  const [learnerSearchQuery, setLearnerSearchQuery] = useState('');
+  const deferredLearnerQuery = useDeferredValue(learnerSearchQuery);
+  const [learnerSuggestions, setLearnerSuggestions] = useState<LearnerSummary[]>([]);
+  const [showLearnerDropdown, setShowLearnerDropdown] = useState(false);
+  const [selectedLearnerEmail, setSelectedLearnerEmail] = useState<string | null>(null);
+  const [selectedLearnerName, setSelectedLearnerName] = useState<string | null>(null);
   const [learnerQuery, setLearnerQuery] = useState('');
   const [groupExternalId, setGroupExternalId] = useState('');
   const [learningPathId, setLearningPathId] = useState('');
@@ -28,6 +34,40 @@ export function RiseUpLogsPage() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!token || deferredLearnerQuery.trim().length < 2) {
+      setLearnerSuggestions([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadLearners = async () => {
+      const params = new URLSearchParams({ 
+        limit: '20',
+        q: deferredLearnerQuery.trim()
+      });
+
+      try {
+        const data = await apiRequest<LearnerSummary[]>(`/api/learners?${params.toString()}`, { token });
+
+        if (!cancelled) {
+          setLearnerSuggestions(data);
+        }
+      } catch (caught) {
+        if (!cancelled) {
+          setLearnerSuggestions([]);
+        }
+      }
+    };
+
+    void loadLearners();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [deferredLearnerQuery, token]);
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
@@ -95,8 +135,30 @@ export function RiseUpLogsPage() {
     };
   }, [queryString, token]);
 
+  const handleSelectLearner = (learner: LearnerSummary) => {
+    setLearnerQuery(learner.email);
+    setSelectedLearnerEmail(learner.email);
+    setSelectedLearnerName(learner.fullName);
+    setLearnerSearchQuery(learner.fullName);
+    setShowLearnerDropdown(false);
+    setPage(1);
+  };
+
+  const handleClearLearner = () => {
+    setLearnerQuery('');
+    setSelectedLearnerEmail(null);
+    setSelectedLearnerName(null);
+    setLearnerSearchQuery('');
+    setShowLearnerDropdown(false);
+    setPage(1);
+  };
+
   const resetFilters = () => {
     setLearnerQuery('');
+    setLearnerSearchQuery('');
+    setSelectedLearnerEmail(null);
+    setSelectedLearnerName(null);
+    setShowLearnerDropdown(false);
     setGroupExternalId('');
     setLearningPathId('');
     setTrainingExternalId('');
@@ -172,7 +234,7 @@ export function RiseUpLogsPage() {
             <span className="breadcrumb-item active">Historique des activités</span>
           </div>
           <h1>Historique des activités</h1>
-          <p className="page-description">Journal complet des sessions importées depuis les exports Rise Up</p>
+          <p className="page-description">Journal complet des sessions e-learning et classes virtuelles signées</p>
         </div>
         <div className="page-header-actions">
           {payload && (
@@ -206,21 +268,90 @@ export function RiseUpLogsPage() {
         </div>
         
         <div className="filters-grid">
-          <div className="filter-group">
+          <div className="filter-group" style={{ position: 'relative' }}>
             <label className="filter-label">
-              <User size={16} />
+              <Search size={16} />
               <span>Recherche apprenant</span>
             </label>
-            <input
-              type="search"
-              className="filter-input"
-              placeholder="Nom ou email"
-              value={learnerQuery}
-              onChange={(event) => {
-                setLearnerQuery(event.target.value);
-                setPage(1);
-              }}
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                type="search"
+                className="filter-input"
+                placeholder="Nom ou email de l'apprenant..."
+                value={selectedLearnerName || learnerSearchQuery}
+                onChange={(event) => {
+                  setLearnerSearchQuery(event.target.value);
+                  setShowLearnerDropdown(event.target.value.length >= 2);
+                  if (selectedLearnerEmail) {
+                    handleClearLearner();
+                  }
+                }}
+                onFocus={() => {
+                  if (learnerSearchQuery.length >= 2) {
+                    setShowLearnerDropdown(true);
+                  }
+                }}
+              />
+              {(selectedLearnerEmail || learnerSearchQuery.length > 0) && (
+                <button
+                  className="search-clear-btn"
+                  onClick={handleClearLearner}
+                  type="button"
+                  style={{ 
+                    position: 'absolute', 
+                    right: '8px', 
+                    top: '50%', 
+                    transform: 'translateY(-50%)',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: '#6B7280',
+                    padding: '4px'
+                  }}
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+            {showLearnerDropdown && learnerSearchQuery.length >= 2 && !selectedLearnerEmail && (
+              <div className="learner-search-dropdown" style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                right: 0,
+                zIndex: 1000,
+                marginTop: '4px'
+              }}>
+                {learnerSuggestions.length > 0 ? (
+                  <div className="search-results-list">
+                    {learnerSuggestions.map((learner) => (
+                      <button
+                        key={learner.id}
+                        className="search-result-item"
+                        onClick={() => handleSelectLearner(learner)}
+                        type="button"
+                      >
+                        <div className="result-avatar">
+                          <User size={20} />
+                        </div>
+                        <div className="result-info">
+                          <strong>{learner.fullName}</strong>
+                          <span>{learner.email}</span>
+                        </div>
+                        <div className="result-meta">
+                          <span className="meta-badge">{learner.state}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="search-empty">
+                    <User size={24} />
+                    <p>Aucun apprenant trouvé</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="filter-group">
@@ -402,7 +533,7 @@ export function RiseUpLogsPage() {
               <div className="stat-content">
                 <p className="stat-label">Total de logs</p>
                 <strong className="stat-value">{payload.metrics.logCount.toLocaleString()}</strong>
-                <p className="stat-hint">Sessions importées</p>
+                <p className="stat-hint">E-learning + Sessions signées</p>
               </div>
             </div>
             
@@ -459,6 +590,7 @@ export function RiseUpLogsPage() {
               <table className="data-table">
                 <thead>
                   <tr>
+                    <th>Type</th>
                     <th>Connexion</th>
                     <th>Déconnexion</th>
                     <th>Durée</th>
@@ -471,6 +603,11 @@ export function RiseUpLogsPage() {
                 <tbody>
                   {payload.rows.map((row) => (
                     <tr key={row.id}>
+                      <td>
+                        <span className={`session-type-badge ${row.sourceType === 'session' ? 'session-type-session' : 'session-type-elearning'}`}>
+                          {row.sourceType === 'session' ? 'Session' : 'E-learning'}
+                        </span>
+                      </td>
                       <td>{formatDateTime(row.loginAt)}</td>
                       <td>{formatDateTime(row.logoutAt)}</td>
                       <td>

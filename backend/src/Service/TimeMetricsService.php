@@ -405,58 +405,82 @@ final class TimeMetricsService
     public function getTimeMetricsByGroupMember(int $groupId): array
     {
         // E-learning time par membre (agrégé de tous les parcours du groupe)
+        // Déduplique les logs qui apparaissent dans plusieurs parcours via DISTINCT sur ral.id
         $elearningRows = $this->connection->fetchAllAssociative(
             <<<SQL
                 SELECT
-                    rlg.learner_id,
-                    COALESCE(SUM(ral.duration_seconds), 0) AS module_time
-                FROM riseup_learner_groups rlg
-                LEFT JOIN riseup_activity_logs ral ON ral.learner_external_id = (SELECT external_id FROM learners WHERE id = rlg.learner_id)
-                LEFT JOIN trainings t ON t.external_id = ral.training_external_id
-                LEFT JOIN learning_path_trainings lpt ON lpt.training_id = t.id
-                LEFT JOIN learning_paths lp ON lp.id = lpt.learning_path_id
-                LEFT JOIN riseup_group_learning_paths rglp ON rglp.learning_path_external_id = lp.external_id AND rglp.group_id = rlg.group_id
-                WHERE rlg.group_id = :groupId
-                GROUP BY rlg.learner_id
+                    sub.learner_id,
+                    COALESCE(SUM(sub.duration_seconds), 0) AS module_time
+                FROM (
+                    SELECT DISTINCT
+                        rlg.learner_id,
+                        ral.id AS log_id,
+                        ral.duration_seconds
+                    FROM riseup_learner_groups rlg
+                    LEFT JOIN learners l ON l.id = rlg.learner_id
+                    LEFT JOIN riseup_activity_logs ral ON ral.learner_external_id = l.external_id
+                    LEFT JOIN trainings t ON t.external_id = ral.training_external_id
+                    LEFT JOIN learning_path_trainings lpt ON lpt.training_id = t.id
+                    LEFT JOIN learning_paths lp ON lp.id = lpt.learning_path_id
+                    LEFT JOIN riseup_group_learning_paths rglp ON rglp.learning_path_external_id = lp.external_id AND rglp.group_id = rlg.group_id
+                    WHERE rlg.group_id = :groupId
+                ) sub
+                GROUP BY sub.learner_id
             SQL,
             ['groupId' => $groupId]
         );
 
         // Session time par membre (agrégé de tous les parcours du groupe)
+        // Chaque signature (matin/après-midi) compte la durée complète de la session
+        // Déduplique les signatures qui apparaissent dans plusieurs parcours via DISTINCT sur css.id
         $sessionRows = $this->connection->fetchAllAssociative(
             <<<SQL
                 SELECT
-                    rlg.learner_id,
-                    COALESCE(SUM(CASE WHEN css.has_signed = 1 THEN cs.edu_duration ELSE 0 END), 0) AS masterclass_time,
-                    COALESCE(SUM(cs.edu_duration), 0) AS expected_time
-                FROM riseup_learner_groups rlg
-                LEFT JOIN classroom_session_registrations csr ON csr.learner_id = rlg.learner_id
-                LEFT JOIN classroom_sessions cs ON cs.id = csr.session_id
-                LEFT JOIN learning_path_trainings lpt ON lpt.training_id = cs.training_id
-                LEFT JOIN learning_paths lp ON lp.id = lpt.learning_path_id
-                LEFT JOIN riseup_group_learning_paths rglp ON rglp.learning_path_external_id = lp.external_id AND rglp.group_id = rlg.group_id
-                LEFT JOIN classroom_session_signatures css ON css.registration_id = csr.id
-                WHERE rlg.group_id = :groupId
-                GROUP BY rlg.learner_id
+                    sub.learner_id,
+                    COALESCE(SUM(sub.signed_duration), 0) AS masterclass_time,
+                    COALESCE(SUM(sub.total_duration), 0) AS expected_time
+                FROM (
+                    SELECT DISTINCT
+                        rlg.learner_id,
+                        css.id AS signature_id,
+                        CASE WHEN css.has_signed = 1 THEN cs.edu_duration ELSE 0 END AS signed_duration,
+                        cs.edu_duration AS total_duration
+                    FROM riseup_learner_groups rlg
+                    LEFT JOIN classroom_session_registrations csr ON csr.learner_id = rlg.learner_id
+                    LEFT JOIN classroom_sessions cs ON cs.id = csr.session_id
+                    LEFT JOIN learning_path_trainings lpt ON lpt.training_id = cs.training_id
+                    LEFT JOIN learning_paths lp ON lp.id = lpt.learning_path_id
+                    LEFT JOIN riseup_group_learning_paths rglp ON rglp.learning_path_external_id = lp.external_id AND rglp.group_id = rlg.group_id
+                    LEFT JOIN classroom_session_signatures css ON css.registration_id = csr.id
+                    WHERE rlg.group_id = :groupId
+                ) sub
+                GROUP BY sub.learner_id
             SQL,
             ['groupId' => $groupId]
         );
 
         // Expected e-learning time par membre
+        // Déduplique les modules qui apparaissent dans plusieurs parcours via DISTINCT sur tm.id
         $expectedElearningRows = $this->connection->fetchAllAssociative(
             <<<SQL
                 SELECT
-                    rlg.learner_id,
-                    COALESCE(SUM(tm.duration), 0) AS expected_elearning_time
-                FROM riseup_learner_groups rlg
-                LEFT JOIN learning_path_registrations lpr ON lpr.learner_id = rlg.learner_id
-                LEFT JOIN learning_paths lp ON lp.id = lpr.learning_path_id
-                LEFT JOIN riseup_group_learning_paths rglp ON rglp.learning_path_external_id = lp.external_id AND rglp.group_id = rlg.group_id
-                LEFT JOIN learning_path_trainings lpt ON lpt.learning_path_id = lp.id
-                LEFT JOIN training_modules tm ON tm.training_id = lpt.training_id
-                WHERE rlg.group_id = :groupId
-                  AND tm.type IN ('scorm', 'rise')
-                GROUP BY rlg.learner_id
+                    sub.learner_id,
+                    COALESCE(SUM(sub.duration), 0) AS expected_elearning_time
+                FROM (
+                    SELECT DISTINCT
+                        rlg.learner_id,
+                        tm.id AS module_id,
+                        tm.duration
+                    FROM riseup_learner_groups rlg
+                    LEFT JOIN learning_path_registrations lpr ON lpr.learner_id = rlg.learner_id
+                    LEFT JOIN learning_paths lp ON lp.id = lpr.learning_path_id
+                    LEFT JOIN riseup_group_learning_paths rglp ON rglp.learning_path_external_id = lp.external_id AND rglp.group_id = rlg.group_id
+                    LEFT JOIN learning_path_trainings lpt ON lpt.learning_path_id = lp.id
+                    LEFT JOIN training_modules tm ON tm.training_id = lpt.training_id
+                    WHERE rlg.group_id = :groupId
+                      AND tm.type IN ('scorm', 'rise')
+                ) sub
+                GROUP BY sub.learner_id
             SQL,
             ['groupId' => $groupId]
         );

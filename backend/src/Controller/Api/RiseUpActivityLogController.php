@@ -47,15 +47,49 @@ class RiseUpActivityLogController extends AbstractController
         [$dateFrom, $dateTo] = $this->resolveDateRange($request);
 
         $filters = $this->buildFilterSql($learnerQuery, $groupExternalId, $learningPathId, $trainingExternalId, $dateFrom, $dateTo);
+        
+        // Construire les conditions WHERE pour les sessions (métriques)
+        $sessionConditionsMetrics = ['css.has_signed = 1'];
+        if ($learnerQuery !== null) {
+            $isEmail = str_contains($learnerQuery, '@');
+            if ($isEmail) {
+                $sessionConditionsMetrics[] = 'LOWER(COALESCE(l2.email, \'\')) = :learnerQuery';
+            } else {
+                $sessionConditionsMetrics[] = '(LOWER(TRIM(CONCAT(COALESCE(l2.first_name, \'\'), \' \', COALESCE(l2.last_name, \'\')))) LIKE :learnerQuery OR LOWER(COALESCE(l2.email, \'\')) LIKE :learnerQuery)';
+            }
+        }
+        $sessionWhereMetrics = 'WHERE ' . implode(' AND ', $sessionConditionsMetrics);
+        
         $metrics = $connection->fetchAssociative(
             <<<SQL
                 SELECT
                     COUNT(*) AS logCount,
-                    COUNT(DISTINCT CONCAT(COALESCE(CAST(ral.learner_external_id AS CHAR), ''), '|', COALESCE(ral.learner_email, ''))) AS uniqueLearnersCount,
-                    COUNT(DISTINCT ral.training_external_id) AS uniqueTrainingsCount,
-                    COALESCE(SUM(ral.duration_seconds), 0) AS totalDurationSeconds
-                FROM riseup_activity_logs ral
-                {$filters['where']}
+                    COUNT(DISTINCT CONCAT(COALESCE(CAST(learnerExternalId AS CHAR), ''), '|', COALESCE(learnerEmail, ''))) AS uniqueLearnersCount,
+                    COUNT(DISTINCT trainingExternalId) AS uniqueTrainingsCount,
+                    COALESCE(SUM(durationSeconds), 0) AS totalDurationSeconds
+                FROM (
+                    SELECT
+                        ral.learner_external_id AS learnerExternalId,
+                        ral.learner_email AS learnerEmail,
+                        ral.training_external_id AS trainingExternalId,
+                        ral.duration_seconds AS durationSeconds
+                    FROM riseup_activity_logs ral
+                    {$filters['where']}
+                    
+                    UNION ALL
+                    
+                    SELECT
+                        l2.external_id AS learnerExternalId,
+                        l2.email AS learnerEmail,
+                        t2.external_id AS trainingExternalId,
+                        COALESCE(cs.edu_duration, 0) * 60 AS durationSeconds
+                    FROM classroom_session_registrations csr
+                    INNER JOIN classroom_session_signatures css ON css.registration_id = csr.id
+                    INNER JOIN classroom_sessions cs ON cs.id = csr.session_id
+                    INNER JOIN learners l2 ON l2.id = csr.learner_id
+                    LEFT JOIN trainings t2 ON t2.id = cs.training_id
+                    {$sessionWhereMetrics}
+                ) AS combined_logs
             SQL,
             $filters['params'],
             $filters['types'],
@@ -108,7 +142,7 @@ class RiseUpActivityLogController extends AbstractController
                 'totalDurationMinutes' => DurationUnit::secondsToMinutesInt($metrics['totalDurationSeconds']),
             ],
             'rows' => array_map(static fn (array $row): array => [
-                'id' => (int) $row['id'],
+                'id' => $row['id'],
                 'sourceFileName' => $row['sourceFileName'],
                 'sourceImportedAt' => $row['sourceImportedAt'],
                 'trainingExternalId' => (int) $row['trainingExternalId'],
@@ -122,6 +156,7 @@ class RiseUpActivityLogController extends AbstractController
                 'durationMinutes' => DurationUnit::secondsToMinutesInt($row['durationSeconds']),
                 'device' => $row['device'],
                 'createdAt' => $row['createdAt'],
+                'sourceType' => $row['sourceType'],
             ], $rows),
             'groupContext' => $groupExternalId !== null ? $this->fetchGroupContext($connection, $groupExternalId) : null,
             'lastImportAt' => $connection->fetchOne('SELECT MAX(source_imported_at) FROM riseup_activity_logs') ?: null,
@@ -153,35 +188,54 @@ class RiseUpActivityLogController extends AbstractController
             throw new \RuntimeException('Unable to create CSV export buffer.');
         }
 
+        $exportDate = (new \DateTimeImmutable())->format('d/m/Y H:i:s');
+        $totalDurationSeconds = 0;
+
+        // En-têtes
         fputcsv($handle, [
-            'ID de la formation',
-            'Date de connexion',
-            'Date de déconnexion',
-            'Appareil',
-            'Temps passé (heures)',
-            "Identifiant d'utilisateur",
+            "Date d'export",
             'Email',
-            'Apprenant',
-            'Formation',
-            'Fichier source',
-            "Date d'import",
+            'Nom',
+            'Prénom',
+            'Type',
+            'Connexion',
+            'Déconnexion',
+            'Durée',
         ], ';');
 
+        // Données
         foreach ($rows as $row) {
+            $fullName = $row['learnerFullName'] ?? '';
+            $nameParts = explode(' ', trim($fullName), 2);
+            $firstName = $nameParts[0] ?? '';
+            $lastName = $nameParts[1] ?? '';
+            
+            $durationSeconds = (int) $row['durationSeconds'];
+            $totalDurationSeconds += $durationSeconds;
+
             fputcsv($handle, [
-                (int) $row['trainingExternalId'],
+                $exportDate,
+                $row['learnerEmail'] ?? '',
+                $lastName,
+                $firstName,
+                $row['sourceType'] === 'session' ? 'Classe virtuelle' : 'E-learning',
                 $row['loginAt'] ?? '',
                 $row['logoutAt'] ?? '',
-                $row['device'] ?? '',
-                $this->formatDurationClock((int) $row['durationSeconds']),
-                $row['learnerExternalId'] !== null ? (int) $row['learnerExternalId'] : '',
-                $row['learnerEmail'] ?? '',
-                $row['learnerFullName'] ?? '',
-                $row['trainingTitle'] ?? '',
-                $row['sourceFileName'] ?? '',
-                $row['sourceImportedAt'] ?? '',
+                $this->formatDurationClock($durationSeconds),
             ], ';');
         }
+
+        // Ligne de total
+        fputcsv($handle, [
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            'TOTAL',
+            $this->formatDurationClock($totalDurationSeconds),
+        ], ';');
 
         rewind($handle);
         $content = stream_get_contents($handle) ?: '';
@@ -218,31 +272,56 @@ class RiseUpActivityLogController extends AbstractController
         $types = [];
 
         if ($learnerQuery !== null) {
-            $conditions[] = <<<SQL
-                (
-                    LOWER(COALESCE(ral.learner_email, '')) LIKE :learnerQuery
-                    OR EXISTS (
-                        SELECT 1
-                        FROM learners lq
-                        WHERE lq.external_id = ral.learner_external_id
-                          AND (
-                            LOWER(TRIM(CONCAT(COALESCE(lq.first_name, ''), ' ', COALESCE(lq.last_name, '')))) LIKE :learnerQuery
-                            OR LOWER(COALESCE(lq.email, '')) LIKE :learnerQuery
-                          )
+            // Si la requête contient un @, c'est probablement un email exact
+            $isEmail = str_contains($learnerQuery, '@');
+            
+            if ($isEmail) {
+                $conditions[] = <<<SQL
+                    (
+                        LOWER(COALESCE(ral.learner_email, '')) = :learnerQuery
+                        OR EXISTS (
+                            SELECT 1
+                            FROM learners lq
+                            WHERE lq.external_id = ral.learner_external_id
+                              AND LOWER(COALESCE(lq.email, '')) = :learnerQuery
+                        )
+                        OR EXISTS (
+                            SELECT 1
+                            FROM learners lqe
+                            WHERE lqe.email = ral.learner_email
+                              AND LOWER(COALESCE(lqe.email, '')) = :learnerQuery
+                        )
                     )
-                    OR EXISTS (
-                        SELECT 1
-                        FROM learners lqe
-                        WHERE lqe.email = ral.learner_email
-                          AND (
-                            LOWER(TRIM(CONCAT(COALESCE(lqe.first_name, ''), ' ', COALESCE(lqe.last_name, '')))) LIKE :learnerQuery
-                            OR LOWER(COALESCE(lqe.email, '')) LIKE :learnerQuery
-                          )
+                SQL;
+                $params['learnerQuery'] = mb_strtolower($learnerQuery);
+                $types['learnerQuery'] = ParameterType::STRING;
+            } else {
+                $conditions[] = <<<SQL
+                    (
+                        LOWER(COALESCE(ral.learner_email, '')) LIKE :learnerQuery
+                        OR EXISTS (
+                            SELECT 1
+                            FROM learners lq
+                            WHERE lq.external_id = ral.learner_external_id
+                              AND (
+                                LOWER(TRIM(CONCAT(COALESCE(lq.first_name, ''), ' ', COALESCE(lq.last_name, '')))) LIKE :learnerQuery
+                                OR LOWER(COALESCE(lq.email, '')) LIKE :learnerQuery
+                              )
+                        )
+                        OR EXISTS (
+                            SELECT 1
+                            FROM learners lqe
+                            WHERE lqe.email = ral.learner_email
+                              AND (
+                                LOWER(TRIM(CONCAT(COALESCE(lqe.first_name, ''), ' ', COALESCE(lqe.last_name, '')))) LIKE :learnerQuery
+                                OR LOWER(COALESCE(lqe.email, '')) LIKE :learnerQuery
+                              )
+                        )
                     )
-                )
-            SQL;
-            $params['learnerQuery'] = '%' . mb_strtolower($learnerQuery) . '%';
-            $types['learnerQuery'] = ParameterType::STRING;
+                SQL;
+                $params['learnerQuery'] = '%' . mb_strtolower($learnerQuery) . '%';
+                $types['learnerQuery'] = ParameterType::STRING;
+            }
         }
 
         if ($groupExternalId !== null) {
@@ -622,6 +701,23 @@ class RiseUpActivityLogController extends AbstractController
      */
     private function fetchRows(Connection $connection, array $filters, ?int $limit = null, ?int $offset = null): array
     {
+        // Construire les conditions WHERE pour les sessions
+        $sessionConditions = ['css.has_signed = 1'];
+        
+        // Ajouter le filtre learner pour les sessions si présent
+        if (isset($filters['params']['learnerQuery'])) {
+            $learnerQuery = $filters['params']['learnerQuery'];
+            $isEmail = str_contains($learnerQuery, '@');
+            
+            if ($isEmail) {
+                $sessionConditions[] = 'LOWER(COALESCE(l2.email, \'\')) = :learnerQuery';
+            } else {
+                $sessionConditions[] = '(LOWER(TRIM(CONCAT(COALESCE(l2.first_name, \'\'), \' \', COALESCE(l2.last_name, \'\')))) LIKE :learnerQuery OR LOWER(COALESCE(l2.email, \'\')) LIKE :learnerQuery)';
+            }
+        }
+        
+        $sessionWhere = 'WHERE ' . implode(' AND ', $sessionConditions);
+        
         $sql = <<<SQL
             SELECT
                 ral.id,
@@ -641,13 +737,39 @@ class RiseUpActivityLogController extends AbstractController
                 ral.logout_at AS logoutAt,
                 ral.duration_seconds AS durationSeconds,
                 ral.device,
-                ral.created_at AS createdAt
+                ral.created_at AS createdAt,
+                'elearning' AS sourceType
             FROM riseup_activity_logs ral
             LEFT JOIN trainings t ON t.external_id = ral.training_external_id
             LEFT JOIN learners le ON le.external_id = ral.learner_external_id
             LEFT JOIN learners le_email ON le.id IS NULL AND le_email.email = ral.learner_email
             {$filters['where']}
-            ORDER BY ral.login_at DESC, ral.id DESC
+            
+            UNION ALL
+            
+            SELECT
+                CONCAT('session_', csr.id, '_', css.id) AS id,
+                'Classe virtuelle signée' AS sourceFileName,
+                COALESCE(css.signature_date, css.synced_at) AS sourceImportedAt,
+                t2.external_id AS trainingExternalId,
+                COALESCE(t2.title, cs.reference, 'Session') AS trainingTitle,
+                l2.external_id AS learnerExternalId,
+                l2.email AS learnerEmail,
+                TRIM(CONCAT(COALESCE(l2.first_name, ''), ' ', COALESCE(l2.last_name, ''))) AS learnerFullName,
+                cs.start_at AS loginAt,
+                cs.end_at AS logoutAt,
+                COALESCE(cs.edu_duration, 0) * 60 AS durationSeconds,
+                'Classe virtuelle' AS device,
+                COALESCE(css.signature_date, css.synced_at) AS createdAt,
+                'session' AS sourceType
+            FROM classroom_session_registrations csr
+            INNER JOIN classroom_session_signatures css ON css.registration_id = csr.id
+            INNER JOIN classroom_sessions cs ON cs.id = csr.session_id
+            INNER JOIN learners l2 ON l2.id = csr.learner_id
+            LEFT JOIN trainings t2 ON t2.id = cs.training_id
+            {$sessionWhere}
+            
+            ORDER BY loginAt DESC, id DESC
         SQL;
 
         $params = $filters['params'];
