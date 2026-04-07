@@ -9,7 +9,9 @@ RUN apk add --no-cache \
     oniguruma-dev \
     unzip \
     zip \
- && docker-php-ext-install intl pdo_mysql zip opcache
+ && docker-php-ext-install intl pdo_mysql zip opcache \
+ && pecl install redis \
+ && docker-php-ext-enable redis
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
