@@ -1,0 +1,59 @@
+# Build stage
+FROM php:8.4-cli-alpine AS builder
+
+RUN apk add --no-cache \
+    bash \
+    git \
+    icu-dev \
+    libzip-dev \
+    oniguruma-dev \
+    unzip \
+    zip \
+ && docker-php-ext-install intl pdo_mysql zip opcache
+
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+WORKDIR /app
+
+# Install dependencies
+COPY composer.json composer.lock symfony.lock ./
+RUN composer install --no-dev --no-scripts --no-progress --optimize-autoloader --prefer-dist
+
+# Copy application files
+COPY . .
+
+# Optimize autoloader and clear cache
+RUN composer dump-autoload --no-dev --optimize --classmap-authoritative
+
+# Production stage
+FROM php:8.4-cli-alpine
+
+RUN apk add --no-cache \
+    bash \
+    icu \
+    libzip \
+    oniguruma \
+ && docker-php-ext-install intl pdo_mysql zip opcache
+
+# Configure PHP for production
+RUN { \
+    echo 'opcache.memory_consumption=256'; \
+    echo 'opcache.interned_strings_buffer=16'; \
+    echo 'opcache.max_accelerated_files=20000'; \
+    echo 'opcache.validate_timestamps=0'; \
+    echo 'opcache.enable=1'; \
+    echo 'opcache.enable_cli=1'; \
+} > /usr/local/etc/php/conf.d/opcache.ini
+
+WORKDIR /app
+
+# Copy application from builder
+COPY --from=builder /app /app
+
+# Warm up cache
+RUN php bin/console cache:clear --env=prod --no-debug --no-warmup \
+ && php bin/console cache:warmup --env=prod --no-debug
+
+EXPOSE 8000
+
+CMD ["php", "-S", "0.0.0.0:8000", "-t", "public"]

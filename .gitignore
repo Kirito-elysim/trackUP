@@ -1,11 +1,17 @@
 .DS_Store
 
+# Environment files (sensitive data)
+.env.prod
 backend/.env.local
 backend/config/jwt/*.pem
+
+# Backend
 backend/var/
 backend/vendor/
 
+# Frontend
 frontend/dist/
 frontend/node_modules/
 
+# Infrastructure
 infrastructure/docker/mysql/data/

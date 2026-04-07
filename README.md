@@ -73,8 +73,164 @@ docker compose exec backend php bin/console app:sync:userstepstates
 docker compose exec backend php bin/console app:sync:sessions
 ```
 
-## Prochaine étape logique
+---
 
-- brancher la synchro `Rise Up`
-- créer les tables métier `learners / courses / registrations / sessions`
-- alimenter les écrans `Apprenants`, `Formations`, `Exports`
+## 🚀 Déploiement en Production (Coolify)
+
+### Prérequis
+
+- Serveur Coolify actif avec Docker
+- Domaines configurés (DNS A records pointant vers votre serveur)
+- Repository Git : https://github.com/momoSfp/trackUP.git
+
+### Étape 1 : Préparer les secrets
+
+Générez des secrets forts pour la production :
+
+```bash
+# APP_SECRET (32 caractères minimum)
+php -r "echo bin2hex(random_bytes(16)) . PHP_EOL;"
+
+# JWT_PASSPHRASE (64 caractères)
+php -r "echo bin2hex(random_bytes(32)) . PHP_EOL;"
+
+# MYSQL_PASSWORD, MYSQL_ROOT_PASSWORD, REDIS_PASSWORD
+openssl rand -base64 32
+```
+
+### Étape 2 : Configurer sur Coolify
+
+1. **Créer un nouveau projet**
+   - Dans Coolify → **Projects** → **+ New Project**
+   - Nom : `TrackUp`
+
+2. **Ajouter la ressource Docker Compose**
+   - **+ Add Resource** → **Docker Compose**
+   - Source : **Git Repository**
+   - Repository URL : `https://github.com/momoSfp/trackUP.git`
+   - Branch : `main`
+   - Docker Compose File : `docker-compose.prod.yml`
+   - Build Directory : `/`
+
+3. **Configurer les variables d'environnement**
+
+Dans Coolify → **Environment Variables**, ajoutez :
+
+```env
+# Backend
+APP_ENV=prod
+APP_DEBUG=0
+APP_SECRET=<votre_secret_32_chars>
+JWT_PASSPHRASE=<votre_passphrase_64_chars>
+CORS_ALLOW_ORIGIN=^https?://(app\.votredomaine\.com|api\.votredomaine\.com)$
+
+# Database
+MYSQL_ROOT_PASSWORD=<votre_root_password>
+MYSQL_PASSWORD=<votre_mysql_password>
+DATABASE_URL=mysql://trackup:<votre_mysql_password>@mysql:3306/trackup?serverVersion=8.4.0&charset=utf8mb4
+
+# Redis
+REDIS_PASSWORD=<votre_redis_password>
+MESSENGER_TRANSPORT_DSN=redis://:<votre_redis_password>@redis:6379/messages
+
+# Frontend
+VITE_API_BASE_URL=https://api.votredomaine.com
+
+# Rise Up (si configuré)
+RISEUP_API_PUBLIC_KEY=<votre_cle_publique>
+RISEUP_API_PRIVATE_KEY=<votre_cle_privee>
+```
+
+4. **Configurer les domaines**
+
+Pour le service **backend** :
+- Domain : `api.votredomaine.com`
+- Port : `8000`
+- HTTPS : ✅ Activé (Let's Encrypt)
+
+Pour le service **frontend** :
+- Domain : `app.votredomaine.com`
+- Port : `80`
+- HTTPS : ✅ Activé (Let's Encrypt)
+
+5. **Déployer**
+   - Cliquez sur **Deploy**
+   - Attendez la fin du build (~5-10 min)
+
+### Étape 3 : Post-déploiement
+
+Une fois le déploiement terminé :
+
+```bash
+# 1. Exécuter les migrations
+docker exec -it trackup-backend-prod sh
+php bin/console doctrine:migrations:migrate --no-interaction
+
+# 2. Initialiser RBAC et créer l'admin
+php bin/console app:bootstrap-rbac
+
+# 3. Vérifier la santé
+curl https://api.votredomaine.com/api/health
+```
+
+### Étape 4 : Premier login
+
+Connectez-vous sur `https://app.votredomaine.com` avec :
+- Email : `admin@trackup.local`
+- Password : `TrackUp123!`
+
+### Mises à jour
+
+Pour déployer une nouvelle version :
+
+```bash
+# En local
+git add .
+git commit -m "Votre message"
+git push origin main
+
+# Sur Coolify
+# Le redéploiement automatique se déclenchera (si activé)
+# Ou cliquez sur "Redeploy" manuellement
+```
+
+### Ressources nécessaires
+
+- **CPU** : 1-2 cores
+- **RAM** : 2GB minimum
+- **Stockage** : 5GB minimum
+
+### Troubleshooting
+
+**Backend ne démarre pas** :
+```bash
+docker logs trackup-backend-prod
+```
+
+**Erreur CORS** :
+Vérifiez que `CORS_ALLOW_ORIGIN` contient vos domaines :
+```env
+CORS_ALLOW_ORIGIN=^https?://(app\.votredomaine\.com|api\.votredomaine\.com)$
+```
+
+**Frontend page blanche** :
+```bash
+# Vérifier que VITE_API_BASE_URL est correct
+docker logs trackup-frontend-prod
+```
+
+### Documentation complète
+
+Pour plus de détails, consultez `DEPLOYMENT.md`
+
+---
+
+## 📚 Documentation
+
+- **Guide de déploiement** : [DEPLOYMENT.md](./DEPLOYMENT.md)
+- **Variables d'environnement** : [.env.prod.example](./.env.prod.example)
+- **Test local** : `./deploy-test.sh`
+
+## 🔗 Repository
+
+GitHub : https://github.com/momoSfp/trackUP.git
