@@ -3,6 +3,7 @@
 namespace App\Controller\Api;
 
 use App\Entity\User;
+use App\Service\TimeMetricsService;
 use App\Service\UserPermissionResolver;
 use App\Util\DurationUnit;
 use Doctrine\DBAL\ParameterType;
@@ -18,6 +19,7 @@ class LearningPathController extends AbstractController
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly UserPermissionResolver $permissionResolver,
+        private readonly TimeMetricsService $timeMetricsService,
     ) {
     }
 
@@ -158,54 +160,14 @@ class LearningPathController extends AbstractController
                     lp.rise_up_created_at AS riseUpCreatedAt,
                     lp.rise_up_updated_at AS riseUpUpdatedAt,
                     lp.synced_at AS syncedAt,
-                    COALESCE(lpt.training_count, 0) AS trainingCount,
-                    COALESCE(lpr.learner_count, 0) AS learnerCount,
-                    COALESCE(stats.module_time, 0) AS moduleTime,
-                    COALESCE(stats.masterclass_time, 0) AS masterclassTime,
-                    ROUND(COALESCE(stats.average_progress, 0), 2) AS averageProgress
+                    COUNT(DISTINCT lpt.training_id) AS trainingCount,
+                    COUNT(DISTINCT lpr.learner_id) AS learnerCount,
+                    ROUND(COALESCE(AVG(lpr.progress), 0), 2) AS averageProgress
                 FROM learning_paths lp
-                LEFT JOIN (
-                    SELECT learning_path_id, COUNT(*) AS training_count
-                    FROM learning_path_trainings
-                    GROUP BY learning_path_id
-                ) lpt ON lpt.learning_path_id = lp.id
-                LEFT JOIN (
-                    SELECT learning_path_id, COUNT(*) AS learner_count
-                    FROM learning_path_registrations
-                    GROUP BY learning_path_id
-                ) lpr ON lpr.learning_path_id = lp.id
-                LEFT JOIN (
-                    SELECT
-                        lpr.learning_path_id,
-                        COALESCE(SUM(COALESCE(module_logs.module_time, 0)), 0) AS module_time,
-                        COALESCE(SUM(COALESCE(session_logs.masterclass_time, 0)), 0) AS masterclass_time,
-                        COALESCE(AVG(lpr.progress), 0) AS average_progress
-                    FROM learning_path_registrations lpr
-                    LEFT JOIN (
-                        SELECT
-                            lpt.learning_path_id,
-                            lss.learner_id,
-                            COALESCE(SUM(COALESCE(NULLIF(lss.time_spent, 0), lss.total_time, 0)), 0) AS module_time
-                        FROM learner_step_states lss
-                        INNER JOIN training_steps ts ON ts.id = lss.step_id
-                        INNER JOIN training_modules tm ON tm.id = ts.module_id
-                        INNER JOIN learning_path_trainings lpt ON lpt.training_id = tm.training_id
-                        GROUP BY lpt.learning_path_id, lss.learner_id
-                    ) module_logs ON module_logs.learning_path_id = lpr.learning_path_id AND module_logs.learner_id = lpr.learner_id
-                    LEFT JOIN (
-                        SELECT
-                            lpt.learning_path_id,
-                            csr.learner_id,
-                            COALESCE(SUM(CASE WHEN css.has_signed = 1 THEN cs.edu_duration ELSE 0 END), 0) AS masterclass_time
-                        FROM classroom_session_registrations csr
-                        INNER JOIN classroom_sessions cs ON cs.id = csr.session_id
-                        INNER JOIN learning_path_trainings lpt ON lpt.training_id = cs.training_id
-                        LEFT JOIN classroom_session_signatures css ON css.registration_id = csr.id
-                        GROUP BY lpt.learning_path_id, csr.learner_id
-                    ) session_logs ON session_logs.learning_path_id = lpr.learning_path_id AND session_logs.learner_id = lpr.learner_id
-                    GROUP BY lpr.learning_path_id
-                ) stats ON stats.learning_path_id = lp.id
+                LEFT JOIN learning_path_trainings lpt ON lpt.learning_path_id = lp.id
+                LEFT JOIN learning_path_registrations lpr ON lpr.learning_path_id = lp.id
                 WHERE lp.id = :id
+                GROUP BY lp.id, lp.external_id, lp.title, lp.reference, lp.language, lp.description, lp.sequential, lp.image_url, lp.rise_up_created_at, lp.rise_up_updated_at, lp.synced_at
             SQL,
             ['id' => $id],
             ['id' => ParameterType::INTEGER],
@@ -214,6 +176,12 @@ class LearningPathController extends AbstractController
         if (!is_array($learningPath)) {
             return $this->json(['message' => 'Learning path not found.'], JsonResponse::HTTP_NOT_FOUND);
         }
+
+        // Récupérer le temps total via le service centralisé
+        $totalTimeSeconds = $this->timeMetricsService->getTotalTimeForLearningPath($id);
+
+        // Récupérer les métriques de temps par formation via le service centralisé
+        $trainingTimeMetrics = $this->timeMetricsService->getTimeMetricsByTraining($id);
 
         $trainings = $connection->fetchAllAssociative(
             <<<SQL
@@ -227,54 +195,12 @@ class LearningPathController extends AbstractController
                     t.state,
                     t.type,
                     t.edu_duration AS eduDuration,
-                    COUNT(DISTINCT CASE
-                        WHEN tr.id IS NOT NULL OR COALESCE(step_logs.module_time, 0) > 0 OR COALESCE(session_logs.masterclass_time, 0) > 0
-                        THEN lpr.learner_id
-                    END) AS learnerCount,
-                    COALESCE(SUM(COALESCE(step_logs.module_time, 0)), 0) AS moduleTime,
-                    COALESCE(SUM(COALESCE(session_logs.masterclass_time, 0)), 0) AS masterclassTime,
-                    ROUND(COALESCE(AVG(COALESCE(tr.progress, step_progress.progress_percent, 0)), 0), 2) AS averageProgress
+                    COUNT(DISTINCT CASE WHEN tr.id IS NOT NULL THEN lpr.learner_id END) AS learnerCount,
+                    ROUND(COALESCE(AVG(tr.progress), 0), 2) AS averageProgress
                 FROM learning_path_trainings lpt
                 INNER JOIN trainings t ON t.id = lpt.training_id
                 LEFT JOIN learning_path_registrations lpr ON lpr.learning_path_id = lpt.learning_path_id
                 LEFT JOIN training_registrations tr ON tr.training_id = lpt.training_id AND tr.learner_id = lpr.learner_id
-                LEFT JOIN (
-                    SELECT
-                        tm.training_id,
-                        lss.learner_id,
-                        COALESCE(SUM(COALESCE(NULLIF(lss.time_spent, 0), lss.total_time, 0)), 0) AS module_time
-                    FROM learner_step_states lss
-                    INNER JOIN training_steps ts ON ts.id = lss.step_id
-                    INNER JOIN training_modules tm ON tm.id = ts.module_id
-                    GROUP BY tm.training_id, lss.learner_id
-                ) step_logs ON step_logs.training_id = lpt.training_id AND step_logs.learner_id = lpr.learner_id
-                LEFT JOIN (
-                    SELECT
-                        cs.training_id,
-                        csr.learner_id,
-                        COALESCE(SUM(CASE WHEN css.has_signed = 1 THEN cs.edu_duration ELSE 0 END), 0) AS masterclass_time
-                    FROM classroom_session_registrations csr
-                    INNER JOIN classroom_sessions cs ON cs.id = csr.session_id
-                    LEFT JOIN classroom_session_signatures css ON css.registration_id = csr.id
-                    GROUP BY cs.training_id, csr.learner_id
-                ) session_logs ON session_logs.training_id = lpt.training_id AND session_logs.learner_id = lpr.learner_id
-                LEFT JOIN (
-                    SELECT
-                        lss.learner_id,
-                        tm.training_id,
-                        ROUND((COUNT(DISTINCT lss.step_id) / NULLIF(training_steps.step_count, 0)) * 100, 2) AS progress_percent
-                    FROM learner_step_states lss
-                    INNER JOIN training_steps ts ON ts.id = lss.step_id
-                    INNER JOIN training_modules tm ON tm.id = ts.module_id
-                    INNER JOIN (
-                        SELECT tm2.training_id, COUNT(ts2.id) AS step_count
-                        FROM training_modules tm2
-                        INNER JOIN training_steps ts2 ON ts2.module_id = tm2.id
-                        GROUP BY tm2.training_id
-                    ) training_steps ON training_steps.training_id = tm.training_id
-                    WHERE lss.activity_at IS NOT NULL OR lss.state IS NOT NULL
-                    GROUP BY lss.learner_id, tm.training_id, training_steps.step_count
-                ) step_progress ON step_progress.training_id = lpt.training_id AND step_progress.learner_id = lpr.learner_id
                 WHERE lpt.learning_path_id = :learningPathId
                 GROUP BY lpt.id, lpt.position, lpt.is_required, t.id, t.external_id, t.title, t.state, t.type, t.edu_duration
                 ORDER BY lpt.position ASC, lpt.id ASC
@@ -282,6 +208,9 @@ class LearningPathController extends AbstractController
             ['learningPathId' => $id],
             ['learningPathId' => ParameterType::INTEGER],
         );
+
+        // Récupérer les métriques de temps via le service centralisé
+        $timeMetrics = $this->timeMetricsService->getTimeMetricsByLearner($id);
 
         $learners = $connection->fetchAllAssociative(
             <<<SQL
@@ -296,52 +225,14 @@ class LearningPathController extends AbstractController
                     l.first_name AS firstName,
                     l.last_name AS lastName,
                     COUNT(DISTINCT CASE WHEN tr.state = 'validated' THEN tr.training_id END) AS completedTrainingCount,
-                    COALESCE(module_logs.module_time, 0) AS moduleTime,
-                    COALESCE(session_logs.masterclass_time, 0) AS masterclassTime,
-                    COALESCE(session_logs.expected_time, 0) AS expectedTime,
-                    COALESCE(elearning_expected.expected_elearning_time, 0) AS expectedElearningTime,
                     ROUND(COALESCE(lpr.progress, 0), 2) AS averageProgress
                 FROM learning_path_registrations lpr
                 INNER JOIN learners l ON l.id = lpr.learner_id
                 LEFT JOIN learning_path_trainings lpt ON lpt.learning_path_id = lpr.learning_path_id
                 LEFT JOIN training_registrations tr ON tr.training_id = lpt.training_id AND tr.learner_id = lpr.learner_id
-                LEFT JOIN (
-                    SELECT
-                        lpt2.learning_path_id,
-                        l2.id AS learner_id,
-                        COALESCE(SUM(ral.duration_seconds), 0) AS module_time
-                    FROM riseup_activity_logs ral
-                    INNER JOIN trainings t2 ON t2.external_id = ral.training_external_id
-                    INNER JOIN learning_path_trainings lpt2 ON lpt2.training_id = t2.id
-                    INNER JOIN learners l2 ON l2.external_id = ral.learner_external_id
-                    GROUP BY lpt2.learning_path_id, l2.id
-                ) module_logs ON module_logs.learning_path_id = lpr.learning_path_id AND module_logs.learner_id = lpr.learner_id
-                LEFT JOIN (
-                    SELECT
-                        lpt2.learning_path_id,
-                        csr.learner_id,
-                        COALESCE(SUM(CASE WHEN css.has_signed = 1 THEN cs.edu_duration ELSE 0 END), 0) AS masterclass_time,
-                        COALESCE(SUM(cs.edu_duration), 0) AS expected_time
-                    FROM classroom_session_registrations csr
-                    INNER JOIN classroom_sessions cs ON cs.id = csr.session_id
-                    INNER JOIN learning_path_trainings lpt2 ON lpt2.training_id = cs.training_id
-                    LEFT JOIN classroom_session_signatures css ON css.registration_id = csr.id
-                    GROUP BY lpt2.learning_path_id, csr.learner_id
-                ) session_logs ON session_logs.learning_path_id = lpr.learning_path_id AND session_logs.learner_id = lpr.learner_id
-                LEFT JOIN (
-                    SELECT
-                        lpt3.learning_path_id,
-                        COALESCE(SUM(t3.edu_duration), 0) AS expected_elearning_time
-                    FROM learning_path_trainings lpt3
-                    INNER JOIN trainings t3 ON t3.id = lpt3.training_id
-                    WHERE EXISTS (
-                        SELECT 1 FROM training_modules tm WHERE tm.training_id = t3.id
-                    )
-                    GROUP BY lpt3.learning_path_id
-                ) elearning_expected ON elearning_expected.learning_path_id = lpr.learning_path_id
                 WHERE lpr.learning_path_id = :learningPathId
-                GROUP BY lpr.id, lpr.reference, lpr.score, lpr.progress, lpr.subscribed_at, l.id, l.email, l.first_name, l.last_name, module_logs.module_time, session_logs.masterclass_time, session_logs.expected_time, elearning_expected.expected_elearning_time
-                ORDER BY COALESCE(module_logs.module_time, 0) DESC, COALESCE(session_logs.masterclass_time, 0) DESC, l.last_name ASC
+                GROUP BY lpr.id, lpr.reference, lpr.score, lpr.progress, lpr.subscribed_at, l.id, l.email, l.first_name, l.last_name
+                ORDER BY l.last_name ASC
             SQL,
             ['learningPathId' => $id],
             ['learningPathId' => ParameterType::INTEGER],
@@ -362,7 +253,7 @@ class LearningPathController extends AbstractController
                 'syncedAt' => $learningPath['syncedAt'],
                 'trainingCount' => (int) $learningPath['trainingCount'],
                 'learnerCount' => (int) $learningPath['learnerCount'],
-                'totalTime' => $this->totalMinutes($learningPath['moduleTime'] ?? 0, $learningPath['masterclassTime'] ?? 0),
+                'totalTime' => DurationUnit::secondsToMinutesInt($totalTimeSeconds),
                 'averageProgress' => (float) $learningPath['averageProgress'],
             ],
             'trainings' => array_map(fn (array $row): array => [
@@ -376,7 +267,7 @@ class LearningPathController extends AbstractController
                 'type' => $row['type'],
                 'eduDuration' => $row['eduDuration'] !== null ? (int) $row['eduDuration'] : null,
                 'learnerCount' => (int) $row['learnerCount'],
-                'totalTime' => $this->totalMinutes($row['moduleTime'] ?? 0, $row['masterclassTime'] ?? 0),
+                'totalTime' => DurationUnit::secondsToMinutesInt($trainingTimeMetrics[(int) $row['trainingId']]['total_time_seconds'] ?? 0),
                 'averageProgress' => (float) $row['averageProgress'],
             ], $trainings),
             'learners' => array_map(fn (array $row): array => [
@@ -391,11 +282,11 @@ class LearningPathController extends AbstractController
                 'lastName' => $row['lastName'],
                 'fullName' => trim(sprintf('%s %s', $row['firstName'] ?? '', $row['lastName'] ?? '')) ?: ($row['email'] ?? 'Apprenant'),
                 'completedTrainingCount' => (int) $row['completedTrainingCount'],
-                'totalTime' => $this->totalMinutes($row['moduleTime'] ?? 0, $row['masterclassTime'] ?? 0),
-                'sessionTime' => DurationUnit::minutesToInt($row['masterclassTime'] ?? 0),
-                'expectedTime' => DurationUnit::minutesToInt($row['expectedTime'] ?? 0),
-                'elearningTime' => DurationUnit::secondsToMinutesInt($row['moduleTime'] ?? 0),
-                'expectedElearningTime' => DurationUnit::minutesToInt($row['expectedElearningTime'] ?? 0),
+                'totalTime' => DurationUnit::secondsToMinutesInt($timeMetrics[(int) $row['learnerId']]['total_time_seconds'] ?? 0),
+                'sessionTime' => DurationUnit::secondsToMinutesInt($timeMetrics[(int) $row['learnerId']]['session_time_seconds'] ?? 0),
+                'expectedTime' => DurationUnit::minutesToInt($timeMetrics[(int) $row['learnerId']]['expected_time'] ?? 0),
+                'elearningTime' => DurationUnit::secondsToMinutesInt($timeMetrics[(int) $row['learnerId']]['module_time'] ?? 0),
+                'expectedElearningTime' => DurationUnit::minutesToInt($timeMetrics[(int) $row['learnerId']]['expected_elearning_time'] ?? 0),
                 'averageProgress' => (float) $row['averageProgress'],
             ], $learners),
         ]);

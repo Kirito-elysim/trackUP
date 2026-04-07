@@ -27,9 +27,9 @@ class RiseUpActivityLogImportService
     /**
      * @return array{parsed:int,imported:int,skipped:int}
      */
-    public function import(string $filePath): array
+    public function import(string $filePath, ?string $fileExtension = null): array
     {
-        $rows = $this->readRows($filePath);
+        $rows = $this->readRows($filePath, $fileExtension);
         if ($rows === []) {
             return ['parsed' => 0, 'imported' => 0, 'skipped' => 0];
         }
@@ -101,13 +101,13 @@ class RiseUpActivityLogImportService
     /**
      * @return array<int, array<string, string>>
      */
-    private function readRows(string $filePath): array
+    private function readRows(string $filePath, ?string $fileExtension = null): array
     {
         if (!is_file($filePath)) {
             throw new \RuntimeException(sprintf('File not found: %s', $filePath));
         }
 
-        $extension = strtolower((string) pathinfo($filePath, PATHINFO_EXTENSION));
+        $extension = $fileExtension ?? strtolower((string) pathinfo($filePath, PATHINFO_EXTENSION));
 
         return match ($extension) {
             'csv' => $this->readCsvRows($filePath),

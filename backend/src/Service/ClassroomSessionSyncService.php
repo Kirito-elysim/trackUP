@@ -177,7 +177,7 @@ class ClassroomSessionSyncService
     }
 
     /**
-     * @return array{registrations_processed:int,fetched:int,created:int,updated:int,removed:int}
+     * @return array{registrations_processed:int,fetched:int,created:int,updated:int,removed:int,registrations_skipped?:int}
      */
     private function syncSignatures(int $flushEvery): array
     {
@@ -188,12 +188,23 @@ class ClassroomSessionSyncService
         $updated = 0;
         $removed = 0;
         $processedRegistrations = 0;
+        $skippedRegistrations = 0;
 
         foreach ($registrations as $registration) {
             $payload = $this->fetchSignaturesWithRetry($registration->getExternalId());
 
             if (!array_is_list($payload)) {
-                throw new \RuntimeException(sprintf('Rise Up signatures endpoint for registration %d did not return a list payload.', $registration->getExternalId()));
+                // Some tenants respond with an error object (or a wrapped collection) for this endpoint.
+                // Keep sync robust: skip signature sync for that registration and keep existing signatures unchanged.
+                $wrapped = $payload['data'] ?? $payload['items'] ?? $payload['results'] ?? null;
+
+                if (!is_array($wrapped) || !array_is_list($wrapped)) {
+                    ++$skippedRegistrations;
+                    ++$processedRegistrations;
+                    continue;
+                }
+
+                $payload = $wrapped;
             }
 
             $existingByKey = [];
@@ -260,13 +271,19 @@ class ClassroomSessionSyncService
         $this->entityManager->flush();
         $this->entityManager->clear();
 
-        return [
+        $result = [
             'registrations_processed' => count($registrations),
             'fetched' => $fetched,
             'created' => $created,
             'updated' => $updated,
             'removed' => $removed,
         ];
+
+        if ($skippedRegistrations > 0) {
+            $result['registrations_skipped'] = $skippedRegistrations;
+        }
+
+        return $result;
     }
 
     /**

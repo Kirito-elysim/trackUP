@@ -3,12 +3,14 @@
 namespace App\Controller\Api;
 
 use App\Entity\User;
+use App\Service\RiseUpActivityLogImportService;
 use App\Service\UserPermissionResolver;
 use App\Util\DurationUnit;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\ParameterType;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -20,6 +22,7 @@ class RiseUpActivityLogController extends AbstractController
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly UserPermissionResolver $permissionResolver,
+        private readonly RiseUpActivityLogImportService $importService,
     ) {
     }
 
@@ -38,11 +41,12 @@ class RiseUpActivityLogController extends AbstractController
         $pageSize = min(max((int) $request->query->get('pageSize', 100), 1), 500);
         $offset = ($page - 1) * $pageSize;
         $learnerQuery = $this->normalizeSearchString($request->query->get('learnerQuery'));
+        $groupExternalId = $this->positiveIntOrNull($request->query->get('groupExternalId'));
         $learningPathId = $this->positiveIntOrNull($request->query->get('learningPathId'));
         $trainingExternalId = $this->positiveIntOrNull($request->query->get('trainingExternalId'));
         [$dateFrom, $dateTo] = $this->resolveDateRange($request);
 
-        $filters = $this->buildFilterSql($learnerQuery, $learningPathId, $trainingExternalId, $dateFrom, $dateTo);
+        $filters = $this->buildFilterSql($learnerQuery, $groupExternalId, $learningPathId, $trainingExternalId, $dateFrom, $dateTo);
         $metrics = $connection->fetchAssociative(
             <<<SQL
                 SELECT
@@ -67,13 +71,16 @@ class RiseUpActivityLogController extends AbstractController
         return $this->json([
             'filters' => [
                 'learnerQuery' => $learnerQuery,
+                'groupExternalId' => $groupExternalId,
                 'learningPathId' => $learningPathId,
                 'trainingExternalId' => $trainingExternalId,
                 'dateFrom' => $dateFrom?->format('Y-m-d'),
                 'dateTo' => $dateTo?->format('Y-m-d'),
+                'availableGroups' => $this->fetchAvailableGroups($connection, $learnerQuery),
                 'availableLearningPaths' => $this->fetchAvailableLearningPaths(
                     $connection,
                     $learnerQuery,
+                    $groupExternalId,
                     $trainingExternalId,
                     $dateFrom,
                     $dateTo,
@@ -81,6 +88,7 @@ class RiseUpActivityLogController extends AbstractController
                 'availableTrainings' => $this->fetchAvailableTrainings(
                     $connection,
                     $learnerQuery,
+                    $groupExternalId,
                     $learningPathId,
                     $dateFrom,
                     $dateTo,
@@ -115,6 +123,7 @@ class RiseUpActivityLogController extends AbstractController
                 'device' => $row['device'],
                 'createdAt' => $row['createdAt'],
             ], $rows),
+            'groupContext' => $groupExternalId !== null ? $this->fetchGroupContext($connection, $groupExternalId) : null,
             'lastImportAt' => $connection->fetchOne('SELECT MAX(source_imported_at) FROM riseup_activity_logs') ?: null,
         ]);
     }
@@ -131,11 +140,12 @@ class RiseUpActivityLogController extends AbstractController
 
         $connection = $this->entityManager->getConnection();
         $learnerQuery = $this->normalizeSearchString($request->query->get('learnerQuery'));
+        $groupExternalId = $this->positiveIntOrNull($request->query->get('groupExternalId'));
         $learningPathId = $this->positiveIntOrNull($request->query->get('learningPathId'));
         $trainingExternalId = $this->positiveIntOrNull($request->query->get('trainingExternalId'));
         [$dateFrom, $dateTo] = $this->resolveDateRange($request);
 
-        $filters = $this->buildFilterSql($learnerQuery, $learningPathId, $trainingExternalId, $dateFrom, $dateTo);
+        $filters = $this->buildFilterSql($learnerQuery, $groupExternalId, $learningPathId, $trainingExternalId, $dateFrom, $dateTo);
         $rows = $this->fetchRows($connection, $filters);
 
         $handle = fopen('php://temp', 'w+');
@@ -196,6 +206,7 @@ class RiseUpActivityLogController extends AbstractController
      */
     private function buildFilterSql(
         ?string $learnerQuery,
+        ?int $groupExternalId,
         ?int $learningPathId,
         ?int $trainingExternalId,
         ?\DateTimeImmutable $dateFrom,
@@ -234,6 +245,31 @@ class RiseUpActivityLogController extends AbstractController
             $types['learnerQuery'] = ParameterType::STRING;
         }
 
+        if ($groupExternalId !== null) {
+            $conditions[] = <<<SQL
+                (
+                    EXISTS (
+                        SELECT 1
+                        FROM learners lg_l
+                        INNER JOIN riseup_learner_groups lg ON lg.learner_id = lg_l.id
+                        INNER JOIN riseup_groups rg ON rg.id = lg.group_id
+                        WHERE rg.external_id = :groupExternalId
+                          AND lg_l.external_id = ral.learner_external_id
+                    )
+                    OR EXISTS (
+                        SELECT 1
+                        FROM learners lg_le
+                        INNER JOIN riseup_learner_groups lg2 ON lg2.learner_id = lg_le.id
+                        INNER JOIN riseup_groups rg2 ON rg2.id = lg2.group_id
+                        WHERE rg2.external_id = :groupExternalId
+                          AND lg_le.email = ral.learner_email
+                    )
+                )
+            SQL;
+            $params['groupExternalId'] = $groupExternalId;
+            $types['groupExternalId'] = ParameterType::INTEGER;
+        }
+
         if ($learningPathId !== null) {
             $conditions[] = <<<SQL
                 (
@@ -267,7 +303,29 @@ class RiseUpActivityLogController extends AbstractController
         }
 
         if ($trainingExternalId !== null) {
-            $conditions[] = 'ral.training_external_id = :trainingExternalId';
+            $conditions[] = <<<SQL
+                (
+                    ral.training_external_id = :trainingExternalId
+                    AND (
+                        EXISTS (
+                            SELECT 1
+                            FROM trainings tt
+                            INNER JOIN training_registrations tr ON tr.training_id = tt.id AND tr.state = 'validated'
+                            INNER JOIN learners lr ON lr.id = tr.learner_id
+                            WHERE tt.external_id = :trainingExternalId
+                              AND lr.external_id = ral.learner_external_id
+                        )
+                        OR EXISTS (
+                            SELECT 1
+                            FROM trainings tt2
+                            INNER JOIN training_registrations tr2 ON tr2.training_id = tt2.id AND tr2.state = 'validated'
+                            INNER JOIN learners lr2 ON lr2.id = tr2.learner_id
+                            WHERE tt2.external_id = :trainingExternalId
+                              AND lr2.email = ral.learner_email
+                        )
+                    )
+                )
+            SQL;
             $params['trainingExternalId'] = $trainingExternalId;
             $types['trainingExternalId'] = ParameterType::INTEGER;
         }
@@ -324,6 +382,7 @@ class RiseUpActivityLogController extends AbstractController
     private function fetchAvailableTrainings(
         Connection $connection,
         ?string $learnerQuery,
+        ?int $groupExternalId,
         ?int $learningPathId,
         ?\DateTimeImmutable $dateFrom,
         ?\DateTimeImmutable $dateTo,
@@ -333,7 +392,7 @@ class RiseUpActivityLogController extends AbstractController
             return [];
         }
 
-        $filters = $this->buildFilterSql($learnerQuery, $learningPathId, null, $dateFrom, $dateTo);
+        $filters = $this->buildFilterSql($learnerQuery, $groupExternalId, $learningPathId, null, $dateFrom, $dateTo);
         $rows = $connection->fetchAllAssociative(
             <<<SQL
                 SELECT
@@ -341,7 +400,7 @@ class RiseUpActivityLogController extends AbstractController
                     COALESCE(t.title, CONCAT('Formation #', ral.training_external_id)) AS trainingTitle
                 FROM riseup_activity_logs ral
                 INNER JOIN trainings t ON t.external_id = ral.training_external_id
-                INNER JOIN learning_path_trainings lpt ON lpt.training_id = t.id
+                INNER JOIN learning_path_trainings lpt ON lpt.training_id = t.id AND lpt.learning_path_id = :learningPathId
                 {$filters['where']}
                 GROUP BY ral.training_external_id, trainingTitle
                 ORDER BY trainingTitle ASC
@@ -362,11 +421,54 @@ class RiseUpActivityLogController extends AbstractController
     private function fetchAvailableLearningPaths(
         Connection $connection,
         ?string $learnerQuery,
+        ?int $groupExternalId,
         ?int $trainingExternalId,
         ?\DateTimeImmutable $dateFrom,
         ?\DateTimeImmutable $dateTo,
     ): array
     {
+        if ($groupExternalId !== null) {
+            $params = ['groupExternalId' => $groupExternalId];
+            $types = ['groupExternalId' => ParameterType::INTEGER];
+            $extra = '';
+
+            if ($learnerQuery !== null) {
+                $params['learnerQuery'] = '%' . mb_strtolower($learnerQuery) . '%';
+                $types['learnerQuery'] = ParameterType::STRING;
+                $extra .= ' AND (LOWER(TRIM(CONCAT(COALESCE(l.first_name, \'\'), \' \', COALESCE(l.last_name, \'\')))) LIKE :learnerQuery OR LOWER(COALESCE(l.email, \'\')) LIKE :learnerQuery)';
+            }
+
+            if ($trainingExternalId !== null) {
+                $params['trainingExternalId'] = $trainingExternalId;
+                $types['trainingExternalId'] = ParameterType::INTEGER;
+                $extra .= ' AND EXISTS (SELECT 1 FROM trainings tt INNER JOIN learning_path_trainings lpt ON lpt.training_id = tt.id WHERE tt.external_id = :trainingExternalId AND lpt.learning_path_id = lp.id)';
+            }
+
+            $rows = $connection->fetchAllAssociative(
+                <<<SQL
+                    SELECT
+                        lp.id,
+                        lp.title
+                    FROM learning_paths lp
+                    INNER JOIN learning_path_registrations lpr ON lpr.learning_path_id = lp.id
+                    INNER JOIN learners l ON l.id = lpr.learner_id
+                    INNER JOIN riseup_learner_groups lg ON lg.learner_id = l.id
+                    INNER JOIN riseup_groups rg ON rg.id = lg.group_id
+                    WHERE rg.external_id = :groupExternalId
+                    {$extra}
+                    GROUP BY lp.id, lp.title
+                    ORDER BY lp.title ASC
+                SQL,
+                $params,
+                $types,
+            );
+
+            return array_map(static fn (array $row): array => [
+                'id' => (int) $row['id'],
+                'title' => (string) $row['title'],
+            ], $rows);
+        }
+
         if ($learnerQuery !== null) {
             $rows = $connection->fetchAllAssociative(
                 <<<SQL
@@ -391,7 +493,7 @@ class RiseUpActivityLogController extends AbstractController
             ], $rows);
         }
 
-        $filters = $this->buildFilterSql($learnerQuery, null, $trainingExternalId, $dateFrom, $dateTo);
+        $filters = $this->buildFilterSql($learnerQuery, null, null, $trainingExternalId, $dateFrom, $dateTo);
         $rows = $connection->fetchAllAssociative(
             <<<SQL
                 SELECT
@@ -413,6 +515,100 @@ class RiseUpActivityLogController extends AbstractController
             'id' => (int) $row['id'],
             'title' => (string) $row['title'],
         ], $rows);
+    }
+
+    /**
+     * @return array<int, array{externalId:int,name:string}>
+     */
+    private function fetchAvailableGroups(Connection $connection, ?string $learnerQuery): array
+    {
+        $params = [];
+        $types = [];
+        $where = '';
+
+        if ($learnerQuery !== null) {
+            $params['learnerQuery'] = '%' . mb_strtolower($learnerQuery) . '%';
+            $types['learnerQuery'] = ParameterType::STRING;
+            $where = 'WHERE (LOWER(TRIM(CONCAT(COALESCE(l.first_name, \'\'), \' \', COALESCE(l.last_name, \'\')))) LIKE :learnerQuery OR LOWER(COALESCE(l.email, \'\')) LIKE :learnerQuery)';
+        }
+
+        $rows = $connection->fetchAllAssociative(
+            <<<SQL
+                SELECT
+                    g.external_id AS externalId,
+                    g.name
+                FROM riseup_groups g
+                INNER JOIN riseup_learner_groups lg ON lg.group_id = g.id
+                INNER JOIN learners l ON l.id = lg.learner_id
+                {$where}
+                GROUP BY g.external_id, g.name
+                ORDER BY g.name ASC
+            SQL,
+            $params,
+            $types,
+        );
+
+        return array_map(static fn (array $row): array => [
+            'externalId' => (int) $row['externalId'],
+            'name' => (string) $row['name'],
+        ], $rows);
+    }
+
+    /**
+     * @return array{externalId:int,name:string,memberCount:int,learningPaths:array<int, array{id:int,title:string,learnerCount:int}>}|null
+     */
+    private function fetchGroupContext(Connection $connection, int $groupExternalId): ?array
+    {
+        $group = $connection->fetchAssociative(
+            'SELECT external_id AS externalId, name FROM riseup_groups WHERE external_id = :externalId',
+            ['externalId' => $groupExternalId],
+            ['externalId' => ParameterType::INTEGER],
+        );
+
+        if (!is_array($group)) {
+            return null;
+        }
+
+        $memberCount = (int) ($connection->fetchOne(
+            <<<SQL
+                SELECT COUNT(DISTINCT lg.learner_id)
+                FROM riseup_learner_groups lg
+                INNER JOIN riseup_groups g ON g.id = lg.group_id
+                WHERE g.external_id = :externalId
+            SQL,
+            ['externalId' => $groupExternalId],
+            ['externalId' => ParameterType::INTEGER],
+        ) ?: 0);
+
+        $learningPaths = $connection->fetchAllAssociative(
+            <<<SQL
+                SELECT
+                    lp.id,
+                    lp.title,
+                    COUNT(DISTINCT lpr.learner_id) AS learnerCount
+                FROM learning_paths lp
+                INNER JOIN learning_path_registrations lpr ON lpr.learning_path_id = lp.id
+                INNER JOIN learners l ON l.id = lpr.learner_id
+                INNER JOIN riseup_learner_groups lg ON lg.learner_id = l.id
+                INNER JOIN riseup_groups g ON g.id = lg.group_id
+                WHERE g.external_id = :externalId
+                GROUP BY lp.id, lp.title
+                ORDER BY lp.title ASC
+            SQL,
+            ['externalId' => $groupExternalId],
+            ['externalId' => ParameterType::INTEGER],
+        );
+
+        return [
+            'externalId' => (int) $group['externalId'],
+            'name' => (string) $group['name'],
+            'memberCount' => $memberCount,
+            'learningPaths' => array_map(static fn (array $row): array => [
+                'id' => (int) $row['id'],
+                'title' => (string) $row['title'],
+                'learnerCount' => (int) $row['learnerCount'],
+            ], $learningPaths),
+        ];
     }
 
     /**
@@ -501,5 +697,57 @@ class RiseUpActivityLogController extends AbstractController
         $normalized = trim((string) $value);
 
         return $normalized !== '' ? $normalized : null;
+    }
+
+    #[Route('/import', name: 'api_riseup_activity_logs_import', methods: ['POST'])]
+    public function import(Request $request): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = $this->getUser();
+
+        if (!$this->permissionResolver->userHasFeature($user, 'exports.view')) {
+            return $this->json(['message' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        /** @var UploadedFile|null $file */
+        $file = $request->files->get('file');
+
+        if ($file === null) {
+            return $this->json([
+                'success' => false,
+                'message' => 'Aucun fichier fourni.',
+            ], JsonResponse::HTTP_BAD_REQUEST);
+        }
+
+        $extension = strtolower($file->getClientOriginalExtension());
+        if (!in_array($extension, ['xlsx', 'csv'], true)) {
+            return $this->json([
+                'success' => false,
+                'message' => 'Le fichier doit être au format XLSX ou CSV.',
+            ], JsonResponse::HTTP_BAD_REQUEST);
+        }
+
+        try {
+            $result = $this->importService->import($file->getPathname(), $extension);
+
+            return $this->json([
+                'success' => true,
+                'message' => sprintf(
+                    'Import terminé avec succès : %d ligne(s) importée(s) sur %d ligne(s) analysée(s), %d ligne(s) ignorée(s)',
+                    $result['imported'],
+                    $result['parsed'],
+                    $result['skipped']
+                ),
+                'parsed' => $result['parsed'],
+                'imported' => $result['imported'],
+                'skipped' => $result['skipped'],
+                'fileName' => $file->getClientOriginalName(),
+            ]);
+        } catch (\Exception $e) {
+            return $this->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'import : ' . $e->getMessage(),
+            ], JsonResponse::HTTP_INTERNAL_SERVER_ERROR);
+        }
     }
 }

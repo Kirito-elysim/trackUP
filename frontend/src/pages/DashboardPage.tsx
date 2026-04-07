@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, BookOpen, Clock } from 'lucide-react';
+import { Users, Clock, BookOpen } from 'lucide-react';
 import { useAuth } from '../contexts/useAuth';
 import { apiRequest, ApiError } from '../lib/api';
 import { formatDuration, formatPercentage } from '../lib/format';
@@ -107,62 +107,61 @@ export function DashboardPage() {
 
           <div className="dashboard-section">
             <div className="section-header">
-              <h3>Parcours</h3>
+              <h3>Groupes</h3>
             </div>
 
             <div className="learning-paths-grid">
-              {dashboard.learningPaths.map((path) => (
+              {dashboard.groups.map((group) => (
                 <article
-                  key={path.id}
+                  key={group.id}
                   className="learning-path-card"
-                  onClick={() => navigate(`/learningpaths/${path.id}`)}
+                  onClick={() => navigate(`/groups/${group.id}`)}
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
-                      navigate(`/learningpaths/${path.id}`);
+                      navigate(`/groups/${group.id}`);
                     }
                   }}
                 >
                   <div className="path-image">
-                    {path.imageUrl ? (
-                      <img src={path.imageUrl} alt={path.title} />
+                    {group.imageUrl ? (
+                      <img src={group.imageUrl} alt={group.name} />
                     ) : (
                       <div className="path-image-placeholder">
-                        <BookOpen size={32} />
+                        <Users size={32} />
                       </div>
                     )}
                   </div>
                   <div className="path-content">
-                    <h4>{path.title}</h4>
-                    <div className="path-meta">
-                      <span className="path-meta-item">
-                        <Clock size={14} />
-                        Dernière session {formatDuration(path.totalTime)}
-                      </span>
-                    </div>
+                    <h4>{group.name}</h4>
+                    {group.reference && (
+                      <p className="muted" style={{ fontSize: '13px', marginTop: '4px', marginBottom: '12px' }}>
+                        {group.reference}
+                      </p>
+                    )}
                     <div className="path-stats">
                       <div className="path-stat">
-                        <strong>{formatDuration(path.totalTime)}</strong>
-                        <span>Temps passé</span>
+                        <strong>{group.memberCount}</strong>
+                        <span>Membres</span>
                       </div>
                       <div className="path-stat">
-                        <strong>{path.masterclassCount}</strong>
-                        <span>Sessions</span>
+                        <strong>{group.learningPathCount}</strong>
+                        <span>Parcours</span>
                       </div>
                       <div className="path-stat">
-                        <strong>{formatPercentage(path.averageProgress)}</strong>
-                        <span>Progression</span>
+                        <strong>{formatDuration(group.totalTime)}</strong>
+                        <span>Temps total</span>
                       </div>
                     </div>
                     <div className="path-progress">
                       <div className="progress-bar">
                         <div
                           className="progress-fill"
-                          style={{ width: `${Math.min(path.averageProgress * 100, 100)}%` }}
+                          style={{ width: `${Math.min(group.averageProgress * 100, 100)}%` }}
                         />
                       </div>
-                      <span className="progress-label">{formatPercentage(path.averageProgress)}</span>
+                      <span className="progress-label">{formatPercentage(group.averageProgress)}</span>
                     </div>
                   </div>
                 </article>

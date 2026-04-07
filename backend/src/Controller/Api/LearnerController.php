@@ -3,6 +3,7 @@
 namespace App\Controller\Api;
 
 use App\Entity\User;
+use App\Service\TimeMetricsService;
 use App\Service\UserPermissionResolver;
 use App\Util\DurationUnit;
 use Doctrine\DBAL\Connection;
@@ -19,6 +20,7 @@ class LearnerController extends AbstractController
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly UserPermissionResolver $permissionResolver,
+        private readonly TimeMetricsService $timeMetricsService,
     ) {
     }
 
@@ -153,7 +155,9 @@ class LearnerController extends AbstractController
                     ROUND(COALESCE(trs.average_progress, 0), 2) AS averageProgress,
                     COALESCE(csrs.session_registration_count, 0) AS sessionRegistrationCount,
                     COALESCE(sig.signed_attendance_count, 0) AS signedAttendanceCount,
-                    lss.last_activity_at AS lastActivityAt
+                    lss.last_activity_at AS lastActivityAt,
+                    rg.id AS groupId,
+                    rg.name AS groupName
                 FROM learners l
                 LEFT JOIN (
                     SELECT
@@ -181,7 +185,11 @@ class LearnerController extends AbstractController
                     FROM learner_step_states
                     GROUP BY learner_id
                 ) lss ON lss.learner_id = l.id
+                LEFT JOIN riseup_learner_groups rlg ON rlg.learner_id = l.id
+                LEFT JOIN riseup_groups rg ON rg.id = rlg.group_id
                 WHERE l.id = :id
+                ORDER BY rlg.synced_at DESC
+                LIMIT 1
             SQL,
             ['id' => $id],
             ['id' => ParameterType::INTEGER]
@@ -189,6 +197,15 @@ class LearnerController extends AbstractController
 
         if (!is_array($learner)) {
             return $this->json(['message' => 'Learner not found.'], JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        // Calculer le temps du groupe en utilisant le service
+        $groupId = $learner['groupId'] !== null ? (int) $learner['groupId'] : null;
+        $groupTotalTime = 0;
+        
+        if ($groupId !== null) {
+            $memberTimeMetrics = $this->timeMetricsService->getTimeMetricsByGroupMember($groupId);
+            $groupTotalTime = $memberTimeMetrics[$id]['total_time_seconds'] ?? 0;
         }
 
         $trainingRegistrations = $connection->fetchAllAssociative(
@@ -301,6 +318,9 @@ class LearnerController extends AbstractController
                 'averageProgress' => (float) $learner['averageProgress'],
                 'sessionRegistrationCount' => (int) $learner['sessionRegistrationCount'],
                 'signedAttendanceCount' => (int) $learner['signedAttendanceCount'],
+                'groupId' => $groupId,
+                'groupName' => $learner['groupName'],
+                'groupTotalTime' => DurationUnit::secondsToMinutesInt($groupTotalTime),
             ],
             'trainingRegistrations' => array_map(static fn (array $row): array => [
                 'id' => (int) $row['id'],

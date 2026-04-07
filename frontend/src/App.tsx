@@ -10,9 +10,11 @@ import { IntegrationsPage } from './pages/IntegrationsPage';
 import { LearnersPage } from './pages/LearnersPage';
 import { LearningPathsPage } from './pages/LearningPathsPage';
 import { LearningPathDetailPage } from './pages/LearningPathDetailPage';
+import { GroupDetailPage } from './pages/GroupDetailPage';
 import { LoginPage } from './pages/LoginPage';
 import { RiseUpLogsPage } from './pages/RiseUpLogsPage';
 import { RolesPage } from './pages/RolesPage';
+import { SyncManagementPage } from './pages/SyncManagementPage';
 import { TrainingsPage } from './pages/TrainingsPage';
 import { UsersPage } from './pages/UsersPage';
 
@@ -62,6 +64,14 @@ function App() {
                 }
               />
               <Route
+                path="/groups/:id"
+                element={
+                  <FeatureGate feature="dashboard.view">
+                    <GroupDetailPage />
+                  </FeatureGate>
+                }
+              />
+              <Route
                 path="/learners"
                 element={
                   <FeatureGate feature="learners.view">
@@ -90,6 +100,14 @@ function App() {
                 element={
                   <FeatureGate feature="exports.view">
                     <RiseUpLogsPage />
+                  </FeatureGate>
+                }
+              />
+              <Route
+                path="/sync"
+                element={
+                  <FeatureGate feature="settings.users">
+                    <SyncManagementPage />
                   </FeatureGate>
                 }
               />

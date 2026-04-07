@@ -3,6 +3,7 @@
 namespace App\Controller\Api;
 
 use App\Entity\User;
+use App\Service\TimeMetricsService;
 use App\Service\UserPermissionResolver;
 use App\Util\DurationUnit;
 use Doctrine\DBAL\Connection;
@@ -17,6 +18,7 @@ class DashboardController extends AbstractController
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly UserPermissionResolver $permissionResolver,
+        private readonly TimeMetricsService $timeMetricsService,
     ) {
     }
 
@@ -34,7 +36,7 @@ class DashboardController extends AbstractController
 
         return $this->json([
             'metrics' => $this->buildMetrics($connection),
-            'learningPaths' => $this->fetchLearningPaths($connection),
+            'groups' => $this->fetchGroups($connection),
             'topTrainings' => $this->fetchTopTrainings($connection),
             'recentLearners' => $this->fetchRecentLearners($connection),
             'lastSyncAt' => $this->resolveLastSyncAt($connection),
@@ -151,77 +153,49 @@ class DashboardController extends AbstractController
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function fetchLearningPaths(Connection $connection): array
+    private function fetchGroups(Connection $connection): array
     {
+        // Récupérer les temps totaux via le service centralisé
+        $totalTimesByGroup = $this->timeMetricsService->getTotalTimeForGroups();
+
         $rows = $connection->fetchAllAssociative(
             <<<SQL
                 SELECT
-                    lp.id,
-                    lp.external_id AS externalId,
-                    lp.title,
-                    lp.image_url AS imageUrl,
-                    lp.description,
-                    COUNT(DISTINCT lpr.learner_id) AS learnerCount,
+                    rg.id,
+                    rg.external_id AS externalId,
+                    rg.name,
+                    rg.reference,
+                    COUNT(DISTINCT rlg.learner_id) AS memberCount,
+                    COUNT(DISTINCT rglp.learning_path_external_id) AS learningPathCount,
                     ROUND(COALESCE(AVG(lpr.progress), 0), 2) AS averageProgress,
-                    COALESCE(time_data.totalTime, 0) AS totalTime,
-                    COUNT(DISTINCT lpt.training_id) AS trainingCount,
-                    COALESCE(session_count.masterclassCount, 0) AS masterclassCount
-                FROM learning_paths lp
-                LEFT JOIN learning_path_registrations lpr ON lpr.learning_path_id = lp.id
-                LEFT JOIN learning_path_trainings lpt ON lpt.learning_path_id = lp.id
-                LEFT JOIN (
-                    SELECT
-                        lpr2.learning_path_id,
-                        SUM(COALESCE(module_logs.module_time, 0)) + SUM(COALESCE(session_logs.masterclass_time, 0) * 60) AS totalTime
-                    FROM learning_path_registrations lpr2
-                    LEFT JOIN (
-                        SELECT
-                            lpt2.learning_path_id,
-                            l2.id AS learner_id,
-                            COALESCE(SUM(ral.duration_seconds), 0) AS module_time
-                        FROM riseup_activity_logs ral
-                        INNER JOIN trainings t2 ON t2.external_id = ral.training_external_id
-                        INNER JOIN learning_path_trainings lpt2 ON lpt2.training_id = t2.id
-                        INNER JOIN learners l2 ON l2.external_id = ral.learner_external_id
-                        GROUP BY lpt2.learning_path_id, l2.id
-                    ) module_logs ON module_logs.learning_path_id = lpr2.learning_path_id AND module_logs.learner_id = lpr2.learner_id
-                    LEFT JOIN (
-                        SELECT
-                            lpt2.learning_path_id,
-                            csr.learner_id,
-                            COALESCE(SUM(CASE WHEN css.has_signed = 1 THEN cs2.edu_duration ELSE 0 END), 0) AS masterclass_time
-                        FROM classroom_session_registrations csr
-                        INNER JOIN classroom_sessions cs2 ON cs2.id = csr.session_id
-                        INNER JOIN learning_path_trainings lpt2 ON lpt2.training_id = cs2.training_id
-                        LEFT JOIN classroom_session_signatures css ON css.registration_id = csr.id
-                        GROUP BY lpt2.learning_path_id, csr.learner_id
-                    ) session_logs ON session_logs.learning_path_id = lpr2.learning_path_id AND session_logs.learner_id = lpr2.learner_id
-                    GROUP BY lpr2.learning_path_id
-                ) time_data ON time_data.learning_path_id = lp.id
-                LEFT JOIN (
-                    SELECT
-                        lpt3.learning_path_id,
-                        COUNT(DISTINCT cs3.id) AS masterclassCount
-                    FROM learning_path_trainings lpt3
-                    INNER JOIN classroom_sessions cs3 ON cs3.training_id = lpt3.training_id
-                    GROUP BY lpt3.learning_path_id
-                ) session_count ON session_count.learning_path_id = lp.id
-                GROUP BY lp.id, lp.external_id, lp.title, lp.image_url, lp.description, time_data.totalTime, session_count.masterclassCount
-                ORDER BY learnerCount DESC, lp.title ASC
+                    (
+                        SELECT lp_img.image_url
+                        FROM riseup_group_learning_paths rglp_img
+                        INNER JOIN learning_paths lp_img ON lp_img.external_id = rglp_img.learning_path_external_id
+                        WHERE rglp_img.group_id = rg.id AND lp_img.image_url IS NOT NULL
+                        LIMIT 1
+                    ) AS imageUrl
+                FROM riseup_groups rg
+                LEFT JOIN riseup_learner_groups rlg ON rlg.group_id = rg.id
+                LEFT JOIN riseup_group_learning_paths rglp ON rglp.group_id = rg.id
+                LEFT JOIN learning_paths lp ON lp.external_id = rglp.learning_path_external_id
+                LEFT JOIN learning_path_registrations lpr ON lpr.learning_path_id = lp.id AND lpr.learner_id = rlg.learner_id
+                WHERE rg.hidden = 0
+                GROUP BY rg.id, rg.external_id, rg.name, rg.reference
+                ORDER BY memberCount DESC, rg.name ASC
             SQL
         );
 
-        return array_map(static fn (array $row): array => [
+        return array_map(fn (array $row): array => [
             'id' => (int) $row['id'],
             'externalId' => (int) $row['externalId'],
-            'title' => $row['title'],
+            'name' => $row['name'],
+            'reference' => $row['reference'],
             'imageUrl' => $row['imageUrl'],
-            'description' => $row['description'],
-            'learnerCount' => (int) $row['learnerCount'],
+            'memberCount' => (int) $row['memberCount'],
+            'learningPathCount' => (int) $row['learningPathCount'],
             'averageProgress' => (float) $row['averageProgress'],
-            'totalTime' => DurationUnit::secondsToMinutesInt($row['totalTime']),
-            'trainingCount' => (int) $row['trainingCount'],
-            'masterclassCount' => (int) $row['masterclassCount'],
+            'totalTime' => DurationUnit::secondsToMinutesInt($totalTimesByGroup[(int) $row['id']] ?? 0),
         ], $rows);
     }
 

@@ -76,7 +76,7 @@ export type LearnerSessionsPayload = {
 
 export type DashboardPayload = {
   metrics: DashboardMetrics;
-  learningPaths: DashboardLearningPath[];
+  groups: GroupSummary[];
   topTrainings: DashboardTraining[];
   recentLearners: DashboardLearner[];
   lastSyncAt: string | null;
@@ -221,6 +221,9 @@ export type LearnerDetail = {
     averageProgress: number;
     sessionRegistrationCount: number;
     signedAttendanceCount: number;
+    groupId: number | null;
+    groupName: string | null;
+    groupTotalTime: number;
   };
   trainingRegistrations: Array<{
     id: number;
@@ -429,10 +432,15 @@ export type ExportsPayload = {
 export type RiseUpActivityLogsPayload = {
   filters: {
     learnerQuery: string | null;
+    groupExternalId: number | null;
     learningPathId: number | null;
     trainingExternalId: number | null;
     dateFrom: string | null;
     dateTo: string | null;
+    availableGroups: Array<{
+      externalId: number;
+      name: string;
+    }>;
     availableLearningPaths: Array<{
       id: number;
       title: string;
@@ -471,6 +479,16 @@ export type RiseUpActivityLogsPayload = {
     device: string | null;
     createdAt: string | null;
   }>;
+  groupContext: {
+    externalId: number;
+    name: string;
+    memberCount: number;
+    learningPaths: Array<{
+      id: number;
+      title: string;
+      learnerCount: number;
+    }>;
+  } | null;
   lastImportAt: string | null;
 };
 
@@ -497,6 +515,53 @@ export type IntegrationsPayload = {
     status: string;
   }>;
   commands: string[];
+};
+
+export type GroupSummary = {
+  id: number;
+  externalId: number;
+  name: string;
+  reference: string | null;
+  imageUrl: string | null;
+  memberCount: number;
+  learningPathCount: number;
+  totalTime: number;
+  averageProgress: number;
+};
+
+export type GroupMember = {
+  learnerId: number;
+  email: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  fullName: string;
+  joinedAt: string | null;
+  elearningTime: number;
+  sessionTime: number;
+  totalTime: number;
+  expectedTime: number;
+  expectedElearningTime: number;
+};
+
+export type GroupDetail = {
+  group: {
+    id: number;
+    externalId: number;
+    name: string;
+    reference: string | null;
+    imageUrl: string | null;
+    memberCount: number;
+    learningPathCount: number;
+    totalTime: number;
+    averageProgress: number;
+  };
+  learningPaths: Array<{
+    id: number;
+    externalId: number;
+    title: string;
+    imageUrl: string | null;
+  }>;
+  members: GroupMember[];
 };
 
 export type LearningPathSummary = {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../contexts/useAuth';
 import { ApiError, apiRequest } from '../lib/api';
 import { formatDateTime, formatDuration } from '../lib/format';
+import { Clock, User, BookOpen, Calendar, Filter, Download, RefreshCw, Users, TrendingUp, Activity } from 'lucide-react';
 import type { RiseUpActivityLogsPayload } from '../types/trackup';
 
 function formatDurationClock(totalSeconds: number): string {
@@ -16,6 +17,7 @@ function formatDurationClock(totalSeconds: number): string {
 export function RiseUpLogsPage() {
   const { token } = useAuth();
   const [learnerQuery, setLearnerQuery] = useState('');
+  const [groupExternalId, setGroupExternalId] = useState('');
   const [learningPathId, setLearningPathId] = useState('');
   const [trainingExternalId, setTrainingExternalId] = useState('');
   const [dateFrom, setDateFrom] = useState('');
@@ -35,6 +37,9 @@ export function RiseUpLogsPage() {
     if (learnerQuery !== '') {
       params.set('learnerQuery', learnerQuery);
     }
+    if (groupExternalId !== '') {
+      params.set('groupExternalId', groupExternalId);
+    }
     if (learningPathId !== '') {
       params.set('learningPathId', learningPathId);
     }
@@ -49,7 +54,7 @@ export function RiseUpLogsPage() {
     }
 
     return params.toString();
-  }, [dateFrom, dateTo, learnerQuery, learningPathId, page, pageSize, trainingExternalId]);
+  }, [dateFrom, dateTo, learnerQuery, groupExternalId, learningPathId, page, pageSize, trainingExternalId]);
 
   useEffect(() => {
     if (!token) {
@@ -92,6 +97,7 @@ export function RiseUpLogsPage() {
 
   const resetFilters = () => {
     setLearnerQuery('');
+    setGroupExternalId('');
     setLearningPathId('');
     setTrainingExternalId('');
     setDateFrom('');
@@ -110,6 +116,9 @@ export function RiseUpLogsPage() {
       const params = new URLSearchParams();
       if (learnerQuery !== '') {
         params.set('learnerQuery', learnerQuery);
+      }
+      if (groupExternalId !== '') {
+        params.set('groupExternalId', groupExternalId);
       }
       if (learningPathId !== '') {
         params.set('learningPathId', learningPathId);
@@ -154,161 +163,281 @@ export function RiseUpLogsPage() {
   };
 
   return (
-    <section className="page-section">
-      <div className="page-header">
+    <div className="page-container">
+      <div className="page-header-modern">
         <div>
-          <p className="eyebrow eyebrow-dark">Conformité</p>
-          <h2>Logs exacts Rise Up</h2>
+          <div className="page-breadcrumb">
+            <span className="breadcrumb-item">Conformité</span>
+            <span className="breadcrumb-separator">›</span>
+            <span className="breadcrumb-item active">Historique des activités</span>
+          </div>
+          <h1>Historique des activités</h1>
+          <p className="page-description">Journal complet des sessions importées depuis les exports Rise Up</p>
         </div>
-        <div className="header-meta">
-          <p className="muted">Journal local des sessions importées depuis l’export d’activité Rise Up.</p>
-          <span className="status-chip status-chip-soft">Source exacte</span>
+        <div className="page-header-actions">
+          {payload && (
+            <button 
+              className="btn-export" 
+              onClick={() => void exportCsv()} 
+              type="button"
+              disabled={exporting}
+            >
+              <Download size={18} />
+              <span>{exporting ? 'Export en cours...' : 'Exporter CSV'}</span>
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="panel-card filters-panel analytics-filters">
-        <label className="field field-inline">
-          <span>Recherche apprenant</span>
-          <input
-            type="search"
-            placeholder="Nom ou email"
-            value={learnerQuery}
-            onChange={(event) => {
-              setLearnerQuery(event.target.value);
-              setPage(1);
-            }}
-          />
-        </label>
-
-        <label className="field field-inline">
-          <span>Parcours</span>
-          <select
-            value={learningPathId}
-            onChange={(event) => {
-              setLearningPathId(event.target.value);
-              setTrainingExternalId('');
-              setPage(1);
-            }}
+      <div className="filters-section">
+        <div className="filters-header">
+          <div className="filters-title">
+            <Filter size={20} />
+            <h3>Filtres</h3>
+          </div>
+          <button
+            className="btn-reset-filters"
+            onClick={resetFilters}
+            type="button"
           >
-            <option value="">Tous les parcours</option>
-            {(payload?.filters.availableLearningPaths ?? []).map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.title}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="field field-inline">
-          <span>Formation liée au parcours</span>
-          <select
-            disabled={learningPathId === ''}
-            value={trainingExternalId}
-            onChange={(event) => {
-              setTrainingExternalId(event.target.value);
-              setPage(1);
-            }}
-          >
-            <option value="">{learningPathId === '' ? 'Sélectionne d’abord un parcours' : 'Toutes les formations'}</option>
-            {(payload?.filters.availableTrainings ?? []).map((item) => (
-              <option key={item.externalId} value={item.externalId}>
-                {item.title}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="field field-inline">
-          <span>Du</span>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(event) => {
-              setDateFrom(event.target.value);
-              setPage(1);
-            }}
-          />
-        </label>
-
-        <label className="field field-inline">
-          <span>Au</span>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(event) => {
-              setDateTo(event.target.value);
-              setPage(1);
-            }}
-          />
-        </label>
-
-        <label className="field field-inline">
-          <span>Par page</span>
-          <select
-            value={pageSize}
-            onChange={(event) => {
-              setPageSize(Number(event.target.value));
-              setPage(1);
-            }}
-          >
-            <option value={50}>50</option>
-            <option value={100}>100</option>
-            <option value={200}>200</option>
-            <option value={500}>500</option>
-          </select>
-        </label>
-
-        <button
-          className="ghost-button analytics-clear-focus"
-          onClick={resetFilters}
-          type="button"
-        >
-          Réinitialiser
-        </button>
-      </div>
-
-      {loading ? <div className="panel-card">Chargement des logs exacts...</div> : null}
-      {error ? <div className="panel-card error-panel">{error}</div> : null}
-
-      {payload ? (
-        <>
-          <div className="hero-panel hero-panel-compact">
-            <div className="hero-copy">
-              <span className="status-chip">Journal importé</span>
-              <h3>Sessions Rise Up vérifiables, sans reconstruction.</h3>
-              <p>
-                Cette vue repose uniquement sur les exports d’activité importés. Elle conserve les dates de connexion,
-                les dates de déconnexion, la durée exacte et l’appareil quand Rise Up les fournit.
-              </p>
-            </div>
-            <div className="hero-actions">
-              <button className="ghost-button analytics-clear-focus" onClick={() => void exportCsv()} type="button">
-                {exporting ? 'Export en cours...' : 'Export CSV complet'}
-              </button>
-            </div>
+            <RefreshCw size={16} />
+            <span>Réinitialiser</span>
+          </button>
+        </div>
+        
+        <div className="filters-grid">
+          <div className="filter-group">
+            <label className="filter-label">
+              <User size={16} />
+              <span>Recherche apprenant</span>
+            </label>
+            <input
+              type="search"
+              className="filter-input"
+              placeholder="Nom ou email"
+              value={learnerQuery}
+              onChange={(event) => {
+                setLearnerQuery(event.target.value);
+                setPage(1);
+              }}
+            />
           </div>
 
-          <div className="stats-grid">
-            <article className="metric-card">
-              <p className="metric-label">Logs</p>
-              <strong className="metric-value">{payload.metrics.logCount}</strong>
-              <p className="metric-hint">Lignes exactes importées</p>
+          <div className="filter-group">
+            <label className="filter-label">
+              <Users size={16} />
+              <span>Groupe / Classe</span>
+            </label>
+            <select
+              className="filter-select"
+              value={groupExternalId}
+              onChange={(event) => {
+                setGroupExternalId(event.target.value);
+                setLearningPathId('');
+                setTrainingExternalId('');
+                setPage(1);
+              }}
+            >
+              <option value="">Tous les groupes</option>
+              {(payload?.filters.availableGroups ?? []).map((item) => (
+                <option key={item.externalId} value={item.externalId}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="filter-group">
+            <label className="filter-label">
+              <TrendingUp size={16} />
+              <span>Parcours</span>
+            </label>
+            <select
+              className="filter-select"
+              value={learningPathId}
+              onChange={(event) => {
+                setLearningPathId(event.target.value);
+                setTrainingExternalId('');
+                setPage(1);
+              }}
+            >
+              <option value="">{groupExternalId === '' ? 'Tous les parcours' : 'Parcours du groupe'}</option>
+              {(payload?.filters.availableLearningPaths ?? []).map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.title}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="filter-group">
+            <label className="filter-label">
+              <BookOpen size={16} />
+              <span>Formation</span>
+            </label>
+            <select
+              className="filter-select"
+              disabled={learningPathId === ''}
+              value={trainingExternalId}
+              onChange={(event) => {
+                setTrainingExternalId(event.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="">{learningPathId === '' ? 'Sélectionnez un parcours' : 'Toutes les formations'}</option>
+              {(payload?.filters.availableTrainings ?? []).map((item) => (
+                <option key={item.externalId} value={item.externalId}>
+                  {item.title}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="filter-group">
+            <label className="filter-label">
+              <Calendar size={16} />
+              <span>Date début</span>
+            </label>
+            <input
+              type="date"
+              className="filter-input"
+              value={dateFrom}
+              onChange={(event) => {
+                setDateFrom(event.target.value);
+                setPage(1);
+              }}
+            />
+          </div>
+
+          <div className="filter-group">
+            <label className="filter-label">
+              <Calendar size={16} />
+              <span>Date fin</span>
+            </label>
+            <input
+              type="date"
+              className="filter-input"
+              value={dateTo}
+              onChange={(event) => {
+                setDateTo(event.target.value);
+                setPage(1);
+              }}
+            />
+          </div>
+
+          <div className="filter-group">
+            <label className="filter-label">Résultats par page</label>
+            <select
+              className="filter-select"
+              value={pageSize}
+              onChange={(event) => {
+                setPageSize(Number(event.target.value));
+                setPage(1);
+              }}
+            >
+              <option value={50}>50 résultats</option>
+              <option value={100}>100 résultats</option>
+              <option value={200}>200 résultats</option>
+              <option value={500}>500 résultats</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {loading && (
+        <div className="loading-state" style={{ marginTop: '2rem' }}>
+          <RefreshCw size={32} className="spin" />
+          <p>Chargement de l'historique...</p>
+        </div>
+      )}
+      
+      {error && (
+        <div className="error-state" style={{ marginTop: '2rem' }}>
+          <p>{error}</p>
+        </div>
+      )}
+
+      {payload && (
+        <>
+
+          {payload.groupContext ? (
+            <article className="panel-card">
+              <div className="panel-card-header">
+                <div>
+                  <p className="section-kicker">Groupe</p>
+                  <h3>{payload.groupContext.name}</h3>
+                  <p className="muted">{payload.groupContext.memberCount} membre(s)</p>
+                </div>
+              </div>
+              {payload.groupContext.learningPaths.length > 0 ? (
+                <div className="table-shell">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Parcours</th>
+                        <th>Apprenants inscrits</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {payload.groupContext.learningPaths.map((item) => (
+                        <tr key={item.id}>
+                          <td>{item.title}</td>
+                          <td>{item.learnerCount}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="muted">Aucun parcours trouvé pour ce groupe (via les inscriptions locales).</p>
+              )}
             </article>
-            <article className="metric-card">
-              <p className="metric-label">Apprenants</p>
-              <strong className="metric-value">{payload.metrics.uniqueLearnersCount}</strong>
-              <p className="metric-hint">Apprenants distincts dans les logs</p>
-            </article>
-            <article className="metric-card">
-              <p className="metric-label">Formations</p>
-              <strong className="metric-value">{payload.metrics.uniqueTrainingsCount}</strong>
-              <p className="metric-hint">Formations distinctes dans les logs</p>
-            </article>
-            <article className="metric-card">
-              <p className="metric-label">Temps cumulé</p>
-              <strong className="metric-value">{formatDuration(payload.metrics.totalDurationMinutes)}</strong>
-              <p className="metric-hint">{formatDurationClock(payload.metrics.totalDurationSeconds)} exact</p>
-            </article>
+          ) : null}
+
+          <div className="stats-overview">
+            <div className="stat-card-modern">
+              <div className="stat-icon" style={{ background: 'linear-gradient(135deg, #5B8DEE 0%, #0063F7 100%)' }}>
+                <Activity size={24} color="white" />
+              </div>
+              <div className="stat-content">
+                <p className="stat-label">Total de logs</p>
+                <strong className="stat-value">{payload.metrics.logCount.toLocaleString()}</strong>
+                <p className="stat-hint">Sessions importées</p>
+              </div>
+            </div>
+            
+            <div className="stat-card-modern">
+              <div className="stat-icon" style={{ background: 'linear-gradient(135deg, #FF6B9D 0%, #C239B3 100%)' }}>
+                <Users size={24} color="white" />
+              </div>
+              <div className="stat-content">
+                <p className="stat-label">Apprenants</p>
+                <strong className="stat-value">{payload.metrics.uniqueLearnersCount}</strong>
+                <p className="stat-hint">Utilisateurs uniques</p>
+              </div>
+            </div>
+            
+            <div className="stat-card-modern">
+              <div className="stat-icon" style={{ background: 'linear-gradient(135deg, #FFB946 0%, #FF9A00 100%)' }}>
+                <BookOpen size={24} color="white" />
+              </div>
+              <div className="stat-content">
+                <p className="stat-label">Formations</p>
+                <strong className="stat-value">{payload.metrics.uniqueTrainingsCount}</strong>
+                <p className="stat-hint">Formations distinctes</p>
+              </div>
+            </div>
+            
+            <div className="stat-card-modern">
+              <div className="stat-icon" style={{ background: 'linear-gradient(135deg, #34C4AC 0%, #00A67E 100%)' }}>
+                <Clock size={24} color="white" />
+              </div>
+              <div className="stat-content">
+                <p className="stat-label">Temps total</p>
+                <strong className="stat-value">{formatDuration(payload.metrics.totalDurationMinutes)}</strong>
+                <p className="stat-hint">{formatDurationClock(payload.metrics.totalDurationSeconds)}</p>
+              </div>
+            </div>
           </div>
 
           <article className="panel-card">
@@ -403,7 +532,7 @@ export function RiseUpLogsPage() {
             ) : null}
           </article>
         </>
-      ) : null}
-    </section>
+      )}
+    </div>
   );
 }

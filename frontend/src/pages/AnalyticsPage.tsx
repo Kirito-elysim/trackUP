@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useAuth } from '../contexts/useAuth';
 import { apiRequest, ApiError } from '../lib/api';
 import { formatDateTime, formatDuration, formatPercentage } from '../lib/format';
@@ -392,6 +393,89 @@ export function AnalyticsPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </article>
+
+          <article className="panel-card chart-panel">
+            <div className="panel-card-header">
+              <div>
+                <p className="section-kicker">Évolution</p>
+                <h3>Temps d'apprentissage par jour</h3>
+              </div>
+              <span className="status-chip status-chip-contrast">
+                {analytics.timeSeries.length} période(s)
+              </span>
+            </div>
+
+            {analytics.timeSeries.length > 0 ? (
+              <div className="chart-container">
+                <ResponsiveContainer width="100%" height={400}>
+                  <BarChart
+                    data={analytics.timeSeries.map(item => ({
+                      label: item.label,
+                      'E-learning': Number((item.elearningTime / 3600).toFixed(1)),
+                      'Masterclass': Number((item.masterclassTime / 3600).toFixed(1)),
+                    }))}
+                    margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                    <XAxis
+                      dataKey="label"
+                      angle={-45}
+                      textAnchor="end"
+                      height={80}
+                      tick={{ fill: '#6B7280', fontSize: 11 }}
+                      tickLine={{ stroke: '#E5E7EB' }}
+                    />
+                    <YAxis
+                      label={{ value: 'Heures', angle: -90, position: 'insideLeft', style: { fill: '#6B7280' } }}
+                      tick={{ fill: '#6B7280', fontSize: 12 }}
+                      tickLine={{ stroke: '#E5E7EB' }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#FFFFFF',
+                        border: '1px solid #E5E7EB',
+                        borderRadius: '8px',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                      }}
+                      formatter={(value) => `${value}h`}
+                    />
+                    <Legend
+                      wrapperStyle={{
+                        paddingTop: '20px',
+                      }}
+                    />
+                    <Bar dataKey="E-learning" stackId="a" fill="#5B8DEE" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="Masterclass" stackId="a" fill="#C239B3" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="chart-container" style={{ textAlign: 'center', padding: '3rem' }}>
+                <p className="muted">Aucune donnée disponible pour la période sélectionnée</p>
+              </div>
+            )}
+
+            <div className="chart-insights">
+              <div className="insight-card">
+                <p className="insight-label">Temps total sur la période</p>
+                <strong className="insight-value">{formatDuration(analytics.metrics.totalTrackedTime)}</strong>
+              </div>
+              <div className="insight-card">
+                <p className="insight-label">Moyenne par jour</p>
+                <strong className="insight-value">
+                  {formatDuration(analytics.timeSeries.length > 0 ? Math.round(analytics.metrics.totalTrackedTime / analytics.timeSeries.length) : 0)}
+                </strong>
+              </div>
+              <div className="insight-card">
+                <p className="insight-label">Pic d'activité</p>
+                <strong className="insight-value">
+                  {analytics.timeSeries.length > 0
+                    ? analytics.timeSeries.reduce((max, curr) => (curr.totalTime > max.totalTime ? curr : max)).label
+                    : 'N/A'}
+                </strong>
+              </div>
             </div>
           </article>
 
