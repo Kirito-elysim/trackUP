@@ -32,8 +32,10 @@ services:
       retries: 3
       start_period: 40s
     networks:
-      - internal
       - coolify
+      - internal
+    labels:
+      - traefik.docker.network=coolify
 
   worker:
     build:
@@ -84,8 +86,9 @@ services:
       retries: 3
       start_period: 40s
     networks:
-      - internal
       - coolify
+    labels:
+      - traefik.docker.network=coolify
 
   mysql:
     image: mysql:8.4
