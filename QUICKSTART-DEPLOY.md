@@ -95,6 +95,11 @@ MESSENGER_TRANSPORT_DSN=redis://:<REDIS_PASSWORD>@redis:6379/messages
 # Même domaine (pas de CORS) : le frontend proxy `/api` vers le backend
 VITE_API_BASE_URL=/api
 
+# Rise Up (obligatoire si vous utilisez la synchronisation Rise Up)
+RISEUP_API_BASE_URL=https://<votre-instance-riseup>
+RISEUP_API_PUBLIC_KEY=<collez_votre_RISEUP_API_PUBLIC_KEY>
+RISEUP_API_PRIVATE_KEY=<collez_votre_RISEUP_API_PRIVATE_KEY>
+
 # CORS
 # Optionnel (utile si vous exposez aussi l'API sur un autre domaine)
 CORS_ALLOW_ORIGIN=^https?://trackup[.]votredomaine[.]com$
@@ -104,7 +109,7 @@ CORS_ALLOW_ORIGIN=^https?://trackup[.]votredomaine[.]com$
 - Remplacez `<MYSQL_PASSWORD>` dans `DATABASE_URL` par votre vrai password
 - Remplacez `<REDIS_PASSWORD>` dans `MESSENGER_TRANSPORT_DSN` par votre vrai password
 - Remplacez `votredomaine.com` par votre vrai domaine
-- Si vous avez Rise Up, ajoutez aussi `RISEUP_API_PUBLIC_KEY` et `RISEUP_API_PRIVATE_KEY`
+- Si vous utilisez Rise Up, ajoutez `RISEUP_API_BASE_URL`, `RISEUP_API_PUBLIC_KEY` et `RISEUP_API_PRIVATE_KEY`
 
 ### Étape 4 : Configuration des Domaines
 

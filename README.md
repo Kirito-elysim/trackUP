@@ -55,6 +55,7 @@ Compte admin par défaut :
 Clés locales à placer dans `backend/.env.local` :
 
 ```dotenv
+RISEUP_API_BASE_URL="https://<votre-instance-riseup>"
 RISEUP_API_PUBLIC_KEY="..."
 RISEUP_API_PRIVATE_KEY="..."
 ```
@@ -139,6 +140,7 @@ MESSENGER_TRANSPORT_DSN=redis://:<votre_redis_password>@redis:6379/messages
 VITE_API_BASE_URL=/api
 
 # Rise Up (si configuré)
+RISEUP_API_BASE_URL=https://<votre-instance-riseup>
 RISEUP_API_PUBLIC_KEY=<votre_cle_publique>
 RISEUP_API_PRIVATE_KEY=<votre_cle_privee>
 ```
