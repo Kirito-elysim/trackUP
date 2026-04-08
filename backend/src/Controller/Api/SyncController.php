@@ -4,15 +4,16 @@ declare(strict_types=1);
 
 namespace App\Controller\Api;
 
-use App\Service\ClassroomSessionSyncService;
 use App\Service\LearnerSyncService;
 use App\Service\LearningPathSyncService;
 use App\Service\RiseUpGroupSyncService;
 use App\Service\TrainingSyncService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
+use App\Message\SyncRiseUpMessage;
 
 #[Route('/api/sync', name: 'api_sync_')]
 #[IsGranted('ROLE_ADMIN')]
@@ -23,7 +24,7 @@ class SyncController extends AbstractController
         private readonly LearningPathSyncService $learningPathSyncService,
         private readonly TrainingSyncService $trainingSyncService,
         private readonly LearnerSyncService $learnerSyncService,
-        private readonly ClassroomSessionSyncService $sessionSyncService,
+        private readonly MessageBusInterface $messageBus,
     ) {
     }
 
@@ -120,17 +121,14 @@ class SyncController extends AbstractController
     public function syncSessions(): JsonResponse
     {
         try {
-            $result = $this->sessionSyncService->sync();
-            
+            // Session sync can be very slow (signature fetch per registration, rate-limit retries, etc.).
+            // Run it asynchronously to avoid HTTP proxy/browser timeouts.
+            $this->messageBus->dispatch(new SyncRiseUpMessage('sessions'));
+
             return $this->json([
                 'success' => true,
-                'message' => sprintf(
-                    'Synchronisation terminée : %d session(s) créée(s), %d inscription(s) créée(s)',
-                    $result['sessionsCreated'] ?? 0,
-                    $result['registrationsCreated'] ?? 0
-                ),
-                'result' => $result,
-            ]);
+                'message' => 'Synchronisation des sessions lancée en arrière-plan. Cela peut prendre plusieurs minutes.',
+            ], 202);
         } catch (\Exception $e) {
             return $this->json([
                 'success' => false,
