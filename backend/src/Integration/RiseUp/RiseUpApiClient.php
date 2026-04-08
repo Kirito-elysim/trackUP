@@ -64,11 +64,9 @@ class RiseUpApiClient
             /** @var array<int, array<mixed>> $payload */
             $items = [...$items, ...$payload];
 
-            if (count($payload) < $pageSize) {
-                break;
-            }
-
-            $offset += $pageSize;
+            // Some Rise Up endpoints cap results below the requested limit (e.g. 499 items even when asking 500).
+            // Do not stop early on "payload smaller than pageSize"; instead continue until an empty page is returned.
+            $offset += count($payload);
         }
 
         return $items;
