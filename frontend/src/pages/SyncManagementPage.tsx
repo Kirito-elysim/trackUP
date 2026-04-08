@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/useAuth';
 import { ApiError, apiRequest, apiUrl } from '../lib/api';
-import { RefreshCw, Upload, Database, Users, TrendingUp, BookOpen, CheckCircle, XCircle, Clock, FileText } from 'lucide-react';
+import { RefreshCw, Upload, Database, Users, TrendingUp, BookOpen, CheckCircle, XCircle, Clock, FileText, Layers, ClipboardList, CheckSquare } from 'lucide-react';
 
 interface SyncStatus {
   type: string;
@@ -136,6 +136,30 @@ export function SyncManagementPage() {
       endpoint: '/api/sync/sessions',
       icon: Clock,
       color: '#C239B3'
+    },
+    {
+      type: 'registrations',
+      label: 'Inscriptions',
+      description: 'Synchroniser les inscriptions aux formations',
+      endpoint: '/api/sync/registrations',
+      icon: ClipboardList,
+      color: '#8E44AD'
+    },
+    {
+      type: 'modulesSteps',
+      label: 'Modules & Étapes',
+      description: 'Synchroniser les modules et les étapes des formations',
+      endpoint: '/api/sync/modules-steps',
+      icon: Layers,
+      color: '#2980B9'
+    },
+    {
+      type: 'userStepStates',
+      label: 'Progression',
+      description: 'Synchroniser la progression des apprenants (états des étapes)',
+      endpoint: '/api/sync/userstepstates',
+      icon: CheckSquare,
+      color: '#16A085'
     }
   ];
 

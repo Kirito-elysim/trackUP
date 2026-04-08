@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace App\Controller\Api;
 
 use App\Service\LearnerSyncService;
+use App\Service\LearnerStepStateSyncService;
 use App\Service\LearningPathSyncService;
 use App\Service\RiseUpGroupSyncService;
+use App\Service\TrainingModuleStepSyncService;
+use App\Service\TrainingRegistrationSyncService;
 use App\Service\TrainingSyncService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -24,6 +27,9 @@ class SyncController extends AbstractController
         private readonly LearningPathSyncService $learningPathSyncService,
         private readonly TrainingSyncService $trainingSyncService,
         private readonly LearnerSyncService $learnerSyncService,
+        private readonly TrainingRegistrationSyncService $trainingRegistrationSyncService,
+        private readonly TrainingModuleStepSyncService $trainingModuleStepSyncService,
+        private readonly LearnerStepStateSyncService $learnerStepStateSyncService,
         private readonly MessageBusInterface $messageBus,
     ) {
     }
@@ -113,6 +119,73 @@ class SyncController extends AbstractController
             return $this->json([
                 'success' => false,
                 'message' => 'Erreur lors de la synchronisation des apprenants : ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    #[Route('/registrations', name: 'registrations', methods: ['POST'])]
+    public function syncRegistrations(): JsonResponse
+    {
+        try {
+            $result = $this->trainingRegistrationSyncService->sync();
+
+            return $this->json([
+                'success' => true,
+                'message' => sprintf(
+                    'Synchronisation terminée : %d inscription(s) créée(s), %d mise(s) à jour, %d ignorée(s)',
+                    $result['created'] ?? 0,
+                    $result['updated'] ?? 0,
+                    $result['skipped'] ?? 0,
+                ),
+                'result' => $result,
+            ]);
+        } catch (\Exception $e) {
+            return $this->json([
+                'success' => false,
+                'message' => 'Erreur lors de la synchronisation des inscriptions : ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    #[Route('/modules-steps', name: 'modules_steps', methods: ['POST'])]
+    public function syncModulesAndSteps(): JsonResponse
+    {
+        try {
+            $result = $this->trainingModuleStepSyncService->sync();
+
+            return $this->json([
+                'success' => true,
+                'message' => 'Synchronisation terminée : modules et étapes synchronisés.',
+                'result' => $result,
+            ]);
+        } catch (\Exception $e) {
+            return $this->json([
+                'success' => false,
+                'message' => 'Erreur lors de la synchronisation des modules/étapes : ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    #[Route('/userstepstates', name: 'userstepstates', methods: ['POST'])]
+    public function syncLearnerStepStates(): JsonResponse
+    {
+        try {
+            $result = $this->learnerStepStateSyncService->sync();
+
+            return $this->json([
+                'success' => true,
+                'message' => sprintf(
+                    'Synchronisation terminée : %d état(s) créé(s), %d mis à jour, %d ignoré(s)',
+                    $result['created'] ?? 0,
+                    $result['updated'] ?? 0,
+                    $result['skipped'] ?? 0,
+                ),
+                'result' => $result,
+            ]);
+        } catch (\Exception $e) {
+            return $this->json([
+                'success' => false,
+                'message' => 'Erreur lors de la synchronisation des états de progression : ' . $e->getMessage(),
             ], 500);
         }
     }
