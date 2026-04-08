@@ -127,6 +127,17 @@ CORS_ALLOW_ORIGIN=^https?://trackup[.]votredomaine[.]com$
 
 **ℹ️ Important** : l'API est accessible via le même domaine, sous `/api` (ex: `https://trackup.votredomaine.com/api/health`). Le service `backend` n'a pas besoin de domaine public.
 
+#### Service phpMyAdmin (optionnel)
+
+1. Dans Coolify, sélectionnez le service **phpmyadmin**
+2. **Domains** :
+   - Ajoutez : `pma.votredomaine.com` (ex: `pma.trackup.elysium-solution.com`)
+   - Port : `80`
+   - **Generate Domain**
+3. **HTTPS** :
+   - ✅ Enable HTTPS
+   - ✅ Force HTTPS
+
 ### Étape 5 : DNS Configuration
 
 Avant de déployer, configurez vos DNS :

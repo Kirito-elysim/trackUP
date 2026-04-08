@@ -152,6 +152,11 @@ Pour le service **frontend** :
 - Port : `80`
 - HTTPS : ✅ Activé (Let's Encrypt)
 
+Pour le service **phpmyadmin** (optionnel) :
+- Domain : `pma.votredomaine.com` (ex: `pma.trackup.elysium-solution.com`)
+- Port : `80`
+- HTTPS : ✅ Activé
+
 L'API est exposée via le même domaine, sous `/api` (ex: `https://trackup.votredomaine.com/api/health`).
 
 5. **Déployer**

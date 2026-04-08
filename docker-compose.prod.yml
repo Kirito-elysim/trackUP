@@ -128,6 +128,24 @@ services:
     networks:
       - internal
 
+  phpmyadmin:
+    image: phpmyadmin:5-apache
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      UPLOAD_LIMIT: 64M
+    expose:
+      - "80"
+    networks:
+      - coolify
+      - internal
+    labels:
+      - traefik.docker.network=coolify
+
 volumes:
   mysql_data:
     driver: local

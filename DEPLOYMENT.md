@@ -99,6 +99,11 @@ VITE_API_BASE_URL=/api
 - Port : `80`
 - HTTPS : Activé (Let's Encrypt auto)
 
+**phpMyAdmin** (service `phpmyadmin`) :
+- Domain : `pma.votredomaine.com` (ex: `pma.trackup.elysium-solution.com`)
+- Port : `80`
+- HTTPS : Activé
+
 **ℹ️ Important** : l'API est accessible via le même domaine, sous `/api` (ex: `https://trackup.votredomaine.com/api/health`). Le service `backend` n'a pas besoin de domaine public.
 
 ### Étape 5 : Déployer
