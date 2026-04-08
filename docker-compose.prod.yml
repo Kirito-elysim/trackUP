@@ -3,7 +3,6 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile.prod
-    container_name: trackup-backend-prod
     restart: unless-stopped
     environment:
       APP_ENV: prod
@@ -18,18 +17,28 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+    expose:
+      - "8000"
     healthcheck:
-      test: ["CMD", "php", "-v"]
+      test:
+        [
+          "CMD",
+          "php",
+          "-r",
+          "exit((int)(@file_get_contents('http://127.0.0.1:8000/api/health') === false));",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+    networks:
+      - internal
+      - coolify
 
   worker:
     build:
       context: ./backend
       dockerfile: Dockerfile.prod
-    container_name: trackup-worker-prod
     restart: unless-stopped
     command: php bin/console messenger:consume async --time-limit=3600 --memory-limit=256M -vv
     environment:
@@ -50,6 +59,8 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    networks:
+      - internal
 
   frontend:
     build:
@@ -57,20 +68,27 @@ services:
       dockerfile: Dockerfile.prod
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL}
-    container_name: trackup-frontend-prod
     restart: unless-stopped
     depends_on:
       - backend
+    expose:
+      - "80"
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O - http://127.0.0.1/health | grep -q healthy",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+    networks:
+      - internal
+      - coolify
 
   mysql:
     image: mysql:8.4
-    container_name: trackup-mysql-prod
     restart: unless-stopped
     environment:
       MYSQL_DATABASE: trackup
@@ -86,22 +104,32 @@ services:
       retries: 5
       start_period: 30s
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    networks:
+      - internal
 
   redis:
     image: redis:7-alpine
-    container_name: trackup-redis-prod
     restart: unless-stopped
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - internal
 
 volumes:
   mysql_data:
     driver: local
   redis_data:
     driver: local
+
+networks:
+  internal:
+    driver: bridge
+  coolify:
+    external: true
+    name: coolify

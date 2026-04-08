@@ -170,7 +170,7 @@ Une fois tous les containers "Running" :
 
 # Option B : Via SSH sur le serveur
 ssh votre-serveur
-docker exec -it trackup-backend-prod sh
+docker compose -f docker-compose.prod.yml exec backend sh
 ```
 
 Puis dans le container :
@@ -206,7 +206,7 @@ Ouvrez dans votre navigateur : `https://app.votredomaine.com`
 Si vous avez configuré les clés Rise Up :
 
 ```bash
-docker exec -it trackup-backend-prod sh
+docker compose -f docker-compose.prod.yml exec backend sh
 
 php bin/console app:sync:learners
 php bin/console app:sync:trainings
@@ -237,23 +237,23 @@ git push origin main
 
 ```bash
 # Vérifier les logs
-docker logs trackup-backend-prod
+docker compose -f docker-compose.prod.yml logs -f backend
 
 # Vérifier la santé
-docker ps | grep trackup-backend-prod
+docker compose -f docker-compose.prod.yml ps
 
 # Redémarrer si nécessaire
-docker restart trackup-backend-prod
+docker compose -f docker-compose.prod.yml restart backend
 ```
 
 ### Frontend page blanche
 
 ```bash
 # Vérifier les logs Nginx
-docker logs trackup-frontend-prod
+docker compose -f docker-compose.prod.yml logs -f frontend
 
 # Vérifier que l'API URL est correcte
-docker exec trackup-frontend-prod cat /usr/share/nginx/html/index.html | grep -o 'VITE_API_BASE_URL[^"]*'
+docker compose -f docker-compose.prod.yml exec frontend sh -lc "grep -o 'VITE_API_BASE_URL[^\"]*' /usr/share/nginx/html/index.html"
 ```
 
 ### Erreur 502 Bad Gateway
@@ -269,6 +269,10 @@ docker network ls
 docker network inspect <network_name>
 ```
 
+### Erreur "no available server"
+
+Sur Coolify/Traefik, `no available server` signifie généralement que le reverse-proxy ne voit aucun conteneur disponible pour le domaine (mauvais service/port, conteneur `unhealthy`, ou réseau `coolify` non partagé).
+
 ### Erreur CORS
 
 Vérifiez dans Coolify → Environment Variables :
@@ -283,7 +287,7 @@ Les domaines doivent correspondre **exactement** à ceux configurés.
 
 ```bash
 # Se connecter au container MySQL
-docker exec -it trackup-mysql-prod sh
+docker compose -f docker-compose.prod.yml exec mysql sh
 
 # Tester la connexion
 mysql -u trackup -p
@@ -311,13 +315,13 @@ Configurés automatiquement :
 
 ```bash
 # Tous les services
-docker-compose -f docker-compose.prod.yml logs -f
+docker compose -f docker-compose.prod.yml logs -f
 
 # Un service spécifique
-docker logs -f trackup-backend-prod
-docker logs -f trackup-frontend-prod
-docker logs -f trackup-mysql-prod
-docker logs -f trackup-worker-prod
+docker compose -f docker-compose.prod.yml logs -f backend
+docker compose -f docker-compose.prod.yml logs -f frontend
+docker compose -f docker-compose.prod.yml logs -f mysql
+docker compose -f docker-compose.prod.yml logs -f worker
 ```
 
 ### Statistiques
@@ -347,7 +351,7 @@ docker system df
 ### Changer le mot de passe admin
 
 ```bash
-docker exec -it trackup-backend-prod sh
+docker compose -f docker-compose.prod.yml exec backend sh
 
 # Créer un nouvel admin ou modifier
 php bin/console app:create-user

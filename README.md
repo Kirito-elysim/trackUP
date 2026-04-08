@@ -163,7 +163,9 @@ Une fois le déploiement terminé :
 
 ```bash
 # 1. Exécuter les migrations
-docker exec -it trackup-backend-prod sh
+# Sur Coolify : utilisez le terminal du service "backend"
+# Hors Coolify (compose classique) :
+docker compose -f docker-compose.prod.yml exec backend sh
 php bin/console doctrine:migrations:migrate --no-interaction
 
 # 2. Initialiser RBAC et créer l'admin
@@ -204,7 +206,7 @@ git push origin main
 
 **Backend ne démarre pas** :
 ```bash
-docker logs trackup-backend-prod
+docker compose -f docker-compose.prod.yml logs -f backend
 ```
 
 **Erreur CORS** :
@@ -216,7 +218,7 @@ CORS_ALLOW_ORIGIN=^https?://(app\.votredomaine\.com|api\.votredomaine\.com)$
 **Frontend page blanche** :
 ```bash
 # Vérifier que VITE_API_BASE_URL est correct
-docker logs trackup-frontend-prod
+docker compose -f docker-compose.prod.yml logs -f frontend
 ```
 
 ### Documentation complète

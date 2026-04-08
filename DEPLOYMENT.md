@@ -123,7 +123,7 @@ Une fois déployé, exécutez les migrations :
 # Sur Coolify, ouvrez le terminal du service "backend"
 # Ou via SSH sur votre serveur :
 
-docker exec -it trackup-backend-prod sh
+docker compose -f docker-compose.prod.yml exec backend sh
 
 # Puis dans le container :
 php bin/console doctrine:migrations:migrate --no-interaction
@@ -215,31 +215,39 @@ Configurez des backups automatiques dans Coolify :
 
 ```bash
 # Vérifier les logs
-docker logs trackup-backend-prod
+docker compose -f docker-compose.prod.yml logs -f backend
 
 # Vérifier la connexion MySQL
-docker exec -it trackup-backend-prod php bin/console doctrine:schema:validate
+docker compose -f docker-compose.prod.yml exec backend php bin/console doctrine:schema:validate
 ```
 
 ### Frontend affiche une page blanche
 
 ```bash
 # Vérifier les logs Nginx
-docker logs trackup-frontend-prod
+docker compose -f docker-compose.prod.yml logs -f frontend
 
 # Vérifier que VITE_API_BASE_URL est correct
-docker exec -it trackup-frontend-prod cat /usr/share/nginx/html/assets/*.js | grep VITE_API_BASE_URL
+docker compose -f docker-compose.prod.yml exec frontend sh -lc "grep -R \"VITE_API_BASE_URL\" -n /usr/share/nginx/html/assets || true"
 ```
 
 ### Worker ne consomme pas les messages
 
 ```bash
 # Vérifier les logs du worker
-docker logs trackup-worker-prod
+docker compose -f docker-compose.prod.yml logs -f worker
 
 # Vérifier la connexion Redis
-docker exec -it trackup-backend-prod php bin/console debug:messenger
+docker compose -f docker-compose.prod.yml exec backend php bin/console debug:messenger
 ```
+
+### Erreur "no available server"
+
+Si vous voyez `no available server` (souvent une réponse Traefik/Coolify), vérifiez :
+
+- Le domaine pointe vers le bon service (**backend** port `8000` / **frontend** port `80`)
+- Les conteneurs `backend`/`frontend` sont `healthy`
+- Les services exposés sont joignables depuis le réseau reverse-proxy Coolify (réseau Docker `coolify`)
 
 ### Erreur CORS
 
