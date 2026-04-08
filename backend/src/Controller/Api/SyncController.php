@@ -8,6 +8,7 @@ use App\Service\LearnerSyncService;
 use App\Service\LearnerStepStateSyncService;
 use App\Service\LearningPathSyncService;
 use App\Service\RiseUpGroupSyncService;
+use App\Service\RiseUpGroupMembershipSyncService;
 use App\Service\TrainingModuleStepSyncService;
 use App\Service\TrainingRegistrationSyncService;
 use App\Service\TrainingSyncService;
@@ -24,6 +25,7 @@ class SyncController extends AbstractController
 {
     public function __construct(
         private readonly RiseUpGroupSyncService $groupSyncService,
+        private readonly RiseUpGroupMembershipSyncService $groupMembershipSyncService,
         private readonly LearningPathSyncService $learningPathSyncService,
         private readonly TrainingSyncService $trainingSyncService,
         private readonly LearnerSyncService $learnerSyncService,
@@ -65,6 +67,36 @@ class SyncController extends AbstractController
             return $this->json([
                 'success' => false,
                 'message' => 'Erreur lors de la synchronisation des groupes : ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    #[Route('/riseup-group-memberships', name: 'riseup_group_memberships', methods: ['POST'])]
+    public function syncRiseUpGroupMemberships(): JsonResponse
+    {
+        try {
+            $result = $this->groupMembershipSyncService->syncAll();
+
+            return $this->json([
+                'success' => true,
+                'message' => sprintf(
+                    'Synchronisation terminée : %d apprenant(s) traité(s), %d lien(s) groupe, %d ignoré(s)',
+                    $result['learners'] ?? 0,
+                    $result['links'] ?? 0,
+                    $result['skipped'] ?? 0,
+                ),
+                'stats' => $this->makeStats(
+                    (int) ($result['learners'] ?? 0),
+                    (int) ($result['links'] ?? 0),
+                    0,
+                    (int) ($result['skipped'] ?? 0),
+                ),
+                'result' => $result,
+            ]);
+        } catch (\Exception $e) {
+            return $this->json([
+                'success' => false,
+                'message' => 'Erreur lors de la synchronisation des appartenances groupes : ' . $e->getMessage(),
             ], 500);
         }
     }

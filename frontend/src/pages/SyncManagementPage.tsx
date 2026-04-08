@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/useAuth';
 import { ApiError, apiRequest, apiUrl } from '../lib/api';
-import { RefreshCw, Upload, Database, Users, TrendingUp, BookOpen, CheckCircle, XCircle, Clock, FileText, Layers, ClipboardList, CheckSquare } from 'lucide-react';
+import { RefreshCw, Upload, Database, Users, TrendingUp, BookOpen, CheckCircle, XCircle, Clock, FileText, Layers, ClipboardList, CheckSquare, Link2 } from 'lucide-react';
 
 interface SyncStatus {
   type: string;
@@ -104,6 +104,14 @@ export function SyncManagementPage() {
       endpoint: '/api/sync/groups',
       icon: Users,
       color: '#FF6B9D'
+    },
+    {
+      type: 'groupMemberships',
+      label: 'Appartenances Groupes',
+      description: 'Synchroniser les liens apprenants ↔ groupes',
+      endpoint: '/api/sync/riseup-group-memberships',
+      icon: Link2,
+      color: '#7F8C8D'
     },
     {
       type: 'learningPaths',
