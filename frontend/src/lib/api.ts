@@ -1,5 +1,20 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080';
 
+function buildUrl(path: string): string {
+  const base = API_BASE_URL.replace(/\/+$/, '');
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+
+  if (base === '') {
+    return normalizedPath;
+  }
+
+  if (base.endsWith('/api') && normalizedPath.startsWith('/api/')) {
+    return `${base}${normalizedPath.slice('/api'.length)}`;
+  }
+
+  return `${base}${normalizedPath}`;
+}
+
 export class ApiError extends Error {
   public readonly status: number;
 
@@ -16,7 +31,7 @@ type RequestOptions = {
 };
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(buildUrl(path), {
     method: options.method ?? 'GET',
     headers: {
       'Content-Type': 'application/json',
@@ -34,4 +49,8 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   }
 
   return payload as T;
+}
+
+export function apiUrl(path: string): string {
+  return buildUrl(path);
 }

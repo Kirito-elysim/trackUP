@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/useAuth';
-import { ApiError, apiRequest } from '../lib/api';
+import { ApiError, apiRequest, apiUrl } from '../lib/api';
 import { RefreshCw, Upload, Database, Users, TrendingUp, BookOpen, CheckCircle, XCircle, Clock, FileText } from 'lucide-react';
 
 interface SyncStatus {
@@ -63,7 +63,7 @@ export function SyncManagementPage() {
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'}/api/riseup-activity-logs/import`,
+        apiUrl('/api/riseup-activity-logs/import'),
         {
           method: 'POST',
           headers: {

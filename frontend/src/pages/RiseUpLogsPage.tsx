@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useDeferredValue } from 'react';
 import { useAuth } from '../contexts/useAuth';
-import { ApiError, apiRequest } from '../lib/api';
+import { ApiError, apiRequest, apiUrl } from '../lib/api';
 import { formatDateTime, formatDuration } from '../lib/format';
 import { Clock, User, BookOpen, Calendar, Filter, Download, RefreshCw, Users, TrendingUp, Activity, X, Search } from 'lucide-react';
 import type { RiseUpActivityLogsPayload, LearnerSummary } from '../types/trackup';
@@ -196,7 +196,7 @@ export function RiseUpLogsPage() {
       }
 
       const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'}/api/riseup-activity-logs/export${
+        `${apiUrl('/api/riseup-activity-logs/export')}${
           params.size > 0 ? `?${params.toString()}` : ''
         }`,
         {
