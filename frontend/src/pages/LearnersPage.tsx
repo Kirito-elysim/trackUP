@@ -1,8 +1,8 @@
-import { useDeferredValue, useEffect, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../contexts/useAuth';
 import { apiRequest, ApiError } from '../lib/api';
 import { formatDuration, formatPercentage, formatDateTime } from '../lib/format';
-import { Search, Clock, TrendingUp, BookOpen, User, Calendar, CheckCircle, XCircle, Activity, X, Award, Target, Zap } from 'lucide-react';
+import { Search, Clock, TrendingUp, BookOpen, User, Calendar, CheckCircle, XCircle, Activity, X, Award, Target, Zap, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { LearnerDetail, LearnerSummary } from '../types/trackup';
 
 export function LearnersPage() {
@@ -16,6 +16,34 @@ export function LearnersPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'formations' | 'sessions' | 'activity'>('formations');
+  const [upcomingPage, setUpcomingPage] = useState(1);
+  const upcomingPageSize = 4;
+
+  const upcomingSessions = useMemo(() => {
+    if (!selectedLearner) {
+      return [];
+    }
+
+    const now = Date.now();
+
+    return selectedLearner.sessionRegistrations
+      .filter((session) => session.startAt && new Date(session.startAt).getTime() > now)
+      .sort((a, b) => new Date(a.startAt!).getTime() - new Date(b.startAt!).getTime());
+  }, [selectedLearner]);
+
+  const upcomingTotalPages = Math.max(1, Math.ceil(upcomingSessions.length / upcomingPageSize));
+  const upcomingPageStartIndex = (upcomingPage - 1) * upcomingPageSize;
+  const upcomingPageItems = upcomingSessions.slice(upcomingPageStartIndex, upcomingPageStartIndex + upcomingPageSize);
+
+  useEffect(() => {
+    setUpcomingPage(1);
+  }, [selectedLearnerId]);
+
+  useEffect(() => {
+    if (upcomingPage > upcomingTotalPages) {
+      setUpcomingPage(upcomingTotalPages);
+    }
+  }, [upcomingPage, upcomingTotalPages]);
 
   useEffect(() => {
     if (!token || deferredQuery.trim().length < 2) {
@@ -315,21 +343,42 @@ export function LearnersPage() {
           </div>
 
           {/* Sessions à venir */}
-          {selectedLearner.sessionRegistrations.filter(s => s.startAt && new Date(s.startAt) > new Date()).length > 0 && (
+          {upcomingSessions.length > 0 && (
             <div className="upcoming-sessions-section">
               <div className="section-title">
                 <Zap size={20} color="#0063F7" />
                 <h3>Sessions à venir</h3>
                 <span className="badge-count">
-                  {selectedLearner.sessionRegistrations.filter(s => s.startAt && new Date(s.startAt) > new Date()).length}
+                  {upcomingSessions.length}
                 </span>
+                {upcomingTotalPages > 1 && (
+                  <div className="upcoming-pagination">
+                    <button
+                      type="button"
+                      className="upcoming-pagination-button"
+                      onClick={() => setUpcomingPage((page) => Math.max(1, page - 1))}
+                      disabled={upcomingPage === 1}
+                      aria-label="Page précédente"
+                    >
+                      <ChevronLeft size={18} />
+                    </button>
+                    <span className="upcoming-pagination-status">
+                      {upcomingPage} / {upcomingTotalPages}
+                    </span>
+                    <button
+                      type="button"
+                      className="upcoming-pagination-button"
+                      onClick={() => setUpcomingPage((page) => Math.min(upcomingTotalPages, page + 1))}
+                      disabled={upcomingPage === upcomingTotalPages}
+                      aria-label="Page suivante"
+                    >
+                      <ChevronRight size={18} />
+                    </button>
+                  </div>
+                )}
               </div>
               <div className="upcoming-sessions-grid">
-                {selectedLearner.sessionRegistrations
-                  .filter(s => s.startAt && new Date(s.startAt) > new Date())
-                  .sort((a, b) => new Date(a.startAt!).getTime() - new Date(b.startAt!).getTime())
-                  .slice(0, 3)
-                  .map((session) => (
+                {upcomingPageItems.map((session) => (
                     <div key={session.id} className="upcoming-session-card">
                       <div className="session-date-badge">
                         <Calendar size={16} />
@@ -342,8 +391,7 @@ export function LearnersPage() {
                       </p>
                       <span className="session-type-badge">{session.sessionType || 'Session'}</span>
                     </div>
-                  ))
-                }
+                ))}
               </div>
             </div>
           )}
