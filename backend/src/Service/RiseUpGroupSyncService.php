@@ -16,7 +16,7 @@ class RiseUpGroupSyncService
     }
 
     /**
-     * @return array{groups:int,groupLearningPaths:int}
+     * @return array{groups:int,groupLearningPaths:int,fetched:int,created:int,updated:int,skipped:int}
      */
     public function sync(): array
     {
@@ -26,6 +26,11 @@ class RiseUpGroupSyncService
         if (!array_is_list($payload)) {
             throw new \RuntimeException('Rise Up /v3/groups did not return a list payload.');
         }
+
+        $fetched = count($payload);
+        $created = 0;
+        $updated = 0;
+        $skipped = 0;
 
         $groupsSynced = 0;
         $learningPathsSynced = 0;
@@ -39,11 +44,18 @@ class RiseUpGroupSyncService
             $externalId = $this->positiveIntOrNull($row['id'] ?? null);
             $name = is_string($row['name'] ?? null) ? trim((string) $row['name']) : '';
             if ($externalId === null || $name === '') {
+                ++$skipped;
                 continue;
             }
 
-            $group = $this->entityManager->getRepository(RiseUpGroup::class)->findOneBy(['externalId' => $externalId])
-                ?? (new RiseUpGroup())->setExternalId($externalId);
+            $existing = $this->entityManager->getRepository(RiseUpGroup::class)->findOneBy(['externalId' => $externalId]);
+            $group = $existing ?? (new RiseUpGroup())->setExternalId($externalId);
+
+            if ($existing instanceof RiseUpGroup) {
+                ++$updated;
+            } else {
+                ++$created;
+            }
 
             $group
                 ->setName($name)
@@ -65,6 +77,10 @@ class RiseUpGroupSyncService
         return [
             'groups' => $groupsSynced,
             'groupLearningPaths' => $learningPathsSynced,
+            'fetched' => $fetched,
+            'created' => $created,
+            'updated' => $updated,
+            'skipped' => $skipped,
         ];
     }
 

@@ -34,11 +34,13 @@ class SyncRiseUpGroupsCommand extends Command
 
         $io->success('Rise Up groups synchronized.');
         $io->definitionList(
-            ['Groups' => (string) $result['groups']],
-            ['Group learning paths' => (string) $result['groupLearningPaths']],
+            ['Fetched' => (string) ($result['fetched'] ?? 0)],
+            ['Created' => (string) ($result['created'] ?? 0)],
+            ['Updated' => (string) ($result['updated'] ?? 0)],
+            ['Skipped' => (string) ($result['skipped'] ?? 0)],
+            ['Group learning paths' => (string) ($result['groupLearningPaths'] ?? 0)],
         );
 
         return Command::SUCCESS;
     }
 }
-
