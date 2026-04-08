@@ -5,9 +5,8 @@
 - Compte Coolify actif
 - Serveur avec Docker installé (min. 2GB RAM, 1 CPU)
 - Dépôt Git (GitHub/GitLab) du projet
-- Deux domaines configurés :
-  - `app.votredomaine.com` → Frontend
-  - `api.votredomaine.com` → Backend
+- Un domaine configuré :
+  - `trackup.votredomaine.com` → Frontend + API (API sous `/api`)
 
 ---
 
@@ -45,8 +44,8 @@ cp .env.prod.example .env.prod
 - `MYSQL_ROOT_PASSWORD`
 - `MYSQL_PASSWORD`
 - `REDIS_PASSWORD`
-- `CORS_ALLOW_ORIGIN` → avec vos domaines
-- `VITE_API_BASE_URL` → URL de votre API
+- `CORS_ALLOW_ORIGIN` → optionnel (si API exposée sur un autre domaine)
+- `VITE_API_BASE_URL` → `/api`
 - `DATABASE_URL` → utilisez le MYSQL_PASSWORD
 - `MESSENGER_TRANSPORT_DSN` → utilisez le REDIS_PASSWORD
 
@@ -85,25 +84,22 @@ APP_DEBUG=0
 APP_SECRET=votre_secret_genere
 DATABASE_URL=mysql://trackup:votre_password@mysql:3306/trackup?serverVersion=8.4.0&charset=utf8mb4
 MESSENGER_TRANSPORT_DSN=redis://:votre_redis_password@redis:6379/messages
-CORS_ALLOW_ORIGIN=^https?://(app\.votredomaine\.com|api\.votredomaine\.com)$
+CORS_ALLOW_ORIGIN=^https?://trackup[.]votredomaine[.]com$
 JWT_PASSPHRASE=votre_jwt_passphrase
 MYSQL_ROOT_PASSWORD=votre_root_password
 MYSQL_PASSWORD=votre_user_password
 REDIS_PASSWORD=votre_redis_password
-VITE_API_BASE_URL=https://api.votredomaine.com
+VITE_API_BASE_URL=/api
 ```
 
 ### Étape 4 : Configuration des domaines
 
-**Backend** (service `backend`) :
-- Domain : `api.votredomaine.com`
-- Port : `8000`
-- HTTPS : Activé (Let's Encrypt auto)
-
 **Frontend** (service `frontend`) :
-- Domain : `app.votredomaine.com`
+- Domain : `trackup.votredomaine.com`
 - Port : `80`
 - HTTPS : Activé (Let's Encrypt auto)
+
+**ℹ️ Important** : l'API est accessible via le même domaine, sous `/api` (ex: `https://trackup.votredomaine.com/api/health`). Le service `backend` n'a pas besoin de domaine public.
 
 ### Étape 5 : Déployer
 
@@ -150,8 +146,8 @@ php bin/console cache:warmup --env=prod
 
 ### Healthchecks configurés
 
-- **Backend** : `GET http://api.votredomaine.com/` (toutes les 30s)
-- **Frontend** : `GET http://app.votredomaine.com/health` (toutes les 30s)
+- **Backend** : `GET https://trackup.votredomaine.com/api/health` (via le proxy frontend)
+- **Frontend** : `GET https://trackup.votredomaine.com/health` (toutes les 30s)
 - **MySQL** : `mysqladmin ping` (toutes les 10s)
 - **Redis** : `redis-cli ping` (toutes les 10s)
 

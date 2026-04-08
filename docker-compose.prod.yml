@@ -32,10 +32,7 @@ services:
       retries: 3
       start_period: 40s
     networks:
-      - coolify
       - internal
-    labels:
-      - traefik.docker.network=coolify
 
   worker:
     build:
@@ -87,6 +84,7 @@ services:
       start_period: 40s
     networks:
       - coolify
+      - internal
     labels:
       - traefik.docker.network=coolify
 

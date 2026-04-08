@@ -92,10 +92,12 @@ REDIS_PASSWORD=<collez_votre_REDIS_PASSWORD>
 MESSENGER_TRANSPORT_DSN=redis://:<REDIS_PASSWORD>@redis:6379/messages
 
 # Frontend - React
-VITE_API_BASE_URL=https://api.votredomaine.com
+# Même domaine (pas de CORS) : le frontend proxy `/api` vers le backend
+VITE_API_BASE_URL=/api
 
 # CORS
-CORS_ALLOW_ORIGIN=^https?://(app\.votredomaine\.com|api\.votredomaine\.com)$
+# Optionnel (utile si vous exposez aussi l'API sur un autre domaine)
+CORS_ALLOW_ORIGIN=^https?://trackup[.]votredomaine[.]com$
 ```
 
 **⚠️ Important** :
@@ -106,29 +108,19 @@ CORS_ALLOW_ORIGIN=^https?://(app\.votredomaine\.com|api\.votredomaine\.com)$
 
 ### Étape 4 : Configuration des Domaines
 
-#### Service Backend
-
-1. Dans Coolify, sélectionnez le service **backend**
-2. **Domains** :
-   - Ajoutez : `api.votredomaine.com`
-   - Port : `8000`
-   - **Generate Domain**
-3. **HTTPS** :
-   - ✅ Enable HTTPS
-   - ✅ Force HTTPS
-   - Certificate : Let's Encrypt
-
-#### Service Frontend
+#### Service Frontend (Frontend + API)
 
 1. Dans Coolify, sélectionnez le service **frontend**
 2. **Domains** :
-   - Ajoutez : `app.votredomaine.com`
+   - Ajoutez : `trackup.votredomaine.com`
    - Port : `80`
    - **Generate Domain**
 3. **HTTPS** :
    - ✅ Enable HTTPS
    - ✅ Force HTTPS
    - Certificate : Let's Encrypt
+
+**ℹ️ Important** : l'API est accessible via le même domaine, sous `/api` (ex: `https://trackup.votredomaine.com/api/health`). Le service `backend` n'a pas besoin de domaine public.
 
 ### Étape 5 : DNS Configuration
 
@@ -138,15 +130,13 @@ Avant de déployer, configurez vos DNS :
 
 ```
 Type    Nom     Valeur                  TTL
-A       api     <IP_DE_VOTRE_SERVEUR>   3600
-A       app     <IP_DE_VOTRE_SERVEUR>   3600
+A       trackup <IP_DE_VOTRE_SERVEUR>   3600
 ```
 
 **💡 Vérifier** :
 ```bash
 # Depuis votre terminal local
-nslookup api.votredomaine.com
-nslookup app.votredomaine.com
+nslookup trackup.votredomaine.com
 ```
 
 ### Étape 6 : Déployer !
@@ -190,12 +180,12 @@ php bin/console doctrine:schema:validate
 
 #### Backend API
 ```bash
-curl https://api.votredomaine.com/api/health
+curl https://trackup.votredomaine.com/api/health
 # Réponse attendue : {"status":"ok"}
 ```
 
 #### Frontend
-Ouvrez dans votre navigateur : `https://app.votredomaine.com`
+Ouvrez dans votre navigateur : `https://trackup.votredomaine.com`
 
 **Login par défaut** :
 - Email : `admin@trackup.local`

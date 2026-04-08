@@ -122,7 +122,8 @@ APP_ENV=prod
 APP_DEBUG=0
 APP_SECRET=<votre_secret_32_chars>
 JWT_PASSPHRASE=<votre_passphrase_64_chars>
-CORS_ALLOW_ORIGIN=^https?://(app\.votredomaine\.com|api\.votredomaine\.com)$
+# Optionnel (utile si vous exposez l'API sur un autre domaine)
+CORS_ALLOW_ORIGIN=^https?://trackup[.]votredomaine[.]com$
 
 # Database
 MYSQL_ROOT_PASSWORD=<votre_root_password>
@@ -134,7 +135,8 @@ REDIS_PASSWORD=<votre_redis_password>
 MESSENGER_TRANSPORT_DSN=redis://:<votre_redis_password>@redis:6379/messages
 
 # Frontend
-VITE_API_BASE_URL=https://api.votredomaine.com
+# Même domaine (pas de CORS) : le frontend proxy `/api` vers le backend
+VITE_API_BASE_URL=/api
 
 # Rise Up (si configuré)
 RISEUP_API_PUBLIC_KEY=<votre_cle_publique>
@@ -143,15 +145,12 @@ RISEUP_API_PRIVATE_KEY=<votre_cle_privee>
 
 4. **Configurer les domaines**
 
-Pour le service **backend** :
-- Domain : `api.votredomaine.com`
-- Port : `8000`
-- HTTPS : ✅ Activé (Let's Encrypt)
-
 Pour le service **frontend** :
-- Domain : `app.votredomaine.com`
+- Domain : `trackup.votredomaine.com`
 - Port : `80`
 - HTTPS : ✅ Activé (Let's Encrypt)
+
+L'API est exposée via le même domaine, sous `/api` (ex: `https://trackup.votredomaine.com/api/health`).
 
 5. **Déployer**
    - Cliquez sur **Deploy**
@@ -172,12 +171,12 @@ php bin/console doctrine:migrations:migrate --no-interaction
 php bin/console app:bootstrap-rbac
 
 # 3. Vérifier la santé
-curl https://api.votredomaine.com/api/health
+curl https://trackup.votredomaine.com/api/health
 ```
 
 ### Étape 4 : Premier login
 
-Connectez-vous sur `https://app.votredomaine.com` avec :
+Connectez-vous sur `https://trackup.votredomaine.com` avec :
 - Email : `admin@trackup.local`
 - Password : `TrackUp123!`
 
