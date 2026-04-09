@@ -169,15 +169,18 @@ class LearnerController extends AbstractController
                     GROUP BY learner_id
                 ) trs ON trs.learner_id = l.id
                 LEFT JOIN (
-                    SELECT learner_id, COUNT(*) AS session_registration_count
-                    FROM classroom_session_registrations
-                    GROUP BY learner_id
+                    SELECT csr.learner_id, COUNT(*) AS session_registration_count
+                    FROM classroom_session_registrations csr
+                    INNER JOIN classroom_sessions cs ON cs.id = csr.session_id
+                    WHERE cs.start_at <= NOW()
+                    GROUP BY csr.learner_id
                 ) csrs ON csrs.learner_id = l.id
                 LEFT JOIN (
                     SELECT csr.learner_id, COUNT(*) AS signed_attendance_count
                     FROM classroom_session_signatures css
                     INNER JOIN classroom_session_registrations csr ON csr.id = css.registration_id
-                    WHERE css.has_signed = 1
+                    INNER JOIN classroom_sessions cs ON cs.id = csr.session_id
+                    WHERE css.has_signed = 1 AND cs.start_at <= NOW()
                     GROUP BY csr.learner_id
                 ) sig ON sig.learner_id = l.id
                 LEFT JOIN (
