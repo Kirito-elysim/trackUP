@@ -58,6 +58,12 @@ class RiseUpActivityLogController extends AbstractController
                 $sessionConditionsMetrics[] = '(LOWER(TRIM(CONCAT(COALESCE(l2.first_name, \'\'), \' \', COALESCE(l2.last_name, \'\')))) LIKE :learnerQuery OR LOWER(COALESCE(l2.email, \'\')) LIKE :learnerQuery)';
             }
         }
+        if ($dateFrom instanceof \DateTimeImmutable) {
+            $sessionConditionsMetrics[] = 'cs.start_at >= :dateFrom';
+        }
+        if ($dateTo instanceof \DateTimeImmutable) {
+            $sessionConditionsMetrics[] = 'cs.start_at <= :dateTo';
+        }
         $sessionWhereMetrics = 'WHERE ' . implode(' AND ', $sessionConditionsMetrics);
         
         $metrics = $connection->fetchAssociative(
@@ -714,6 +720,14 @@ class RiseUpActivityLogController extends AbstractController
             } else {
                 $sessionConditions[] = '(LOWER(TRIM(CONCAT(COALESCE(l2.first_name, \'\'), \' \', COALESCE(l2.last_name, \'\')))) LIKE :learnerQuery OR LOWER(COALESCE(l2.email, \'\')) LIKE :learnerQuery)';
             }
+        }
+
+        // Propager le filtre de date sur cs.start_at pour les sessions
+        if (isset($filters['params']['dateFrom'])) {
+            $sessionConditions[] = 'cs.start_at >= :dateFrom';
+        }
+        if (isset($filters['params']['dateTo'])) {
+            $sessionConditions[] = 'cs.start_at <= :dateTo';
         }
         
         $sessionWhere = 'WHERE ' . implode(' AND ', $sessionConditions);
