@@ -78,6 +78,13 @@ docker compose exec backend php bin/console app:sync:sessions
 
 ## 🚀 Déploiement en Production (Coolify)
 
+### Architecture
+
+L'application utilise une architecture réseau optimisée pour Coolify :
+- **Réseau `coolify`** : Permet au reverse proxy Traefik d'accéder aux services exposés (frontend, phpmyadmin)
+- **Réseau `internal`** : Communication privée entre les services (backend, worker, mysql, redis)
+- **Pas de `container_name` fixes** : Coolify génère les noms dynamiquement
+
 ### Prérequis
 
 - Serveur Coolify actif avec Docker
@@ -118,72 +125,98 @@ openssl rand -base64 32
 Dans Coolify → **Environment Variables**, ajoutez :
 
 ```env
-# Backend
+# Backend - Symfony
 APP_ENV=prod
 APP_DEBUG=0
 APP_SECRET=<votre_secret_32_chars>
 JWT_PASSPHRASE=<votre_passphrase_64_chars>
-# Optionnel (utile si vous exposez l'API sur un autre domaine)
 CORS_ALLOW_ORIGIN=^https?://trackup[.]votredomaine[.]com$
 
-# Database
+# Database - MySQL
 MYSQL_ROOT_PASSWORD=<votre_root_password>
 MYSQL_PASSWORD=<votre_mysql_password>
 DATABASE_URL=mysql://trackup:<votre_mysql_password>@mysql:3306/trackup?serverVersion=8.4.0&charset=utf8mb4
 
-# Redis
+# Cache & Queue - Redis
 REDIS_PASSWORD=<votre_redis_password>
 MESSENGER_TRANSPORT_DSN=redis://:<votre_redis_password>@redis:6379/messages
 
-# Frontend
-# Même domaine (pas de CORS) : le frontend proxy `/api` vers le backend
+# Frontend - React
+# IMPORTANT : Utilisez /api pour le proxy Nginx vers le backend
 VITE_API_BASE_URL=/api
 
-# Rise Up (si configuré)
+# Rise Up (optionnel - uniquement si synchronisation Rise Up)
 RISEUP_API_BASE_URL=https://<votre-instance-riseup>
 RISEUP_API_PUBLIC_KEY=<votre_cle_publique>
 RISEUP_API_PRIVATE_KEY=<votre_cle_privee>
 ```
 
+**⚠️ Important** :
+- Remplacez `<votre_mysql_password>` dans `DATABASE_URL` par votre vrai mot de passe
+- Remplacez `<votre_redis_password>` dans `MESSENGER_TRANSPORT_DSN` par votre vrai mot de passe
+- `VITE_API_BASE_URL=/api` permet au frontend de communiquer avec le backend via le reverse proxy
+
 4. **Configurer les domaines**
 
-Pour le service **frontend** :
+**Service `frontend`** (Exposé publiquement) :
 - Domain : `trackup.votredomaine.com`
 - Port : `80`
 - HTTPS : ✅ Activé (Let's Encrypt)
+- **L'API est accessible via `/api`** (ex: `https://trackup.votredomaine.com/api/health`)
 
-Pour le service **phpmyadmin** (optionnel) :
-- Domain : `pma.votredomaine.com` (ex: `pma.trackup.elysium-solution.com`)
+**Service `phpmyadmin`** (Optionnel) :
+- Domain : `pma.votredomaine.com`
 - Port : `80`
 - HTTPS : ✅ Activé
 
-L'API est exposée via le même domaine, sous `/api` (ex: `https://trackup.votredomaine.com/api/health`).
+**Service `backend`** : Pas de domaine public (communication interne uniquement)
 
 5. **Déployer**
    - Cliquez sur **Deploy**
    - Attendez la fin du build (~5-10 min)
+   - Surveillez les logs pour vérifier le build
 
 ### Étape 3 : Post-déploiement
 
-Une fois le déploiement terminé :
+Une fois tous les services **Running** et **Healthy** :
+
+```bash
+# Via l'interface Coolify
+# Service "backend" → Terminal → Execute
+
+# Ou via SSH sur le serveur (les noms de conteneurs sont générés par Coolify)
+docker ps  # Pour voir les noms des conteneurs
+docker exec -it <nom-du-conteneur-backend> sh
+```
+
+Puis dans le container backend :
 
 ```bash
 # 1. Exécuter les migrations
-# Sur Coolify : utilisez le terminal du service "backend"
-# Hors Coolify (compose classique) :
-docker compose -f docker-compose.prod.yml exec backend sh
 php bin/console doctrine:migrations:migrate --no-interaction
 
 # 2. Initialiser RBAC et créer l'admin
 php bin/console app:bootstrap-rbac
 
-# 3. Vérifier la santé
-curl https://trackup.votredomaine.com/api/health
+# 3. Synchroniser le schéma (si nécessaire)
+php bin/console doctrine:schema:update --force
+
+# 4. Vérifier
+php bin/console doctrine:schema:validate
 ```
 
-### Étape 4 : Premier login
+### Étape 4 : Tester l'application
 
-Connectez-vous sur `https://trackup.votredomaine.com` avec :
+#### Backend API
+```bash
+curl https://trackup.votredomaine.com/api/health
+# Réponse attendue : {"status":"ok","service":"trackup-backend"}
+```
+
+#### Frontend
+Ouvrez dans votre navigateur : `https://trackup.votredomaine.com`
+
+**Credentials par défaut** :
 - Email : `admin@trackup.local`
 - Password : `TrackUp123!`
 
@@ -205,27 +238,33 @@ git push origin main
 ### Ressources nécessaires
 
 - **CPU** : 1-2 cores
-- **RAM** : 2GB minimum
-- **Stockage** : 5GB minimum
+- **RAM** : 2-4GB (minimum 2GB)
+- **Stockage** : 10GB minimum (pour les volumes MySQL et Redis)
 
 ### Troubleshooting
 
-**Backend ne démarre pas** :
+**Service "unhealthy" ou ne démarre pas** :
 ```bash
-docker compose -f docker-compose.prod.yml logs -f backend
+# Via Coolify : Service → Logs
+# Via SSH : voir les logs du conteneur
+docker ps  # Trouver le nom du conteneur
+docker logs -f <nom-du-conteneur>
 ```
 
+**Gateway Timeout ou "no available server"** :
+- Vérifiez que le service est **Healthy** dans Coolify
+- Vérifiez que le réseau `coolify` est bien configuré (présent dans docker-compose.prod.yml)
+- Vérifiez les healthchecks dans les logs
+
 **Erreur CORS** :
-Vérifiez que `CORS_ALLOW_ORIGIN` contient vos domaines :
+Vérifiez que `CORS_ALLOW_ORIGIN` correspond à votre domaine :
 ```env
-CORS_ALLOW_ORIGIN=^https?://(app\.votredomaine\.com|api\.votredomaine\.com)$
+CORS_ALLOW_ORIGIN=^https?://trackup[.]votredomaine[.]com$
 ```
 
 **Frontend page blanche** :
-```bash
-# Vérifier que VITE_API_BASE_URL est correct
-docker compose -f docker-compose.prod.yml logs -f frontend
-```
+- Vérifiez que `VITE_API_BASE_URL=/api` dans les variables d'environnement
+- Vérifiez les logs du frontend : Service `frontend` → Logs dans Coolify
 
 ### Documentation complète
 
