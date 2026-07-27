@@ -43,6 +43,7 @@ class BootstrapRbacCommand extends Command
             ['code' => 'courses.view', 'name' => 'Formations', 'category' => 'Pilotage', 'description' => 'Consulter les formations et leur avancement.'],
             ['code' => 'exports.view', 'name' => 'Exports', 'category' => 'Pilotage', 'description' => 'Accéder aux exports PDF et CSV.'],
             ['code' => 'integrations.view', 'name' => 'Intégrations', 'category' => 'Pilotage', 'description' => 'Voir l’état des synchronisations Rise Up.'],
+            ['code' => 'activity_logs.import', 'name' => 'Import de journaux Rise Up', 'category' => 'Administration', 'description' => 'Importer un export Rise Up (XLSX/CSV) dans les journaux d’activité — droit d’écriture, distinct de la consultation des exports.'],
             ['code' => 'settings.learningpaths', 'name' => 'Parcours', 'category' => 'Administration', 'description' => 'Superviser la synchronisation des parcours Rise Up.'],
             ['code' => 'settings.roles', 'name' => 'Rôles et permissions', 'category' => 'Administration', 'description' => 'Gérer les rôles et les droits.'],
             ['code' => 'settings.users', 'name' => 'Utilisateurs', 'category' => 'Administration', 'description' => 'Gérer les comptes utilisateurs internes.'],

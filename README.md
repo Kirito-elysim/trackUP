@@ -50,6 +50,28 @@ Compte admin par défaut :
 - test OAuth `Rise Up` via `app:riseup:test-auth`
 - probe générique d'endpoint `Rise Up` via `app:riseup:probe`
 
+## Permissions (RBAC)
+
+Chaque feature (`backend/src/Command/BootstrapRbacCommand.php`) protège un ou plusieurs endpoints via `UserPermissionResolver::userHasFeature()`. Le libellé de la feature ne reflète pas toujours à lui seul la portée exacte de ce qu'elle protège — cette table fait foi :
+
+| Feature | Catégorie | Endpoints protégés | Portée réelle |
+| --- | --- | --- | --- |
+| `dashboard.view` | Pilotage | `GET /api/dashboard`, `GET /api/groups/{id}`, `GET /api/groups/{groupId}/members/{learnerId}/sessions` | Lecture du tableau de bord **et** des données de groupe/apprenants associées |
+| `analytics.view` | Pilotage | `GET /api/analytics` | Lecture des métriques d'analytics |
+| `learningpaths.view` | Pilotage | `GET /api/learningpaths`, `GET /api/learningpaths/{id}` | Lecture des parcours |
+| `learners.view` | Pilotage | `GET /api/learners`, `.../sessions` | Lecture des apprenants |
+| `courses.view` | Pilotage | `GET /api/trainings` | Lecture des formations |
+| `exports.view` | Pilotage | `GET /api/exports`, `GET /api/riseup-activity-logs`, `GET /api/riseup-activity-logs/export` | **Lecture seule** : listing et export des journaux Rise Up. Ne donne pas de droit d'écriture. |
+| `activity_logs.import` | Administration | `POST /api/riseup-activity-logs/import` | **Écriture** : upload d'un fichier XLSX/CSV qui insère des lignes dans `riseup_activity_logs`. Volontairement distincte de `exports.view` (voir historique : cette route était protégée à tort par `exports.view`, permettant à un rôle lecture seule d'injecter des données). |
+| `integrations.view` | Pilotage | `GET /api/integrations` | Lecture de l'état des synchronisations |
+| `settings.learningpaths` | Administration | — (réservée, non encore branchée sur un contrôleur) | Prévue pour la supervision de sync des parcours |
+| `settings.roles` | Administration | `/api/admin/roles/*`, `/api/admin/features` | Gestion des rôles/permissions |
+| `settings.users` | Administration | `/api/admin/users/*` | Gestion des comptes. Côté frontend, gate aussi l'accès à la page de synchronisation (`SyncManagementPage`), dont les endpoints (`/api/sync/*`) sont eux protégés côté backend par `#[IsGranted('ROLE_ADMIN')]` au niveau contrôleur. |
+
+Les routes d'écriture de `SyncController` (`/api/sync/*`) et les CRUD de `Admin/RoleController`/`Admin/UserController` n'ont pas ce type de mismatch : elles utilisent soit `#[IsGranted('ROLE_ADMIN')]` au niveau classe, soit la même feature en lecture et en écriture de façon cohérente.
+
+Après avoir ajouté ou modifié une feature dans `BootstrapRbacCommand.php`, pense à écrire une migration de données (`role_feature`/`features`) plutôt que de compter uniquement sur un re-run manuel de `app:bootstrap-rbac` en production — voir `migrations/Version20260727120000.php` pour l'exemple.
+
 ## Intégration Rise Up
 
 Clés locales à placer dans `backend/.env.local` :

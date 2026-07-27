@@ -841,7 +841,7 @@ class RiseUpActivityLogController extends AbstractController
         /** @var User|null $user */
         $user = $this->getUser();
 
-        if (!$this->permissionResolver->userHasFeature($user, 'exports.view')) {
+        if (!$this->permissionResolver->userHasFeature($user, 'activity_logs.import')) {
             return $this->json(['message' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
         }
 
