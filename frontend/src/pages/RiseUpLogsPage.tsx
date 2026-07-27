@@ -35,16 +35,17 @@ export function RiseUpLogsPage() {
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const visibleLearnerSuggestions = deferredLearnerQuery.trim().length < 2 ? [] : learnerSuggestions;
+
   useEffect(() => {
     if (!token || deferredLearnerQuery.trim().length < 2) {
-      setLearnerSuggestions([]);
       return;
     }
 
     let cancelled = false;
 
     const loadLearners = async () => {
-      const params = new URLSearchParams({ 
+      const params = new URLSearchParams({
         limit: '20',
         q: deferredLearnerQuery.trim()
       });
@@ -55,7 +56,7 @@ export function RiseUpLogsPage() {
         if (!cancelled) {
           setLearnerSuggestions(data);
         }
-      } catch (caught) {
+      } catch {
         if (!cancelled) {
           setLearnerSuggestions([]);
         }
@@ -322,9 +323,9 @@ export function RiseUpLogsPage() {
                 zIndex: 1000,
                 marginTop: '4px'
               }}>
-                {learnerSuggestions.length > 0 ? (
+                {visibleLearnerSuggestions.length > 0 ? (
                   <div className="search-results-list">
-                    {learnerSuggestions.map((learner) => (
+                    {visibleLearnerSuggestions.map((learner) => (
                       <button
                         key={learner.id}
                         className="search-result-item"

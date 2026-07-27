@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../contexts/useAuth';
 import { apiRequest, ApiError } from '../lib/api';
+import { buildCsv, downloadCsv } from '../lib/csv';
 import { formatDateTime, formatDuration, formatPercentage } from '../lib/format';
 import type { ExportsPayload } from '../types/trackup';
 
@@ -85,27 +86,16 @@ export function ExportsPage() {
       log.details ?? '',
     ]);
 
-    const csv = [headers, ...rows]
-      .map((line) => line.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(';'))
-      .join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `trackup-export-${selectedLearner.learner.fullName.replaceAll(' ', '-').toLowerCase()}.csv`;
-    anchor.click();
-    URL.revokeObjectURL(url);
+    const filename = `trackup-export-${selectedLearner.learner.fullName.replaceAll(' ', '-').toLowerCase()}.csv`;
+    downloadCsv(filename, buildCsv(headers, rows));
   };
 
   const selectedLearner = payload?.selectedLearner ?? null;
   const learner = selectedLearner?.learner ?? null;
   const logCounts = useMemo(() => {
-    if (!selectedLearner) {
-      return { pathway: 0, platform: 0, module: 0, masterclass: 0 };
-    }
+    const logs = payload?.selectedLearner?.logs ?? [];
 
-    return selectedLearner.logs.reduce(
+    return logs.reduce(
       (accumulator, log) => {
         if (log.sourceType === 'pathway') accumulator.pathway += 1;
         if (log.sourceType === 'platform') accumulator.platform += 1;
@@ -116,7 +106,7 @@ export function ExportsPage() {
       },
       { pathway: 0, platform: 0, module: 0, masterclass: 0 },
     );
-  }, [selectedLearner]);
+  }, [payload]);
 
   return (
     <section className="page-section">

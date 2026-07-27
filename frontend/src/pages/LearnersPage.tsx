@@ -19,35 +19,26 @@ export function LearnersPage() {
   const [upcomingPage, setUpcomingPage] = useState(1);
   const upcomingPageSize = 4;
 
+  const [now, setNow] = useState(() => Date.now());
+
   const upcomingSessions = useMemo(() => {
     if (!selectedLearner) {
       return [];
     }
 
-    const now = Date.now();
-
     return selectedLearner.sessionRegistrations
       .filter((session) => session.startAt && new Date(session.startAt).getTime() > now)
       .sort((a, b) => new Date(a.startAt!).getTime() - new Date(b.startAt!).getTime());
-  }, [selectedLearner]);
+  }, [selectedLearner, now]);
 
   const upcomingTotalPages = Math.max(1, Math.ceil(upcomingSessions.length / upcomingPageSize));
   const upcomingPageStartIndex = (upcomingPage - 1) * upcomingPageSize;
   const upcomingPageItems = upcomingSessions.slice(upcomingPageStartIndex, upcomingPageStartIndex + upcomingPageSize);
 
-  useEffect(() => {
-    setUpcomingPage(1);
-  }, [selectedLearnerId]);
-
-  useEffect(() => {
-    if (upcomingPage > upcomingTotalPages) {
-      setUpcomingPage(upcomingTotalPages);
-    }
-  }, [upcomingPage, upcomingTotalPages]);
+  const visibleLearners = deferredQuery.trim().length < 2 ? [] : learners;
 
   useEffect(() => {
     if (!token || deferredQuery.trim().length < 2) {
-      setLearners([]);
       return;
     }
 
@@ -56,7 +47,7 @@ export function LearnersPage() {
     const loadLearners = async () => {
       setError(null);
 
-      const params = new URLSearchParams({ 
+      const params = new URLSearchParams({
         limit: '20',
         q: deferredQuery.trim()
       });
@@ -84,7 +75,6 @@ export function LearnersPage() {
 
   useEffect(() => {
     if (!token || !selectedLearnerId) {
-      setSelectedLearner(null);
       return;
     }
 
@@ -98,6 +88,7 @@ export function LearnersPage() {
 
         if (!cancelled) {
           setSelectedLearner(payload);
+          setNow(Date.now());
         }
       } catch (caught) {
         if (!cancelled) {
@@ -119,6 +110,7 @@ export function LearnersPage() {
 
   const handleSelectLearner = (learnerId: number) => {
     setSelectedLearnerId(learnerId);
+    setUpcomingPage(1);
     setShowSearchResults(false);
     setSearchQuery('');
   };
@@ -160,9 +152,9 @@ export function LearnersPage() {
 
         {showSearchResults && (
           <div className="learner-search-dropdown">
-            {learners.length > 0 ? (
+            {visibleLearners.length > 0 ? (
               <div className="search-results-list">
-                {learners.map((learner) => (
+                {visibleLearners.map((learner) => (
                   <button
                     key={learner.id}
                     className="search-result-item"

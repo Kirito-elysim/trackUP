@@ -74,7 +74,6 @@ export function TrainingsPage() {
 
   useEffect(() => {
     if (!token || !selectedTrainingId) {
-      setSelectedTraining(null);
       return;
     }
 
@@ -111,6 +110,10 @@ export function TrainingsPage() {
     () => trainings.find((training) => training.id === selectedTrainingId) ?? null,
     [trainings, selectedTrainingId],
   );
+
+  // selectedTraining can briefly hold stale data from a previous selection while
+  // selectedTrainingId has already moved on (or been cleared) — gate on both.
+  const hasSelectedTrainingDetail = selectedTrainingId !== null && selectedTraining !== null;
 
   return (
     <section className="page-section">
@@ -199,7 +202,7 @@ export function TrainingsPage() {
 
             {detailLoading ? <p className="muted">Chargement du détail...</p> : null}
 
-            {selectedTraining ? (
+            {hasSelectedTrainingDetail ? (
               <div className="stats-grid stats-grid-compact">
                 <article className="metric-card">
                   <p className="metric-label">Temps cumulé</p>
@@ -222,7 +225,7 @@ export function TrainingsPage() {
             ) : null}
           </article>
 
-          {selectedTraining ? (
+          {hasSelectedTrainingDetail ? (
             <div className="content-grid content-grid-detail">
               <article className="panel-card">
                 <div className="panel-card-header">
@@ -276,7 +279,7 @@ export function TrainingsPage() {
             </div>
           ) : null}
 
-          {selectedTraining ? (
+          {hasSelectedTrainingDetail ? (
             <article className="panel-card">
               <div className="panel-card-header">
                 <div>

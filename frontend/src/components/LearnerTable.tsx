@@ -38,6 +38,23 @@ type LearnerTableProps = {
   onRowClick?: (learner: LearnerTableData) => void;
 };
 
+type SortIconProps = {
+  field: SortField;
+  sortField: SortField;
+  sortDirection: SortDirection;
+};
+
+function SortIcon({ field, sortField, sortDirection }: SortIconProps) {
+  if (sortField !== field) {
+    return <ArrowUpDown size={14} className="sort-icon" />;
+  }
+  return sortDirection === 'asc' ? (
+    <ArrowUp size={14} className="sort-icon active" />
+  ) : (
+    <ArrowDown size={14} className="sort-icon active" />
+  );
+}
+
 export function LearnerTable({ 
   data, 
   title = 'Apprenants',
@@ -70,8 +87,8 @@ export function LearnerTable({
     }
 
     const sorted = [...filtered].sort((a, b) => {
-      let aValue: string | number = '';
-      let bValue: string | number = '';
+      let aValue: string | number;
+      let bValue: string | number;
 
       switch (sortField) {
         case 'name':
@@ -126,17 +143,6 @@ export function LearnerTable({
     return sorted;
   }, [data, searchQuery, sortField, sortDirection]);
 
-  const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) {
-      return <ArrowUpDown size={14} className="sort-icon" />;
-    }
-    return sortDirection === 'asc' ? (
-      <ArrowUp size={14} className="sort-icon active" />
-    ) : (
-      <ArrowDown size={14} className="sort-icon active" />
-    );
-  };
-
   return (
     <div className="section-card">
       <div className="learners-section-header">
@@ -164,63 +170,63 @@ export function LearnerTable({
               <th className="sortable-header" onClick={() => handleSort('name')}>
                 <div className="header-content">
                   <span>{title === 'Membres' ? 'Membre' : 'Apprenant'}</span>
-                  <SortIcon field="name" />
+                  <SortIcon field="name" sortField={sortField} sortDirection={sortDirection} />
                 </div>
               </th>
               <th className="sortable-header" onClick={() => handleSort('combinedTime')}>
                 <div className="header-content">
                   <span>Temps passé</span>
-                  <SortIcon field="combinedTime" />
+                  <SortIcon field="combinedTime" sortField={sortField} sortDirection={sortDirection} />
                 </div>
               </th>
               <th className="sortable-header" onClick={() => handleSort('sessionTime')}>
                 <div className="header-content">
                   <span>Temps sessions</span>
-                  <SortIcon field="sessionTime" />
+                  <SortIcon field="sessionTime" sortField={sortField} sortDirection={sortDirection} />
                 </div>
               </th>
               <th className="sortable-header" onClick={() => handleSort('expectedTime')}>
                 <div className="header-content">
                   <span>Temps prévu sessions</span>
-                  <SortIcon field="expectedTime" />
+                  <SortIcon field="expectedTime" sortField={sortField} sortDirection={sortDirection} />
                 </div>
               </th>
               <th className="sortable-header" onClick={() => handleSort('timeCompletion')}>
                 <div className="header-content">
                   <span>Completion sessions</span>
-                  <SortIcon field="timeCompletion" />
+                  <SortIcon field="timeCompletion" sortField={sortField} sortDirection={sortDirection} />
                 </div>
               </th>
               <th className="sortable-header" onClick={() => handleSort('elearningTime')}>
                 <div className="header-content">
                   <span>Temps e-learning</span>
-                  <SortIcon field="elearningTime" />
+                  <SortIcon field="elearningTime" sortField={sortField} sortDirection={sortDirection} />
                 </div>
               </th>
               <th className="sortable-header" onClick={() => handleSort('expectedElearningTime')}>
                 <div className="header-content">
                   <span>Temps prévu e-learning</span>
-                  <SortIcon field="expectedElearningTime" />
+                  <SortIcon field="expectedElearningTime" sortField={sortField} sortDirection={sortDirection} />
                 </div>
               </th>
               <th className="sortable-header" onClick={() => handleSort('elearningCompletion')}>
                 <div className="header-content">
                   <span>Completion e-learning</span>
-                  <SortIcon field="elearningCompletion" />
+                  <SortIcon field="elearningCompletion" sortField={sortField} sortDirection={sortDirection} />
                 </div>
               </th>
               {showProgress && (
                 <th className="sortable-header" onClick={() => handleSort('progress')}>
                   <div className="header-content">
                     <span>Progression</span>
-                    <SortIcon field="progress" />
+                    <SortIcon field="progress" sortField={sortField} sortDirection={sortDirection} />
                   </div>
                 </th>
               )}
               <th className="sortable-header" onClick={() => handleSort('subscribedAt')}>
                 <div className="header-content">
                   <span>Date d'inscription</span>
-                  <SortIcon field="subscribedAt" />
+                  <SortIcon field="subscribedAt" sortField={sortField} sortDirection={sortDirection} />
                 </div>
               </th>
             </tr>

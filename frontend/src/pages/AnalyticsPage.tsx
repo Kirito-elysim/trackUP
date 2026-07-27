@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useAuth } from '../contexts/useAuth';
 import { apiRequest, ApiError } from '../lib/api';
+import { buildCsv, downloadCsv } from '../lib/csv';
 import { formatDateTime, formatDuration, formatPercentage, minutesToHours } from '../lib/format';
+import { compareValues } from '../lib/sort';
 import type { AnalyticsPayload } from '../types/trackup';
 
 const PERIOD_OPTIONS = [
@@ -142,10 +144,6 @@ export function AnalyticsPage() {
       ]
     : [];
 
-  useEffect(() => {
-    setLearnerId('');
-  }, [learningPathId]);
-
   const sortedLearningPaths = useMemo(() => {
     const rows = [...(analytics?.topLearningPaths ?? [])];
     rows.sort((left, right) => compareValues(left[pathSort], right[pathSort], pathDirection));
@@ -216,17 +214,7 @@ export function AnalyticsPage() {
       formatDateTime(row.lastLoginAt),
     ]);
 
-    const csv = [headers, ...rows]
-      .map((line) => line.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(';'))
-      .join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `trackup-analytics-${analytics.filters.period}.csv`;
-    anchor.click();
-    URL.revokeObjectURL(url);
+    downloadCsv(`trackup-analytics-${analytics.filters.period}.csv`, buildCsv(headers, rows));
   };
 
   const focusLearnerRow = (nextLearningPathId: number, nextLearnerId: number) => {
@@ -273,7 +261,13 @@ export function AnalyticsPage() {
 
         <label className="field field-inline">
           <span>Parcours</span>
-          <select value={learningPathId} onChange={(event) => setLearningPathId(event.target.value)}>
+          <select
+            value={learningPathId}
+            onChange={(event) => {
+              setLearningPathId(event.target.value);
+              setLearnerId('');
+            }}
+          >
             <option value="">Tous les parcours</option>
             {(analytics?.filters.availableLearningPaths ?? []).map((item) => (
               <option key={item.id} value={item.id}>
@@ -673,18 +667,6 @@ export function AnalyticsPage() {
       ) : null}
     </section>
   );
-}
-
-function compareValues(left: string | number | null, right: string | number | null, direction: 'asc' | 'desc') {
-  const leftValue = left ?? '';
-  const rightValue = right ?? '';
-  const multiplier = direction === 'asc' ? 1 : -1;
-
-  if (typeof leftValue === 'number' && typeof rightValue === 'number') {
-    return (leftValue - rightValue) * multiplier;
-  }
-
-  return String(leftValue).localeCompare(String(rightValue), 'fr', { numeric: true }) * multiplier;
 }
 
 function formatSignedPercent(value: number) {
