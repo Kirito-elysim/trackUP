@@ -9,3 +9,4 @@ framework:
 
         routing:
             App\Message\SyncRiseUpMessage: async
+            App\Message\SyncRiseUpGroupMembershipsMessage: async

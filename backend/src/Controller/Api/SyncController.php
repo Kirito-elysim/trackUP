@@ -8,7 +8,6 @@ use App\Service\LearnerSyncService;
 use App\Service\LearnerStepStateSyncService;
 use App\Service\LearningPathSyncService;
 use App\Service\RiseUpGroupSyncService;
-use App\Service\RiseUpGroupMembershipSyncService;
 use App\Service\TrainingModuleStepSyncService;
 use App\Service\TrainingRegistrationSyncService;
 use App\Service\TrainingSyncService;
@@ -18,6 +17,7 @@ use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use App\Message\SyncRiseUpMessage;
+use App\Message\SyncRiseUpGroupMembershipsMessage;
 
 #[Route('/api/sync', name: 'api_sync_')]
 #[IsGranted('ROLE_ADMIN')]
@@ -25,7 +25,6 @@ class SyncController extends AbstractController
 {
     public function __construct(
         private readonly RiseUpGroupSyncService $groupSyncService,
-        private readonly RiseUpGroupMembershipSyncService $groupMembershipSyncService,
         private readonly LearningPathSyncService $learningPathSyncService,
         private readonly TrainingSyncService $trainingSyncService,
         private readonly LearnerSyncService $learnerSyncService,
@@ -75,24 +74,14 @@ class SyncController extends AbstractController
     public function syncRiseUpGroupMemberships(): JsonResponse
     {
         try {
-            $result = $this->groupMembershipSyncService->syncAll();
+            // Group membership sync makes one Rise Up API call per learner; run it
+            // asynchronously to avoid HTTP proxy/browser timeouts, like sessions sync.
+            $this->messageBus->dispatch(new SyncRiseUpGroupMembershipsMessage());
 
             return $this->json([
                 'success' => true,
-                'message' => sprintf(
-                    'Synchronisation terminée : %d apprenant(s) traité(s), %d lien(s) groupe, %d ignoré(s)',
-                    $result['learners'] ?? 0,
-                    $result['links'] ?? 0,
-                    $result['skipped'] ?? 0,
-                ),
-                'stats' => $this->makeStats(
-                    (int) ($result['learners'] ?? 0),
-                    (int) ($result['links'] ?? 0),
-                    0,
-                    (int) ($result['skipped'] ?? 0),
-                ),
-                'result' => $result,
-            ]);
+                'message' => 'Synchronisation des appartenances groupes lancée en arrière-plan. Cela peut prendre plusieurs minutes.',
+            ], 202);
         } catch (\Exception $e) {
             return $this->json([
                 'success' => false,
