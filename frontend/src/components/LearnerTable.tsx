@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Clock, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
-import { formatDuration, formatPercentage, formatDateTime } from '../lib/format';
+import { clampPercentage, formatDuration, formatPercentage, formatDateTime } from '../lib/format';
 
 export type LearnerTableData = {
   id: number;
@@ -321,7 +321,7 @@ export function LearnerTable({
                       <div className="progress-bar-small">
                         <div
                           className="progress-fill-small"
-                          style={{ width: `${Math.min((learner.averageProgress ?? 0) * 100, 100)}%` }}
+                          style={{ width: `${clampPercentage(learner.averageProgress)}%` }}
                         />
                       </div>
                       <span className="progress-text">{formatPercentage(learner.averageProgress ?? 0)}</span>

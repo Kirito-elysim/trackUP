@@ -2,7 +2,7 @@ import { useDeferredValue, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/useAuth';
 import { apiRequest, ApiError } from '../lib/api';
-import { formatDuration, formatPercentage } from '../lib/format';
+import { clampPercentage, formatDuration, formatPercentage } from '../lib/format';
 import { Clock, Users, BookOpen, Search, TrendingUp, Eye, X } from 'lucide-react';
 import type { LearningPathSummary, LearningPathDetail } from '../types/trackup';
 
@@ -216,7 +216,7 @@ export function LearningPathsPage() {
                       <TrendingUp size={14} style={{ color: '#10b981' }} />
                       <span style={{ fontSize: '12px', color: '#6b7280' }}>Progression moyenne</span>
                     </div>
-                    <strong style={{ fontSize: '14px', color: path.averageProgress >= 0.8 ? '#10b981' : '#f59e0b' }}>
+                    <strong style={{ fontSize: '14px', color: path.averageProgress >= 80 ? '#10b981' : '#f59e0b' }}>
                       {formatPercentage(path.averageProgress)}
                     </strong>
                   </div>
@@ -224,8 +224,8 @@ export function LearningPathsPage() {
                     <div
                       className="progress-fill"
                       style={{
-                        width: `${Math.min(path.averageProgress * 100, 100)}%`,
-                        background: path.averageProgress >= 0.8
+                        width: `${clampPercentage(path.averageProgress)}%`,
+                        background: path.averageProgress >= 80
                           ? 'linear-gradient(135deg, #34C4AC 0%, #00A67E 100%)'
                           : 'linear-gradient(135deg, #FFB946 0%, #FF9A00 100%)',
                       }}
@@ -395,7 +395,7 @@ export function LearningPathsPage() {
                                 <strong
                                   style={{
                                     fontSize: '13px',
-                                    color: training.averageProgress >= 0.8 ? '#10b981' : '#f59e0b',
+                                    color: training.averageProgress >= 80 ? '#10b981' : '#f59e0b',
                                   }}
                                 >
                                   {formatPercentage(training.averageProgress)}

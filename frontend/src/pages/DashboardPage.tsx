@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Users, Clock, BookOpen } from 'lucide-react';
 import { useAuth } from '../contexts/useAuth';
 import { apiRequest, ApiError } from '../lib/api';
-import { formatDuration, formatPercentage } from '../lib/format';
+import { clampPercentage, formatDuration, formatPercentage } from '../lib/format';
 import type { DashboardPayload } from '../types/trackup';
 
 export function DashboardPage() {
@@ -158,7 +158,7 @@ export function DashboardPage() {
                       <div className="progress-bar">
                         <div
                           className="progress-fill"
-                          style={{ width: `${Math.min(group.averageProgress * 100, 100)}%` }}
+                          style={{ width: `${clampPercentage(group.averageProgress)}%` }}
                         />
                       </div>
                       <span className="progress-label">{formatPercentage(group.averageProgress)}</span>

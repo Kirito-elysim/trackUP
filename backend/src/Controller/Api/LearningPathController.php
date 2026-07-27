@@ -284,9 +284,9 @@ class LearningPathController extends AbstractController
                 'completedTrainingCount' => (int) $row['completedTrainingCount'],
                 'totalTime' => DurationUnit::secondsToMinutesInt($timeMetrics[(int) $row['learnerId']]['total_time_seconds'] ?? 0),
                 'sessionTime' => DurationUnit::secondsToMinutesInt($timeMetrics[(int) $row['learnerId']]['session_time_seconds'] ?? 0),
-                'expectedTime' => DurationUnit::minutesToInt($timeMetrics[(int) $row['learnerId']]['expected_time'] ?? 0),
-                'elearningTime' => DurationUnit::secondsToMinutesInt($timeMetrics[(int) $row['learnerId']]['module_time'] ?? 0),
-                'expectedElearningTime' => DurationUnit::minutesToInt($timeMetrics[(int) $row['learnerId']]['expected_elearning_time'] ?? 0),
+                'expectedTime' => DurationUnit::secondsToMinutesInt($timeMetrics[(int) $row['learnerId']]['expected_time_seconds'] ?? 0),
+                'elearningTime' => DurationUnit::secondsToMinutesInt($timeMetrics[(int) $row['learnerId']]['module_time_seconds'] ?? 0),
+                'expectedElearningTime' => DurationUnit::secondsToMinutesInt($timeMetrics[(int) $row['learnerId']]['expected_elearning_time_seconds'] ?? 0),
                 'averageProgress' => (float) $row['averageProgress'],
             ], $learners),
         ]);

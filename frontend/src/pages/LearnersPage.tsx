@@ -1,7 +1,7 @@
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../contexts/useAuth';
 import { apiRequest, ApiError } from '../lib/api';
-import { formatDuration, formatPercentage, formatDateTime } from '../lib/format';
+import { clampPercentage, formatDuration, formatPercentage, formatDateTime } from '../lib/format';
 import { Search, Clock, TrendingUp, BookOpen, User, Calendar, CheckCircle, XCircle, Activity, X, Award, Target, Zap, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { LearnerDetail, LearnerSummary } from '../types/trackup';
 
@@ -273,7 +273,7 @@ export function LearnersPage() {
                   <div 
                     className="kpi-progress-fill" 
                     style={{ 
-                      width: `${selectedLearner.learner.averageProgress}%`,
+                      width: `${clampPercentage(selectedLearner.learner.averageProgress)}%`,
                       background: 'linear-gradient(90deg, #5B8DEE 0%, #0063F7 100%)'
                     }}
                   />

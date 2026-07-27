@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useAuth } from '../contexts/useAuth';
 import { apiRequest, ApiError } from '../lib/api';
-import { formatDateTime, formatDuration, formatPercentage } from '../lib/format';
+import { formatDateTime, formatDuration, formatPercentage, minutesToHours } from '../lib/format';
 import type { AnalyticsPayload } from '../types/trackup';
 
 const PERIOD_OPTIONS = [
@@ -413,8 +413,8 @@ export function AnalyticsPage() {
                   <BarChart
                     data={analytics.timeSeries.map(item => ({
                       label: item.label,
-                      'E-learning': Number((item.elearningTime / 3600).toFixed(1)),
-                      'Masterclass': Number((item.masterclassTime / 3600).toFixed(1)),
+                      'E-learning': Number(minutesToHours(item.elearningTime).toFixed(1)),
+                      'Masterclass': Number(minutesToHours(item.masterclassTime).toFixed(1)),
                     }))}
                     margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
                   >

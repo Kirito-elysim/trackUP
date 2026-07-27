@@ -16,8 +16,8 @@ final class TimeMetricsService
     /**
      * Récupère le temps e-learning par apprenant pour un parcours donné
      * Basé sur riseup_activity_logs (temps réellement effectué)
-     * 
-     * @return array<int, array{learner_id: int, module_time: int}> Temps en secondes par learner_id
+     *
+     * @return array<int, array{learner_id: int, module_time_seconds: int}> Temps en secondes par learner_id
      */
     public function getElearningTimeByLearner(int $learningPathId): array
     {
@@ -26,7 +26,7 @@ final class TimeMetricsService
                 SELECT
                     lpt2.learning_path_id,
                     l2.id AS learner_id,
-                    COALESCE(SUM(ral.duration_seconds), 0) AS module_time
+                    COALESCE(SUM(ral.duration_seconds), 0) AS module_time_seconds
                 FROM riseup_activity_logs ral
                 INNER JOIN trainings t2 ON t2.external_id = ral.training_external_id
                 INNER JOIN learning_path_trainings lpt2 ON lpt2.training_id = t2.id
@@ -41,7 +41,7 @@ final class TimeMetricsService
         foreach ($rows as $row) {
             $result[(int) $row['learner_id']] = [
                 'learner_id' => (int) $row['learner_id'],
-                'module_time' => (int) $row['module_time'],
+                'module_time_seconds' => (int) $row['module_time_seconds'],
             ];
         }
 
@@ -50,9 +50,11 @@ final class TimeMetricsService
 
     /**
      * Récupère le temps sessions (masterclass) par apprenant pour un parcours donné
-     * Basé sur classroom_sessions avec signatures
-     * 
-     * @return array<int, array{learner_id: int, masterclass_time: int, expected_time: int}> Temps en minutes par learner_id
+     * Basé sur classroom_sessions avec signatures. cs2.edu_duration est stocké en
+     * minutes en base (convention Rise Up) ; converti en secondes ici pour que toutes
+     * les valeurs retournées par ce service partagent la même unité.
+     *
+     * @return array<int, array{learner_id: int, masterclass_time_seconds: int, expected_time_seconds: int}>
      */
     public function getSessionTimeByLearner(int $learningPathId): array
     {
@@ -61,8 +63,8 @@ final class TimeMetricsService
                 SELECT
                     lpt2.learning_path_id,
                     csr.learner_id,
-                    COALESCE(SUM(CASE WHEN css.has_signed = 1 THEN cs2.edu_duration ELSE 0 END), 0) AS masterclass_time,
-                    COALESCE(SUM(cs2.edu_duration), 0) AS expected_time
+                    COALESCE(SUM(CASE WHEN css.has_signed = 1 THEN cs2.edu_duration ELSE 0 END), 0) AS masterclass_time_minutes,
+                    COALESCE(SUM(cs2.edu_duration), 0) AS expected_time_minutes
                 FROM classroom_session_registrations csr
                 INNER JOIN classroom_sessions cs2 ON cs2.id = csr.session_id
                 INNER JOIN learning_path_trainings lpt2 ON lpt2.training_id = cs2.training_id
@@ -77,8 +79,8 @@ final class TimeMetricsService
         foreach ($rows as $row) {
             $result[(int) $row['learner_id']] = [
                 'learner_id' => (int) $row['learner_id'],
-                'masterclass_time' => (int) $row['masterclass_time'], // en minutes
-                'expected_time' => (int) $row['expected_time'], // en minutes
+                'masterclass_time_seconds' => (int) $row['masterclass_time_minutes'] * 60,
+                'expected_time_seconds' => (int) $row['expected_time_minutes'] * 60,
             ];
         }
 
@@ -87,9 +89,10 @@ final class TimeMetricsService
 
     /**
      * Récupère le temps e-learning attendu (prévu) par apprenant pour un parcours donné
-     * Basé sur les modules e-learning des formations du parcours
-     * 
-     * @return array<int, array{learner_id: int, expected_elearning_time: int}> Temps en minutes par learner_id
+     * Basé sur les modules e-learning des formations du parcours. tm.duration est
+     * stocké en minutes en base (convention Rise Up) ; converti en secondes ici.
+     *
+     * @return array<int, array{learner_id: int, expected_elearning_time_seconds: int}>
      */
     public function getExpectedElearningTimeByLearner(int $learningPathId): array
     {
@@ -97,7 +100,7 @@ final class TimeMetricsService
             <<<SQL
                 SELECT
                     lpr.learner_id,
-                    COALESCE(SUM(tm.duration), 0) AS expected_elearning_time
+                    COALESCE(SUM(tm.duration), 0) AS expected_elearning_time_minutes
                 FROM learning_path_registrations lpr
                 INNER JOIN learning_path_trainings lpt ON lpt.learning_path_id = lpr.learning_path_id
                 INNER JOIN training_modules tm ON tm.training_id = lpt.training_id
@@ -112,7 +115,7 @@ final class TimeMetricsService
         foreach ($rows as $row) {
             $result[(int) $row['learner_id']] = [
                 'learner_id' => (int) $row['learner_id'],
-                'expected_elearning_time' => (int) $row['expected_elearning_time'], // en minutes
+                'expected_elearning_time_seconds' => (int) $row['expected_elearning_time_minutes'] * 60,
             ];
         }
 
@@ -120,18 +123,17 @@ final class TimeMetricsService
     }
 
     /**
-     * Récupère les métriques de temps complètes par apprenant pour un parcours donné
-     * Combine e-learning (secondes), sessions (minutes), et temps attendu
-     * 
+     * Récupère les métriques de temps complètes par apprenant pour un parcours donné.
+     * Toutes les valeurs retournées sont en secondes.
+     *
      * @return array<int, array{
      *     learner_id: int,
-     *     module_time: int,
-     *     masterclass_time: int,
-     *     expected_time: int,
-     *     expected_elearning_time: int,
+     *     module_time_seconds: int,
+     *     expected_time_seconds: int,
+     *     expected_elearning_time_seconds: int,
      *     total_time_seconds: int,
      *     session_time_seconds: int
-     * }> Métriques complètes par learner_id
+     * }>
      */
     public function getTimeMetricsByLearner(int $learningPathId): array
     {
@@ -148,20 +150,19 @@ final class TimeMetricsService
         $result = [];
         foreach ($learnerIds as $learnerId) {
             $learnerId = (int) $learnerId;
-            
-            $moduleTimeSeconds = $elearningTime[$learnerId]['module_time'] ?? 0;
-            $masterclassTimeMinutes = $sessionTime[$learnerId]['masterclass_time'] ?? 0;
-            $expectedTimeMinutes = $sessionTime[$learnerId]['expected_time'] ?? 0;
-            $expectedElearningTimeMinutes = $expectedElearning[$learnerId]['expected_elearning_time'] ?? 0;
+
+            $moduleTimeSeconds = $elearningTime[$learnerId]['module_time_seconds'] ?? 0;
+            $masterclassTimeSeconds = $sessionTime[$learnerId]['masterclass_time_seconds'] ?? 0;
+            $expectedTimeSeconds = $sessionTime[$learnerId]['expected_time_seconds'] ?? 0;
+            $expectedElearningTimeSeconds = $expectedElearning[$learnerId]['expected_elearning_time_seconds'] ?? 0;
 
             $result[$learnerId] = [
                 'learner_id' => $learnerId,
-                'module_time' => $moduleTimeSeconds, // secondes (e-learning effectué)
-                'masterclass_time' => $masterclassTimeMinutes, // minutes (sessions effectuées)
-                'expected_time' => $expectedTimeMinutes, // minutes (sessions prévues)
-                'expected_elearning_time' => $expectedElearningTimeMinutes, // minutes (e-learning prévu)
-                'total_time_seconds' => $moduleTimeSeconds + ($masterclassTimeMinutes * 60), // total en secondes
-                'session_time_seconds' => $masterclassTimeMinutes * 60, // sessions en secondes
+                'module_time_seconds' => $moduleTimeSeconds, // e-learning effectué
+                'expected_time_seconds' => $expectedTimeSeconds, // sessions prévues
+                'expected_elearning_time_seconds' => $expectedElearningTimeSeconds, // e-learning prévu
+                'total_time_seconds' => $moduleTimeSeconds + $masterclassTimeSeconds,
+                'session_time_seconds' => $masterclassTimeSeconds, // sessions effectuées
             ];
         }
 
@@ -262,14 +263,15 @@ final class TimeMetricsService
 
     /**
      * Récupère les métriques de temps par formation pour un parcours donné
-     * Combine e-learning (riseup_activity_logs) et sessions (classroom_sessions)
-     * 
+     * Combine e-learning (riseup_activity_logs) et sessions (classroom_sessions).
+     * Toutes les valeurs retournées sont en secondes.
+     *
      * @return array<int, array{
      *     training_id: int,
-     *     module_time: int,
-     *     masterclass_time: int,
+     *     module_time_seconds: int,
+     *     masterclass_time_seconds: int,
      *     total_time_seconds: int
-     * }> Métriques par training_id
+     * }>
      */
     public function getTimeMetricsByTraining(int $learningPathId): array
     {
@@ -278,7 +280,7 @@ final class TimeMetricsService
             <<<SQL
                 SELECT
                     t2.id AS training_id,
-                    COALESCE(SUM(ral.duration_seconds), 0) AS module_time
+                    COALESCE(SUM(ral.duration_seconds), 0) AS module_time_seconds
                 FROM riseup_activity_logs ral
                 INNER JOIN trainings t2 ON t2.external_id = ral.training_external_id
                 INNER JOIN learning_path_trainings lpt2 ON lpt2.training_id = t2.id
@@ -288,12 +290,12 @@ final class TimeMetricsService
             ['learningPathId' => $learningPathId]
         );
 
-        // Temps sessions par formation
+        // Temps sessions par formation (cs.edu_duration est en minutes en base)
         $sessionRows = $this->connection->fetchAllAssociative(
             <<<SQL
                 SELECT
                     cs.training_id,
-                    COALESCE(SUM(CASE WHEN css.has_signed = 1 THEN cs.edu_duration ELSE 0 END), 0) AS masterclass_time
+                    COALESCE(SUM(CASE WHEN css.has_signed = 1 THEN cs.edu_duration ELSE 0 END), 0) AS masterclass_time_minutes
                 FROM classroom_session_registrations csr
                 INNER JOIN classroom_sessions cs ON cs.id = csr.session_id
                 INNER JOIN learning_path_trainings lpt2 ON lpt2.training_id = cs.training_id
@@ -306,12 +308,12 @@ final class TimeMetricsService
 
         $elearningByTraining = [];
         foreach ($elearningRows as $row) {
-            $elearningByTraining[(int) $row['training_id']] = (int) $row['module_time'];
+            $elearningByTraining[(int) $row['training_id']] = (int) $row['module_time_seconds'];
         }
 
         $sessionByTraining = [];
         foreach ($sessionRows as $row) {
-            $sessionByTraining[(int) $row['training_id']] = (int) $row['masterclass_time'];
+            $sessionByTraining[(int) $row['training_id']] = (int) $row['masterclass_time_minutes'] * 60;
         }
 
         // Récupérer toutes les formations du parcours
@@ -324,13 +326,13 @@ final class TimeMetricsService
         foreach ($trainingIds as $trainingId) {
             $trainingId = (int) $trainingId;
             $moduleTimeSeconds = $elearningByTraining[$trainingId] ?? 0;
-            $masterclassTimeMinutes = $sessionByTraining[$trainingId] ?? 0;
+            $masterclassTimeSeconds = $sessionByTraining[$trainingId] ?? 0;
 
             $result[$trainingId] = [
                 'training_id' => $trainingId,
-                'module_time' => $moduleTimeSeconds, // secondes
-                'masterclass_time' => $masterclassTimeMinutes, // minutes
-                'total_time_seconds' => $moduleTimeSeconds + ($masterclassTimeMinutes * 60), // total en secondes
+                'module_time_seconds' => $moduleTimeSeconds,
+                'masterclass_time_seconds' => $masterclassTimeSeconds,
+                'total_time_seconds' => $moduleTimeSeconds + $masterclassTimeSeconds,
             ];
         }
 
@@ -391,16 +393,17 @@ final class TimeMetricsService
 
     /**
      * Récupère les métriques de temps par membre d'un groupe
-     * Agrège les temps de TOUS les parcours associés au groupe pour chaque membre
-     * 
+     * Agrège les temps de TOUS les parcours associés au groupe pour chaque membre.
+     * Toutes les valeurs retournées sont en secondes.
+     *
      * @return array<int, array{
      *     learner_id: int,
-     *     module_time: int,
+     *     module_time_seconds: int,
      *     session_time_seconds: int,
-     *     expected_time: int,
-     *     expected_elearning_time: int,
+     *     expected_time_seconds: int,
+     *     expected_elearning_time_seconds: int,
      *     total_time_seconds: int
-     * }> Métriques agrégées par learner_id
+     * }>
      */
     public function getTimeMetricsByGroupMember(int $groupId): array
     {
@@ -410,7 +413,7 @@ final class TimeMetricsService
             <<<SQL
                 SELECT
                     sub.learner_id,
-                    COALESCE(SUM(sub.duration_seconds), 0) AS module_time
+                    COALESCE(SUM(sub.duration_seconds), 0) AS module_time_seconds
                 FROM (
                     SELECT DISTINCT
                         rlg.learner_id,
@@ -431,14 +434,15 @@ final class TimeMetricsService
         );
 
         // Session time par membre (agrégé de tous les parcours du groupe)
-        // Chaque signature (matin/après-midi) compte la durée complète de la session
+        // Chaque signature (matin/après-midi) compte la durée complète de la session.
+        // cs.edu_duration est en minutes en base ; converti en secondes plus bas.
         // Déduplique les signatures qui apparaissent dans plusieurs parcours via DISTINCT sur css.id
         $sessionRows = $this->connection->fetchAllAssociative(
             <<<SQL
                 SELECT
                     sub.learner_id,
-                    COALESCE(SUM(sub.signed_duration), 0) AS masterclass_time,
-                    COALESCE(SUM(sub.total_duration), 0) AS expected_time
+                    COALESCE(SUM(sub.signed_duration), 0) AS masterclass_time_minutes,
+                    COALESCE(SUM(sub.total_duration), 0) AS expected_time_minutes
                 FROM (
                     SELECT DISTINCT
                         rlg.learner_id,
@@ -459,13 +463,14 @@ final class TimeMetricsService
             ['groupId' => $groupId]
         );
 
-        // Expected e-learning time par membre
+        // Expected e-learning time par membre. tm.duration est en minutes en base ;
+        // converti en secondes plus bas.
         // Déduplique les modules qui apparaissent dans plusieurs parcours via DISTINCT sur tm.id
         $expectedElearningRows = $this->connection->fetchAllAssociative(
             <<<SQL
                 SELECT
                     sub.learner_id,
-                    COALESCE(SUM(sub.duration), 0) AS expected_elearning_time
+                    COALESCE(SUM(sub.duration), 0) AS expected_elearning_time_minutes
                 FROM (
                     SELECT DISTINCT
                         rlg.learner_id,
@@ -487,20 +492,20 @@ final class TimeMetricsService
 
         $elearningByMember = [];
         foreach ($elearningRows as $row) {
-            $elearningByMember[(int) $row['learner_id']] = (int) $row['module_time'];
+            $elearningByMember[(int) $row['learner_id']] = (int) $row['module_time_seconds'];
         }
 
         $sessionByMember = [];
         foreach ($sessionRows as $row) {
             $sessionByMember[(int) $row['learner_id']] = [
-                'masterclass_time' => (int) $row['masterclass_time'],
-                'expected_time' => (int) $row['expected_time'],
+                'masterclass_time_seconds' => (int) $row['masterclass_time_minutes'] * 60,
+                'expected_time_seconds' => (int) $row['expected_time_minutes'] * 60,
             ];
         }
 
         $expectedElearningByMember = [];
         foreach ($expectedElearningRows as $row) {
-            $expectedElearningByMember[(int) $row['learner_id']] = (int) $row['expected_elearning_time'];
+            $expectedElearningByMember[(int) $row['learner_id']] = (int) $row['expected_elearning_time_minutes'] * 60;
         }
 
         // Récupérer tous les membres du groupe
@@ -513,17 +518,17 @@ final class TimeMetricsService
         foreach ($memberIds as $memberId) {
             $memberId = (int) $memberId;
             $moduleTimeSeconds = $elearningByMember[$memberId] ?? 0;
-            $masterclassTimeMinutes = $sessionByMember[$memberId]['masterclass_time'] ?? 0;
-            $expectedTimeMinutes = $sessionByMember[$memberId]['expected_time'] ?? 0;
-            $expectedElearningTimeMinutes = $expectedElearningByMember[$memberId] ?? 0;
+            $masterclassTimeSeconds = $sessionByMember[$memberId]['masterclass_time_seconds'] ?? 0;
+            $expectedTimeSeconds = $sessionByMember[$memberId]['expected_time_seconds'] ?? 0;
+            $expectedElearningTimeSeconds = $expectedElearningByMember[$memberId] ?? 0;
 
             $result[$memberId] = [
                 'learner_id' => $memberId,
-                'module_time' => $moduleTimeSeconds, // secondes
-                'session_time_seconds' => $masterclassTimeMinutes * 60, // sessions en secondes
-                'expected_time' => $expectedTimeMinutes, // minutes
-                'expected_elearning_time' => $expectedElearningTimeMinutes, // minutes
-                'total_time_seconds' => $moduleTimeSeconds + ($masterclassTimeMinutes * 60), // total en secondes
+                'module_time_seconds' => $moduleTimeSeconds,
+                'session_time_seconds' => $masterclassTimeSeconds,
+                'expected_time_seconds' => $expectedTimeSeconds,
+                'expected_elearning_time_seconds' => $expectedElearningTimeSeconds,
+                'total_time_seconds' => $moduleTimeSeconds + $masterclassTimeSeconds,
             ];
         }
 

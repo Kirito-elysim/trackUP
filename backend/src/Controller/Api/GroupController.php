@@ -148,11 +148,11 @@ class GroupController extends AbstractController
                 'lastName' => $row['lastName'],
                 'fullName' => trim(sprintf('%s %s', $row['firstName'] ?? '', $row['lastName'] ?? '')) ?: ($row['email'] ?? 'Membre'),
                 'joinedAt' => $row['joinedAt'],
-                'elearningTime' => DurationUnit::secondsToMinutesInt($memberTimeMetrics[(int) $row['learnerId']]['module_time'] ?? 0),
+                'elearningTime' => DurationUnit::secondsToMinutesInt($memberTimeMetrics[(int) $row['learnerId']]['module_time_seconds'] ?? 0),
                 'sessionTime' => DurationUnit::secondsToMinutesInt($memberTimeMetrics[(int) $row['learnerId']]['session_time_seconds'] ?? 0),
                 'totalTime' => DurationUnit::secondsToMinutesInt($memberTimeMetrics[(int) $row['learnerId']]['total_time_seconds'] ?? 0),
-                'expectedTime' => DurationUnit::minutesToInt($memberTimeMetrics[(int) $row['learnerId']]['expected_time'] ?? 0),
-                'expectedElearningTime' => DurationUnit::minutesToInt($memberTimeMetrics[(int) $row['learnerId']]['expected_elearning_time'] ?? 0),
+                'expectedTime' => DurationUnit::secondsToMinutesInt($memberTimeMetrics[(int) $row['learnerId']]['expected_time_seconds'] ?? 0),
+                'expectedElearningTime' => DurationUnit::secondsToMinutesInt($memberTimeMetrics[(int) $row['learnerId']]['expected_elearning_time_seconds'] ?? 0),
             ], $members),
         ]);
     }

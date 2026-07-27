@@ -36,3 +36,14 @@ export function formatPercentage(value: number | null | undefined): string {
 
   return `${Math.round(value)} %`;
 }
+
+// The API always returns progress as a 0-100 percentage, never a 0-1 fraction.
+// Use this wherever a progress value drives a CSS width or a >=/< threshold,
+// so no page has to re-derive that scale (and risk multiplying by 100 again).
+export function clampPercentage(value: number | null | undefined): number {
+  return Math.min(Math.max(value ?? 0, 0), 100);
+}
+
+export function minutesToHours(totalMinutes: number | null | undefined): number {
+  return (totalMinutes ?? 0) / 60;
+}
