@@ -6,14 +6,26 @@ import {
   useState,
   type PropsWithChildren,
 } from 'react';
-import { apiRequest } from '../lib/api';
+import { apiRequest, setUnauthorizedHandler } from '../lib/api';
+import { isTokenExpired } from '../lib/jwt';
 import type { AuthenticatedUser } from '../types/auth';
 import { AuthContext, type AuthContextValue } from './auth-context';
 
 const TOKEN_STORAGE_KEY = 'trackup.auth.token';
 
+function readStoredToken(): string | null {
+  const stored = localStorage.getItem(TOKEN_STORAGE_KEY);
+
+  if (stored && isTokenExpired(stored)) {
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
+    return null;
+  }
+
+  return stored;
+}
+
 export function AuthProvider({ children }: PropsWithChildren) {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_STORAGE_KEY));
+  const [token, setToken] = useState<string | null>(readStoredToken);
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -75,6 +87,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setLoading(false);
     });
   }, []);
+
+  useEffect(() => {
+    setUnauthorizedHandler(logout);
+    return () => setUnauthorizedHandler(null);
+  }, [logout]);
 
   const canAccess = useCallback(
     (featureCode: string) => Boolean(user?.isAdmin || user?.features.includes(featureCode)),

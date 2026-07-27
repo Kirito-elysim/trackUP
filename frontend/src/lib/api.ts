@@ -30,6 +30,15 @@ type RequestOptions = {
   token?: string | null;
 };
 
+// Set by AuthProvider so that any authenticated request rejected with 401
+// (expired/invalid token) logs the user out and lets ProtectedRoute redirect,
+// without every page having to handle that case itself.
+let unauthorizedHandler: (() => void) | null = null;
+
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  unauthorizedHandler = handler;
+}
+
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const response = await fetch(buildUrl(path), {
     method: options.method ?? 'GET',
@@ -44,6 +53,10 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   const payload = isJson ? await response.json() : null;
 
   if (!response.ok) {
+    if (response.status === 401 && options.token) {
+      unauthorizedHandler?.();
+    }
+
     const message = payload?.message ?? payload?.error ?? 'Une erreur est survenue.';
     throw new ApiError(message, response.status);
   }
