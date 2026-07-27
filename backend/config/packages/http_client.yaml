@@ -1,0 +1,13 @@
+framework:
+    http_client:
+        default_options:
+            # Only the RiseUp integration clients use the default http_client today
+            # (see RiseUpApiClient/RiseUpAuthClient), so this only affects Rise Up calls.
+            retry_failed:
+                enabled: true
+                http_codes:
+                    429: {} # rate limited — worth retrying with backoff
+                max_retries: 3
+                delay: 1000
+                multiplier: 2
+                jitter: 0.3

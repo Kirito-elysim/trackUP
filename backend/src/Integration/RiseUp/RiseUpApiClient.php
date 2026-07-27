@@ -2,6 +2,7 @@
 
 namespace App\Integration\RiseUp;
 
+use Psr\Log\LoggerInterface;
 use Symfony\Contracts\HttpClient\Exception\ExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
@@ -9,11 +10,17 @@ class RiseUpApiClient
 {
     private const MAX_PAGE_SIZE = 500;
 
+    // Generous headroom (500 pages * 500 items = 250k) — real collections top out
+    // around a few hundred items today. This exists to fail loudly instead of
+    // looping forever if the API ever stops returning an empty terminating page.
+    private const MAX_PAGES = 500;
+
     private ?string $accessToken = null;
 
     public function __construct(
         private readonly HttpClientInterface $httpClient,
         private readonly RiseUpAuthClient $authClient,
+        private readonly LoggerInterface $logger,
         private readonly string $baseUrl,
     ) {
     }
@@ -43,8 +50,23 @@ class RiseUpApiClient
 
         $items = [];
         $offset = 0;
+        $pageCount = 0;
 
         while (true) {
+            if (++$pageCount > self::MAX_PAGES) {
+                $this->logger->alert('Rise Up collection pagination exceeded the maximum page limit; aborting instead of looping forever.', [
+                    'path' => $path,
+                    'maxPages' => self::MAX_PAGES,
+                    'itemsFetchedSoFar' => count($items),
+                ]);
+
+                throw new \RuntimeException(sprintf(
+                    'Rise Up collection endpoint %s exceeded the maximum of %d pages.',
+                    $path,
+                    self::MAX_PAGES,
+                ));
+            }
+
             $pageQuery = [
                 ...$query,
                 'limit' => $pageSize,
@@ -88,6 +110,26 @@ class RiseUpApiClient
                 ...$options,
                 'headers' => $headers,
             ]);
+
+            // toArray(false) never throws on its own regardless of HTTP status, so any
+            // 401/429/5xx would otherwise decode silently as "just another JSON body"
+            // (e.g. a 404 error payload without a 'groups' key looking like empty data).
+            // Retrying 429 is handled by framework.http_client's retry_failed config; if
+            // it still comes back 429 after retries, or on 401/5xx, fail loudly here
+            // instead of returning a response callers would mistake for a normal payload.
+            $statusCode = $response->getStatusCode();
+
+            if ($statusCode === 401) {
+                throw new \RuntimeException('Rise Up API authentication failed (401). Check the configured API credentials.');
+            }
+
+            if ($statusCode === 429) {
+                throw new \RuntimeException('Rise Up API rate limit exceeded (429), retries exhausted.');
+            }
+
+            if ($statusCode >= 500) {
+                throw new \RuntimeException(sprintf('Rise Up API returned a server error (%d).', $statusCode));
+            }
 
             $payload = $response->toArray(false);
 
