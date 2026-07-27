@@ -4,7 +4,7 @@ framework:
 
         transports:
             async: '%env(MESSENGER_TRANSPORT_DSN)%'
-            failed: 'in-memory://'
+            failed: 'doctrine://default?queue_name=failed'
             sync: 'sync://'
 
         routing:

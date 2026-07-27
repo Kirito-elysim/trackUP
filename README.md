@@ -96,6 +96,31 @@ docker compose exec backend php bin/console app:sync:userstepstates
 docker compose exec backend php bin/console app:sync:sessions
 ```
 
+## Messenger / jobs asynchrones
+
+Les syncs longues (`sessions`, `riseup-group-memberships`) tournent en tâche de fond via le worker Messenger (transport `async`, Redis). Un job qui échoue est retenté automatiquement (3 essais avec backoff), puis atterrit dans la file d'échec (`failed`), qui est **persistante en base MySQL** (table `messenger_messages`, transport `doctrine://`) — elle survit à un redémarrage du worker, contrairement à l'ancien transport `in-memory://`.
+
+Un message qui échoue définitivement déclenche aussi un log de niveau `critical` (voir `src/EventListener/MessengerFailedMessageListener.php`), à surveiller dans les logs applicatifs.
+
+Commandes utiles pour inspecter/rejouer les jobs en échec :
+
+```bash
+# Lister les messages en échec
+docker compose exec backend php bin/console messenger:failed:show
+
+# Voir le détail d'un message (stacktrace complète avec -vv)
+docker compose exec backend php bin/console messenger:failed:show <id> -vv
+
+# Rejouer un message en échec
+docker compose exec backend php bin/console messenger:failed:retry <id>
+
+# Rejouer tous les messages en échec, un par un avec confirmation
+docker compose exec backend php bin/console messenger:failed:retry
+
+# Supprimer définitivement un message en échec (ne sera plus rejouable)
+docker compose exec backend php bin/console messenger:failed:remove <id>
+```
+
 ---
 
 ## 🚀 Déploiement en Production (Coolify)
