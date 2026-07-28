@@ -15,6 +15,8 @@ services:
       RISEUP_API_BASE_URL: ${RISEUP_API_BASE_URL}
       RISEUP_API_PUBLIC_KEY: ${RISEUP_API_PUBLIC_KEY}
       RISEUP_API_PRIVATE_KEY: ${RISEUP_API_PRIVATE_KEY}
+    volumes:
+      - jwt_keys:/app/config/jwt
     depends_on:
       mysql:
         condition: service_healthy
@@ -53,6 +55,8 @@ services:
       RISEUP_API_BASE_URL: ${RISEUP_API_BASE_URL}
       RISEUP_API_PUBLIC_KEY: ${RISEUP_API_PUBLIC_KEY}
       RISEUP_API_PRIVATE_KEY: ${RISEUP_API_PRIVATE_KEY}
+    volumes:
+      - jwt_keys:/app/config/jwt
     depends_on:
       mysql:
         condition: service_healthy
@@ -150,6 +154,8 @@ volumes:
   mysql_data:
     driver: local
   redis_data:
+    driver: local
+  jwt_keys:
     driver: local
 
 networks:

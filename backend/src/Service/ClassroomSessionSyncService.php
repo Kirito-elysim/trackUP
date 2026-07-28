@@ -17,9 +17,6 @@ class ClassroomSessionSyncService
 {
     use RiseUpCollectionSyncTrait;
 
-    private const RATE_LIMIT_RETRY_DELAY_SECONDS = 61;
-    private const RATE_LIMIT_MAX_ATTEMPTS = 3;
-
     public function __construct(
         private readonly RiseUpApiClient $riseUpApiClient,
         private readonly EntityManagerInterface $entityManager,
@@ -169,7 +166,7 @@ class ClassroomSessionSyncService
         $skippedRegistrations = 0;
 
         foreach ($registrations as $registration) {
-            $payload = $this->fetchSignaturesWithRetry($registration->getExternalId());
+            $payload = $this->riseUpApiClient->get(sprintf('/v3/classroomsessionregistrations/%d/signatures', $registration->getExternalId()));
 
             if (!array_is_list($payload)) {
                 // Some tenants respond with an error object (or a wrapped collection) for this endpoint.
@@ -262,28 +259,6 @@ class ClassroomSessionSyncService
         }
 
         return $result;
-    }
-
-    /**
-     * @return array<mixed>
-     */
-    private function fetchSignaturesWithRetry(int $registrationExternalId): array
-    {
-        for ($attempt = 1; $attempt <= self::RATE_LIMIT_MAX_ATTEMPTS; ++$attempt) {
-            $payload = $this->riseUpApiClient->get(sprintf('/v3/classroomsessionregistrations/%d/signatures', $registrationExternalId));
-
-            if (!$this->isRateLimitPayload($payload)) {
-                return $payload;
-            }
-
-            if ($attempt === self::RATE_LIMIT_MAX_ATTEMPTS) {
-                break;
-            }
-
-            sleep(self::RATE_LIMIT_RETRY_DELAY_SECONDS);
-        }
-
-        throw new \RuntimeException(sprintf('Rise Up rate limit persisted while fetching signatures for registration %d.', $registrationExternalId));
     }
 
     /**
@@ -386,18 +361,6 @@ class ClassroomSessionSyncService
     private function boolOrFalse(mixed $value): bool
     {
         return $this->boolOrNull($value) ?? false;
-    }
-
-    /**
-     * @param array<mixed> $payload
-     */
-    private function isRateLimitPayload(array $payload): bool
-    {
-        if (array_is_list($payload)) {
-            return false;
-        }
-
-        return ($payload['error'] ?? null) === 'Too Many Requests';
     }
 
     private function dateTimeOrNull(mixed $value): ?\DateTimeImmutable

@@ -61,13 +61,8 @@ WORKDIR /app
 # Copy application from builder
 COPY --from=builder /app /app
 
-# Generate JWT keypair if not exists
-RUN mkdir -p config/jwt \
- && if [ ! -f config/jwt/private.pem ]; then \
-        openssl genrsa -out config/jwt/private.pem 4096 \
-        && openssl rsa -pubout -in config/jwt/private.pem -out config/jwt/public.pem \
-        && chmod 644 config/jwt/private.pem config/jwt/public.pem; \
-    fi
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Warm up cache
 RUN php bin/console cache:clear --env=prod --no-debug --no-warmup \
@@ -75,4 +70,8 @@ RUN php bin/console cache:clear --env=prod --no-debug --no-warmup \
 
 EXPOSE 8000
 
+# The JWT keypair is generated at container startup (not build time) into the
+# jwt_keys volume shared by the backend and worker services, so every rebuild
+# doesn't invalidate every issued token and both services always share one key.
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["php", "-S", "0.0.0.0:8000", "-t", "public"]
