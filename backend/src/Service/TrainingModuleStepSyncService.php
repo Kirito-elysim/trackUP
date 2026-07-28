@@ -10,6 +10,8 @@ use Doctrine\ORM\EntityManagerInterface;
 
 class TrainingModuleStepSyncService
 {
+    use RiseUpCollectionSyncTrait;
+
     public function __construct(
         private readonly RiseUpApiClient $riseUpApiClient,
         private readonly EntityManagerInterface $entityManager,
@@ -41,55 +43,41 @@ class TrainingModuleStepSyncService
         $rows = $this->riseUpApiClient->getCollection('/v3/modules', [], $pageSize);
         $trainingsByExternalId = $this->reloadTrainings();
 
-        $created = 0;
-        $updated = 0;
-        $skipped = 0;
-        $processed = 0;
-
-        foreach ($rows as $row) {
-            if (!is_array($row)) {
-                continue;
-            }
-
+        $processRow = function (array $row) use (&$trainingsByExternalId): string {
             $trainingExternalId = $this->requireInt($row, 'idtraining');
             $training = $trainingsByExternalId[$trainingExternalId] ?? null;
 
             if (!$training instanceof Training) {
-                ++$skipped;
-
-                continue;
+                return 'skipped';
             }
 
             $externalId = $this->requireInt($row, 'id');
             $module = $this->entityManager->getRepository(TrainingModule::class)->findOneBy(['externalId' => $externalId]);
+            $outcome = 'updated';
 
             if (!$module instanceof TrainingModule) {
                 $module = (new TrainingModule())->setExternalId($externalId);
-                ++$created;
-            } else {
-                ++$updated;
+                $outcome = 'created';
             }
 
             $this->hydrateModule($module, $training, $row);
             $this->entityManager->persist($module);
 
-            ++$processed;
+            return $outcome;
+        };
 
-            if ($processed % $flushEvery === 0) {
-                $this->entityManager->flush();
-                $this->entityManager->clear();
-                $trainingsByExternalId = $this->reloadTrainings();
-            }
-        }
+        $afterClear = function () use (&$trainingsByExternalId): void {
+            $trainingsByExternalId = $this->reloadTrainings();
+        };
 
-        $this->entityManager->flush();
-        $this->entityManager->clear();
+        /** @var array{fetched:int,created?:int,updated?:int,skipped?:int} $result */
+        $result = $this->runCollectionSync($this->entityManager, $rows, $processRow, $flushEvery, $afterClear);
 
         return [
-            'fetched' => count($rows),
-            'created' => $created,
-            'updated' => $updated,
-            'skipped' => $skipped,
+            'fetched' => $result['fetched'],
+            'created' => $result['created'] ?? 0,
+            'updated' => $result['updated'] ?? 0,
+            'skipped' => $result['skipped'] ?? 0,
         ];
     }
 
@@ -101,55 +89,41 @@ class TrainingModuleStepSyncService
         $rows = $this->riseUpApiClient->getCollection('/v3/steps', [], $pageSize);
         $modulesByExternalId = $this->reloadModules();
 
-        $created = 0;
-        $updated = 0;
-        $skipped = 0;
-        $processed = 0;
-
-        foreach ($rows as $row) {
-            if (!is_array($row)) {
-                continue;
-            }
-
+        $processRow = function (array $row) use (&$modulesByExternalId): string {
             $moduleExternalId = $this->requireInt($row, 'idmodule');
             $module = $modulesByExternalId[$moduleExternalId] ?? null;
 
             if (!$module instanceof TrainingModule) {
-                ++$skipped;
-
-                continue;
+                return 'skipped';
             }
 
             $externalId = $this->requireInt($row, 'id');
             $step = $this->entityManager->getRepository(TrainingStep::class)->findOneBy(['externalId' => $externalId]);
+            $outcome = 'updated';
 
             if (!$step instanceof TrainingStep) {
                 $step = (new TrainingStep())->setExternalId($externalId);
-                ++$created;
-            } else {
-                ++$updated;
+                $outcome = 'created';
             }
 
             $this->hydrateStep($step, $module, $row);
             $this->entityManager->persist($step);
 
-            ++$processed;
+            return $outcome;
+        };
 
-            if ($processed % $flushEvery === 0) {
-                $this->entityManager->flush();
-                $this->entityManager->clear();
-                $modulesByExternalId = $this->reloadModules();
-            }
-        }
+        $afterClear = function () use (&$modulesByExternalId): void {
+            $modulesByExternalId = $this->reloadModules();
+        };
 
-        $this->entityManager->flush();
-        $this->entityManager->clear();
+        /** @var array{fetched:int,created?:int,updated?:int,skipped?:int} $result */
+        $result = $this->runCollectionSync($this->entityManager, $rows, $processRow, $flushEvery, $afterClear);
 
         return [
-            'fetched' => count($rows),
-            'created' => $created,
-            'updated' => $updated,
-            'skipped' => $skipped,
+            'fetched' => $result['fetched'],
+            'created' => $result['created'] ?? 0,
+            'updated' => $result['updated'] ?? 0,
+            'skipped' => $result['skipped'] ?? 0,
         ];
     }
 

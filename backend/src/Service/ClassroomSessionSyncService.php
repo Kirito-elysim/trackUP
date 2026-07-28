@@ -14,6 +14,8 @@ use Doctrine\ORM\EntityManagerInterface;
 
 class ClassroomSessionSyncService
 {
+    use RiseUpCollectionSyncTrait;
+
     private const RATE_LIMIT_RETRY_DELAY_SECONDS = 61;
     private const RATE_LIMIT_MAX_ATTEMPTS = 3;
 
@@ -52,23 +54,14 @@ class ClassroomSessionSyncService
         $modulesByExternalId = $this->reloadModules();
         $trainingsByExternalId = $this->reloadTrainings();
 
-        $created = 0;
-        $updated = 0;
-        $processed = 0;
-
-        foreach ($rows as $row) {
-            if (!is_array($row)) {
-                continue;
-            }
-
+        $processRow = function (array $row) use (&$modulesByExternalId, &$trainingsByExternalId): string {
             $externalId = $this->requireInt($row, 'id');
             $session = $this->entityManager->getRepository(ClassroomSession::class)->findOneBy(['externalId' => $externalId]);
+            $outcome = 'updated';
 
             if (!$session instanceof ClassroomSession) {
                 $session = (new ClassroomSession())->setExternalId($externalId);
-                ++$created;
-            } else {
-                ++$updated;
+                $outcome = 'created';
             }
 
             $module = null;
@@ -86,23 +79,21 @@ class ClassroomSessionSyncService
             $this->hydrateSession($session, $module, $training, $row);
             $this->entityManager->persist($session);
 
-            ++$processed;
+            return $outcome;
+        };
 
-            if ($processed % $flushEvery === 0) {
-                $this->entityManager->flush();
-                $this->entityManager->clear();
-                $modulesByExternalId = $this->reloadModules();
-                $trainingsByExternalId = $this->reloadTrainings();
-            }
-        }
+        $afterClear = function () use (&$modulesByExternalId, &$trainingsByExternalId): void {
+            $modulesByExternalId = $this->reloadModules();
+            $trainingsByExternalId = $this->reloadTrainings();
+        };
 
-        $this->entityManager->flush();
-        $this->entityManager->clear();
+        /** @var array{fetched:int,created?:int,updated?:int} $result */
+        $result = $this->runCollectionSync($this->entityManager, $rows, $processRow, $flushEvery, $afterClear);
 
         return [
-            'fetched' => count($rows),
-            'created' => $created,
-            'updated' => $updated,
+            'fetched' => $result['fetched'],
+            'created' => $result['created'] ?? 0,
+            'updated' => $result['updated'] ?? 0,
         ];
     }
 
@@ -116,33 +107,21 @@ class ClassroomSessionSyncService
         $sessionsByExternalId = $this->reloadSessions();
         $trainingRegistrationsByExternalId = $this->reloadTrainingRegistrations();
 
-        $created = 0;
-        $updated = 0;
-        $skipped = 0;
-        $processed = 0;
-
-        foreach ($rows as $row) {
-            if (!is_array($row)) {
-                continue;
-            }
-
+        $processRow = function (array $row) use (&$learnersByExternalId, &$sessionsByExternalId, &$trainingRegistrationsByExternalId): string {
             $learner = $learnersByExternalId[$this->requireInt($row, 'iduser')] ?? null;
             $session = $sessionsByExternalId[$this->requireInt($row, 'idsession')] ?? null;
 
             if (!$learner instanceof Learner || !$session instanceof ClassroomSession) {
-                ++$skipped;
-
-                continue;
+                return 'skipped';
             }
 
             $externalId = $this->requireInt($row, 'id');
             $registration = $this->entityManager->getRepository(ClassroomSessionRegistration::class)->findOneBy(['externalId' => $externalId]);
+            $outcome = 'updated';
 
             if (!$registration instanceof ClassroomSessionRegistration) {
                 $registration = (new ClassroomSessionRegistration())->setExternalId($externalId);
-                ++$created;
-            } else {
-                ++$updated;
+                $outcome = 'created';
             }
 
             $trainingRegistration = null;
@@ -154,25 +133,23 @@ class ClassroomSessionSyncService
             $this->hydrateRegistration($registration, $learner, $session, $trainingRegistration, $row);
             $this->entityManager->persist($registration);
 
-            ++$processed;
+            return $outcome;
+        };
 
-            if ($processed % $flushEvery === 0) {
-                $this->entityManager->flush();
-                $this->entityManager->clear();
-                $learnersByExternalId = $this->reloadLearners();
-                $sessionsByExternalId = $this->reloadSessions();
-                $trainingRegistrationsByExternalId = $this->reloadTrainingRegistrations();
-            }
-        }
+        $afterClear = function () use (&$learnersByExternalId, &$sessionsByExternalId, &$trainingRegistrationsByExternalId): void {
+            $learnersByExternalId = $this->reloadLearners();
+            $sessionsByExternalId = $this->reloadSessions();
+            $trainingRegistrationsByExternalId = $this->reloadTrainingRegistrations();
+        };
 
-        $this->entityManager->flush();
-        $this->entityManager->clear();
+        /** @var array{fetched:int,created?:int,updated?:int,skipped?:int} $result */
+        $result = $this->runCollectionSync($this->entityManager, $rows, $processRow, $flushEvery, $afterClear);
 
         return [
-            'fetched' => count($rows),
-            'created' => $created,
-            'updated' => $updated,
-            'skipped' => $skipped,
+            'fetched' => $result['fetched'],
+            'created' => $result['created'] ?? 0,
+            'updated' => $result['updated'] ?? 0,
+            'skipped' => $result['skipped'] ?? 0,
         ];
     }
 

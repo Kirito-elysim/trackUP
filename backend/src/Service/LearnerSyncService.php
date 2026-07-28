@@ -8,6 +8,8 @@ use Doctrine\ORM\EntityManagerInterface;
 
 class LearnerSyncService
 {
+    use RiseUpCollectionSyncTrait;
+
     public function __construct(
         private readonly RiseUpApiClient $riseUpApiClient,
         private readonly EntityManagerInterface $entityManager,
@@ -21,43 +23,29 @@ class LearnerSyncService
     {
         $rows = $this->riseUpApiClient->getCollection('/v3/users', [], $pageSize);
 
-        $created = 0;
-        $updated = 0;
-        $processed = 0;
-
-        foreach ($rows as $row) {
-            if (!is_array($row)) {
-                continue;
-            }
-
+        $processRow = function (array $row): string {
             $externalId = $this->requireInt($row, 'id');
             $learner = $this->entityManager->getRepository(Learner::class)->findOneBy(['externalId' => $externalId]);
+            $outcome = 'updated';
 
             if (!$learner instanceof Learner) {
                 $learner = (new Learner())->setExternalId($externalId);
-                ++$created;
-            } else {
-                ++$updated;
+                $outcome = 'created';
             }
 
             $this->hydrateLearner($learner, $row);
             $this->entityManager->persist($learner);
 
-            ++$processed;
+            return $outcome;
+        };
 
-            if ($processed % $flushEvery === 0) {
-                $this->entityManager->flush();
-                $this->entityManager->clear();
-            }
-        }
-
-        $this->entityManager->flush();
-        $this->entityManager->clear();
+        /** @var array{fetched:int,created?:int,updated?:int} $result */
+        $result = $this->runCollectionSync($this->entityManager, $rows, $processRow, $flushEvery);
 
         return [
-            'fetched' => count($rows),
-            'created' => $created,
-            'updated' => $updated,
+            'fetched' => $result['fetched'],
+            'created' => $result['created'] ?? 0,
+            'updated' => $result['updated'] ?? 0,
         ];
     }
 

@@ -10,6 +10,8 @@ use Doctrine\ORM\EntityManagerInterface;
 
 class TrainingRegistrationSyncService
 {
+    use RiseUpCollectionSyncTrait;
+
     public function __construct(
         private readonly RiseUpApiClient $riseUpApiClient,
         private readonly EntityManagerInterface $entityManager,
@@ -23,28 +25,10 @@ class TrainingRegistrationSyncService
     {
         $rows = $this->riseUpApiClient->getCollection('/v3/courseregistrations', [], $pageSize);
 
-        /** @var array<int, Learner> $learnersByExternalId */
-        $learnersByExternalId = [];
-        foreach ($this->entityManager->getRepository(Learner::class)->findAll() as $learner) {
-            $learnersByExternalId[$learner->getExternalId()] = $learner;
-        }
+        $learnersByExternalId = $this->reloadLearners();
+        $trainingsByExternalId = $this->reloadTrainings();
 
-        /** @var array<int, Training> $trainingsByExternalId */
-        $trainingsByExternalId = [];
-        foreach ($this->entityManager->getRepository(Training::class)->findAll() as $training) {
-            $trainingsByExternalId[$training->getExternalId()] = $training;
-        }
-
-        $created = 0;
-        $updated = 0;
-        $skipped = 0;
-        $processed = 0;
-
-        foreach ($rows as $row) {
-            if (!is_array($row)) {
-                continue;
-            }
-
+        $processRow = function (array $row) use (&$learnersByExternalId, &$trainingsByExternalId): string {
             $learnerExternalId = $this->requireInt($row, 'iduser');
             $trainingExternalId = $this->requireInt($row, 'idtraining');
 
@@ -52,42 +36,37 @@ class TrainingRegistrationSyncService
             $training = $trainingsByExternalId[$trainingExternalId] ?? null;
 
             if (!$learner instanceof Learner || !$training instanceof Training) {
-                ++$skipped;
-
-                continue;
+                return 'skipped';
             }
 
             $externalId = $this->requireInt($row, 'id');
             $registration = $this->entityManager->getRepository(TrainingRegistration::class)->findOneBy(['externalId' => $externalId]);
+            $outcome = 'updated';
 
             if (!$registration instanceof TrainingRegistration) {
                 $registration = (new TrainingRegistration())->setExternalId($externalId);
-                ++$created;
-            } else {
-                ++$updated;
+                $outcome = 'created';
             }
 
             $this->hydrateRegistration($registration, $learner, $training, $row);
             $this->entityManager->persist($registration);
 
-            ++$processed;
+            return $outcome;
+        };
 
-            if ($processed % $flushEvery === 0) {
-                $this->entityManager->flush();
-                $this->entityManager->clear();
-                $learnersByExternalId = $this->reloadLearners();
-                $trainingsByExternalId = $this->reloadTrainings();
-            }
-        }
+        $afterClear = function () use (&$learnersByExternalId, &$trainingsByExternalId): void {
+            $learnersByExternalId = $this->reloadLearners();
+            $trainingsByExternalId = $this->reloadTrainings();
+        };
 
-        $this->entityManager->flush();
-        $this->entityManager->clear();
+        /** @var array{fetched:int,created?:int,updated?:int,skipped?:int} $result */
+        $result = $this->runCollectionSync($this->entityManager, $rows, $processRow, $flushEvery, $afterClear);
 
         return [
-            'fetched' => count($rows),
-            'created' => $created,
-            'updated' => $updated,
-            'skipped' => $skipped,
+            'fetched' => $result['fetched'],
+            'created' => $result['created'] ?? 0,
+            'updated' => $result['updated'] ?? 0,
+            'skipped' => $result['skipped'] ?? 0,
         ];
     }
 
