@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/useAuth';
 import { apiRequest, ApiError } from '../lib/api';
 import { formatDuration, formatPercentage } from '../lib/format';
 import { LearnerTable, type LearnerTableData } from '../components/LearnerTable';
-import { GroupMemberSessionsModal } from '../components/GroupMemberSessionsModal';
+import { SessionsModal } from '../components/SessionsModal';
 import type { GroupDetail } from '../types/trackup';
 
 export function GroupDetailPage() {
@@ -181,10 +181,12 @@ export function GroupDetailPage() {
       />
 
       {selectedMember && id ? (
-        <GroupMemberSessionsModal
-          groupId={parseInt(id, 10)}
-          learnerId={selectedMember.id}
+        <SessionsModal
+          endpoint={`/api/groups/${id}/members/${selectedMember.id}/sessions`}
           learnerName={selectedMember.name}
+          subtitle="Toutes les sessions des parcours du groupe"
+          emptyMessage="Aucune session trouvée pour ce membre"
+          showLearningPathColumn={true}
           onClose={() => setSelectedMember(null)}
         />
       ) : null}

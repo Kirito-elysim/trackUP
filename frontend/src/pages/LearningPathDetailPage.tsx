@@ -4,7 +4,7 @@ import { ArrowLeft, Clock, Users, TrendingUp } from 'lucide-react';
 import { useAuth } from '../contexts/useAuth';
 import { apiRequest, ApiError } from '../lib/api';
 import { formatDuration, formatPercentage } from '../lib/format';
-import { LearnerSessionsModal } from '../components/LearnerSessionsModal';
+import { SessionsModal } from '../components/SessionsModal';
 import { LearnerTable, type LearnerTableData } from '../components/LearnerTable';
 import type { LearningPathDetail } from '../types/trackup';
 
@@ -128,10 +128,12 @@ export function LearningPathDetailPage() {
       ) : null}
 
       {selectedLearner && id ? (
-        <LearnerSessionsModal
-          learningPathId={parseInt(id, 10)}
-          learnerId={selectedLearner.id}
+        <SessionsModal
+          endpoint={`/api/learningpaths/${id}/learners/${selectedLearner.id}/sessions`}
           learnerName={selectedLearner.name}
+          subtitle="Détail des sessions pour ce parcours"
+          emptyMessage="Aucune session trouvée pour cet apprenant"
+          showLearningPathColumn={false}
           onClose={() => setSelectedLearner(null)}
         />
       ) : null}

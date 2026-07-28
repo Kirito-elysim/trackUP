@@ -6,13 +6,15 @@ import { formatDateTime, formatDuration } from '../lib/format';
 import type { LearnerSessionsPayload } from '../types/trackup';
 
 type Props = {
-  learningPathId: number;
-  learnerId: number;
+  endpoint: string;
   learnerName: string;
+  subtitle: string;
+  emptyMessage: string;
+  showLearningPathColumn: boolean;
   onClose: () => void;
 };
 
-export function LearnerSessionsModal({ learningPathId, learnerId, learnerName, onClose }: Props) {
+export function SessionsModal({ endpoint, learnerName, subtitle, emptyMessage, showLearningPathColumn, onClose }: Props) {
   const { token } = useAuth();
   const [data, setData] = useState<LearnerSessionsPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -30,10 +32,7 @@ export function LearnerSessionsModal({ learningPathId, learnerId, learnerName, o
       setError(null);
 
       try {
-        const payload = await apiRequest<LearnerSessionsPayload>(
-          `/api/learningpaths/${learningPathId}/learners/${learnerId}/sessions`,
-          { token }
-        );
+        const payload = await apiRequest<LearnerSessionsPayload>(endpoint, { token });
 
         if (!cancelled) {
           setData(payload);
@@ -54,7 +53,7 @@ export function LearnerSessionsModal({ learningPathId, learnerId, learnerName, o
     return () => {
       cancelled = true;
     };
-  }, [token, learningPathId, learnerId]);
+  }, [token, endpoint]);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -62,7 +61,7 @@ export function LearnerSessionsModal({ learningPathId, learnerId, learnerName, o
         <div className="modal-header">
           <div>
             <h3>Sessions de {learnerName}</h3>
-            <p className="modal-subtitle">Détail des sessions pour ce parcours</p>
+            <p className="modal-subtitle">{subtitle}</p>
           </div>
           <button className="modal-close" onClick={onClose} type="button">
             <X size={24} />
@@ -76,7 +75,7 @@ export function LearnerSessionsModal({ learningPathId, learnerId, learnerName, o
           {data && data.sessions.length === 0 ? (
             <div className="empty-state">
               <Calendar size={48} />
-              <p>Aucune session trouvée pour cet apprenant</p>
+              <p>{emptyMessage}</p>
             </div>
           ) : null}
 
@@ -93,6 +92,7 @@ export function LearnerSessionsModal({ learningPathId, learnerId, learnerName, o
                       <thead>
                         <tr>
                           <th>Session</th>
+                          {showLearningPathColumn ? <th>Parcours</th> : null}
                           <th>Formation</th>
                           <th>Dates</th>
                           <th>Durée prévue</th>
@@ -109,6 +109,11 @@ export function LearnerSessionsModal({ learningPathId, learnerId, learnerName, o
                                   <span className="session-type-badge upcoming-badge">À venir</span>
                                 </div>
                               </td>
+                              {showLearningPathColumn ? (
+                                <td>
+                                  <span className="training-title">{session.learningPathTitle}</span>
+                                </td>
+                              ) : null}
                               <td>
                                 <span className="training-title">{session.trainingTitle}</span>
                               </td>
@@ -156,6 +161,7 @@ export function LearnerSessionsModal({ learningPathId, learnerId, learnerName, o
                       <thead>
                         <tr>
                           <th>Session</th>
+                          {showLearningPathColumn ? <th>Parcours</th> : null}
                           <th>Formation</th>
                           <th>Dates</th>
                           <th>Durée</th>
@@ -174,6 +180,11 @@ export function LearnerSessionsModal({ learningPathId, learnerId, learnerName, o
                                   <span className="session-type-badge">{session.sessionType}</span>
                                 </div>
                               </td>
+                              {showLearningPathColumn ? (
+                                <td>
+                                  <span className="training-title">{session.learningPathTitle}</span>
+                                </td>
+                              ) : null}
                               <td>
                                 <span className="training-title">{session.trainingTitle}</span>
                               </td>

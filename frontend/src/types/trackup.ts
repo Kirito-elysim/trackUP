@@ -66,6 +66,7 @@ export type LearnerSession = {
   signatureDate: string | null;
   trainingId: number;
   trainingTitle: string;
+  learningPathTitle?: string;
   countedTime: number;
   isFuture: boolean;
 };

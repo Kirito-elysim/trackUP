@@ -1,27 +1,34 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from './components/AppLayout';
 import { FeatureGate } from './components/FeatureGate';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AuthProvider } from './contexts/AuthContext';
-import { AnalyticsPage } from './pages/AnalyticsPage';
-import { DashboardPage } from './pages/DashboardPage';
-import { ExportsPage } from './pages/ExportsPage';
-import { IntegrationsPage } from './pages/IntegrationsPage';
-import { LearnersPage } from './pages/LearnersPage';
-import { LearningPathsPage } from './pages/LearningPathsPage';
-import { LearningPathDetailPage } from './pages/LearningPathDetailPage';
-import { GroupDetailPage } from './pages/GroupDetailPage';
 import { LoginPage } from './pages/LoginPage';
-import { RiseUpLogsPage } from './pages/RiseUpLogsPage';
-import { RolesPage } from './pages/RolesPage';
-import { SyncManagementPage } from './pages/SyncManagementPage';
-import { TrainingsPage } from './pages/TrainingsPage';
-import { UsersPage } from './pages/UsersPage';
+
+const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage').then((m) => ({ default: m.AnalyticsPage })));
+const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
+const ExportsPage = lazy(() => import('./pages/ExportsPage').then((m) => ({ default: m.ExportsPage })));
+const IntegrationsPage = lazy(() => import('./pages/IntegrationsPage').then((m) => ({ default: m.IntegrationsPage })));
+const LearnersPage = lazy(() => import('./pages/LearnersPage').then((m) => ({ default: m.LearnersPage })));
+const LearningPathsPage = lazy(() => import('./pages/LearningPathsPage').then((m) => ({ default: m.LearningPathsPage })));
+const LearningPathDetailPage = lazy(() =>
+  import('./pages/LearningPathDetailPage').then((m) => ({ default: m.LearningPathDetailPage })),
+);
+const GroupDetailPage = lazy(() => import('./pages/GroupDetailPage').then((m) => ({ default: m.GroupDetailPage })));
+const RiseUpLogsPage = lazy(() => import('./pages/RiseUpLogsPage').then((m) => ({ default: m.RiseUpLogsPage })));
+const RolesPage = lazy(() => import('./pages/RolesPage').then((m) => ({ default: m.RolesPage })));
+const SyncManagementPage = lazy(() =>
+  import('./pages/SyncManagementPage').then((m) => ({ default: m.SyncManagementPage })),
+);
+const TrainingsPage = lazy(() => import('./pages/TrainingsPage').then((m) => ({ default: m.TrainingsPage })));
+const UsersPage = lazy(() => import('./pages/UsersPage').then((m) => ({ default: m.UsersPage })));
 
 function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <Suspense fallback={<div className="screen-state">Chargement...</div>}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route element={<ProtectedRoute />}>
@@ -138,6 +145,7 @@ function App() {
             </Route>
           </Route>
         </Routes>
+        </Suspense>
       </BrowserRouter>
     </AuthProvider>
   );
