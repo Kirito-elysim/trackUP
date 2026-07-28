@@ -6,10 +6,12 @@ import { useAuth } from '../contexts/useAuth';
 
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', feature: 'dashboard.view', group: 'Pilotage' },
+  { to: '/analytics', label: 'Analytics', feature: 'analytics.view', group: 'Pilotage' },
   { to: '/learningpaths', label: 'Parcours', feature: 'learningpaths.view', group: 'Pilotage' },
   { to: '/learners', label: 'Apprenants', feature: 'learners.view', group: 'Pilotage' },
   { to: '/courses', label: 'Formations', feature: 'courses.view', group: 'Pilotage' },
   { to: '/riseup-logs', label: 'Logs exacts', feature: 'exports.view', group: 'Conformité' },
+  { to: '/exports', label: 'Exports', feature: 'exports.view', group: 'Conformité' },
   { to: '/integrations', label: 'Intégrations', feature: 'integrations.view', group: 'Conformité' },
   { to: '/sync', label: 'Synchronisation', feature: 'settings.users', group: 'Administration' },
   { to: '/roles', label: 'Rôles', feature: 'settings.roles', group: 'Administration' },

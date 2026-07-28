@@ -7,4 +7,9 @@ nelmio_cors:
         expose_headers: ['Link']
         max_age: 3600
     paths:
+        # '^/' matches every path, and a null override here means "apply
+        # `defaults` above unmodified" (not "disable CORS"). Confirmed live:
+        # `curl -X OPTIONS /api/health -H "Origin: ..."` returns the expected
+        # Access-Control-Allow-Origin/-Methods/-Headers. Keep this comment so
+        # the next person doesn't need to re-verify from scratch.
         '^/': null

@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 namespace App\Entity;
 
@@ -32,6 +33,8 @@ class Role
      */
     #[ORM\ManyToMany(targetEntity: Feature::class, inversedBy: 'roles')]
     #[ORM\JoinTable(name: 'role_feature')]
+    #[ORM\JoinColumn(name: 'role_id', referencedColumnName: 'id', onDelete: 'CASCADE')]
+    #[ORM\InverseJoinColumn(name: 'feature_id', referencedColumnName: 'id', onDelete: 'CASCADE')]
     private Collection $features;
 
     /**

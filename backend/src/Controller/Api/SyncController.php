@@ -11,6 +11,7 @@ use App\Service\RiseUpGroupSyncService;
 use App\Service\TrainingModuleStepSyncService;
 use App\Service\TrainingRegistrationSyncService;
 use App\Service\TrainingSyncService;
+use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Messenger\MessageBusInterface;
@@ -32,7 +33,21 @@ class SyncController extends AbstractController
         private readonly TrainingModuleStepSyncService $trainingModuleStepSyncService,
         private readonly LearnerStepStateSyncService $learnerStepStateSyncService,
         private readonly MessageBusInterface $messageBus,
+        private readonly LoggerInterface $logger,
     ) {
+    }
+
+    private function errorResponse(string $syncType, \Exception $e): JsonResponse
+    {
+        $this->logger->error('Rise Up sync failed.', [
+            'syncType' => $syncType,
+            'exception' => $e,
+        ]);
+
+        return $this->json([
+            'success' => false,
+            'message' => 'La synchronisation a échoué. Consultez les logs serveur pour plus de détails.',
+        ], 500);
     }
 
     #[Route('/groups', name: 'groups', methods: ['POST'])]
@@ -63,10 +78,7 @@ class SyncController extends AbstractController
                 'result' => $result,
             ]);
         } catch (\Exception $e) {
-            return $this->json([
-                'success' => false,
-                'message' => 'Erreur lors de la synchronisation des groupes : ' . $e->getMessage(),
-            ], 500);
+            return $this->errorResponse('groups', $e);
         }
     }
 
@@ -83,10 +95,7 @@ class SyncController extends AbstractController
                 'message' => 'Synchronisation des appartenances groupes lancée en arrière-plan. Cela peut prendre plusieurs minutes.',
             ], 202);
         } catch (\Exception $e) {
-            return $this->json([
-                'success' => false,
-                'message' => 'Erreur lors de la synchronisation des appartenances groupes : ' . $e->getMessage(),
-            ], 500);
+            return $this->errorResponse('riseup_group_memberships', $e);
         }
     }
 
@@ -124,10 +133,7 @@ class SyncController extends AbstractController
                 'result' => $result,
             ]);
         } catch (\Exception $e) {
-            return $this->json([
-                'success' => false,
-                'message' => 'Erreur lors de la synchronisation des parcours : ' . $e->getMessage(),
-            ], 500);
+            return $this->errorResponse('learning_paths', $e);
         }
     }
 
@@ -136,7 +142,7 @@ class SyncController extends AbstractController
     {
         try {
             $result = $this->trainingSyncService->sync();
-            
+
             return $this->json([
                 'success' => true,
                 'message' => sprintf(
@@ -154,10 +160,7 @@ class SyncController extends AbstractController
                 'result' => $result,
             ]);
         } catch (\Exception $e) {
-            return $this->json([
-                'success' => false,
-                'message' => 'Erreur lors de la synchronisation des formations : ' . $e->getMessage(),
-            ], 500);
+            return $this->errorResponse('trainings', $e);
         }
     }
 
@@ -184,10 +187,7 @@ class SyncController extends AbstractController
                 'result' => $result,
             ]);
         } catch (\Exception $e) {
-            return $this->json([
-                'success' => false,
-                'message' => 'Erreur lors de la synchronisation des apprenants : ' . $e->getMessage(),
-            ], 500);
+            return $this->errorResponse('learners', $e);
         }
     }
 
@@ -215,10 +215,7 @@ class SyncController extends AbstractController
                 'result' => $result,
             ]);
         } catch (\Exception $e) {
-            return $this->json([
-                'success' => false,
-                'message' => 'Erreur lors de la synchronisation des inscriptions : ' . $e->getMessage(),
-            ], 500);
+            return $this->errorResponse('registrations', $e);
         }
     }
 
@@ -252,10 +249,7 @@ class SyncController extends AbstractController
                 'result' => $result,
             ]);
         } catch (\Exception $e) {
-            return $this->json([
-                'success' => false,
-                'message' => 'Erreur lors de la synchronisation des modules/étapes : ' . $e->getMessage(),
-            ], 500);
+            return $this->errorResponse('modules_steps', $e);
         }
     }
 
@@ -283,10 +277,7 @@ class SyncController extends AbstractController
                 'result' => $result,
             ]);
         } catch (\Exception $e) {
-            return $this->json([
-                'success' => false,
-                'message' => 'Erreur lors de la synchronisation des états de progression : ' . $e->getMessage(),
-            ], 500);
+            return $this->errorResponse('userstepstates', $e);
         }
     }
 
@@ -303,10 +294,7 @@ class SyncController extends AbstractController
                 'message' => 'Synchronisation des sessions lancée en arrière-plan. Cela peut prendre plusieurs minutes.',
             ], 202);
         } catch (\Exception $e) {
-            return $this->json([
-                'success' => false,
-                'message' => 'Erreur lors de la synchronisation des sessions : ' . $e->getMessage(),
-            ], 500);
+            return $this->errorResponse('sessions', $e);
         }
     }
 

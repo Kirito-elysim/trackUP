@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 namespace App\Controller\Api;
 
@@ -8,6 +9,7 @@ use App\Repository\RiseUpActivityLogRepository;
 use App\Service\RiseUpActivityLogImportService;
 use App\Service\UserPermissionResolver;
 use App\Util\DurationUnit;
+use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -22,6 +24,7 @@ class RiseUpActivityLogController extends AbstractController
         private readonly RiseUpActivityLogRepository $repository,
         private readonly UserPermissionResolver $permissionResolver,
         private readonly RiseUpActivityLogImportService $importService,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -216,9 +219,14 @@ class RiseUpActivityLogController extends AbstractController
                 'fileName' => $file->getClientOriginalName(),
             ]);
         } catch (\Exception $e) {
+            $this->logger->error('Rise Up activity log import failed.', [
+                'fileName' => $file->getClientOriginalName(),
+                'exception' => $e,
+            ]);
+
             return $this->json([
                 'success' => false,
-                'message' => 'Erreur lors de l\'import : ' . $e->getMessage(),
+                'message' => 'L\'import a échoué. Consultez les logs serveur pour plus de détails.',
             ], JsonResponse::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
