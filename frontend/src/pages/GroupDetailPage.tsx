@@ -7,6 +7,9 @@ import { formatDuration, formatPercentage } from '../lib/format';
 import { LearnerTable, type LearnerTableData } from '../components/LearnerTable';
 import { SessionsModal } from '../components/SessionsModal';
 import type { GroupDetail } from '../types/trackup';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { CountUp } from '@/components/ui/stat';
 
 export function GroupDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -66,111 +69,70 @@ export function GroupDetailPage() {
   })) || [];
 
   if (loading) {
-    return (
-      <div className="page-container">
-        <div className="page-loading">Chargement...</div>
-      </div>
-    );
+    return <p className="py-14 text-center text-sm text-muted-foreground">Chargement...</p>;
   }
 
   if (error) {
     return (
-      <div className="page-container">
-        <div className="page-error">{error}</div>
-      </div>
+      <Card className="border-destructive/30 bg-destructive/5">
+        <CardContent className="p-5 text-sm text-destructive">{error}</CardContent>
+      </Card>
     );
   }
 
   if (!data) {
     return (
-      <div className="page-container">
-        <div className="page-error">Groupe introuvable.</div>
-      </div>
+      <Card className="border-destructive/30 bg-destructive/5">
+        <CardContent className="p-5 text-sm text-destructive">Groupe introuvable.</CardContent>
+      </Card>
     );
   }
 
   return (
-    <div className="page-container">
-      <div className="page-header">
-        <button onClick={() => navigate(-1)} className="back-button">
-          <ArrowLeft size={20} />
+    <div className="flex flex-col gap-8">
+      <div>
+        <Button variant="outline" size="sm" onClick={() => navigate(-1)} className="mb-4">
+          <ArrowLeft size={15} />
           Retour
-        </button>
-        <div className="header-content">
-          <h1>{data.group.name}</h1>
-          {data.group.reference && (
-            <p className="muted" style={{ marginTop: '8px' }}>
-              {data.group.reference}
-            </p>
-          )}
-        </div>
+        </Button>
+        <h2 className="font-display text-3xl font-extrabold tracking-tight">{data.group.name}</h2>
+        {data.group.reference && (
+          <p className="mt-1.5 text-xs uppercase tracking-wide text-muted-foreground">{data.group.reference}</p>
+        )}
       </div>
 
-      <div className="learning-path-overview">
-        <div className="overview-card">
-          <div className="overview-icon" style={{ background: 'linear-gradient(135deg, #5B8DEE 0%, #0063F7 100%)' }}>
-            <Users size={24} color="white" />
-          </div>
-          <div className="overview-content">
-            <p className="overview-label">Membres</p>
-            <strong className="overview-value">{data.group.memberCount}</strong>
-          </div>
-        </div>
-
-        <div className="overview-card">
-          <div className="overview-icon" style={{ background: 'linear-gradient(135deg, #FF6B9D 0%, #C239B3 100%)' }}>
-            <BookOpen size={24} color="white" />
-          </div>
-          <div className="overview-content">
-            <p className="overview-label">Parcours</p>
-            <strong className="overview-value">{data.group.learningPathCount}</strong>
-          </div>
-        </div>
-
-        <div className="overview-card">
-          <div className="overview-icon" style={{ background: 'linear-gradient(135deg, #FFB946 0%, #FF9A00 100%)' }}>
-            <Clock size={24} color="white" />
-          </div>
-          <div className="overview-content">
-            <p className="overview-label">Temps total</p>
-            <strong className="overview-value">{formatDuration(data.group.totalTime)}</strong>
-          </div>
-        </div>
-
-        <div className="overview-card">
-          <div className="overview-icon" style={{ background: 'linear-gradient(135deg, #34C4AC 0%, #00A67E 100%)' }}>
-            <TrendingUp size={24} color="white" />
-          </div>
-          <div className="overview-content">
-            <p className="overview-label">Progression moyenne</p>
-            <strong className="overview-value">{formatPercentage(data.group.averageProgress)}</strong>
-          </div>
-        </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <OverviewStat icon={Users} label="Membres" value={data.group.memberCount} delay={0} />
+        <OverviewStat icon={BookOpen} label="Parcours" value={data.group.learningPathCount} delay={80} />
+        <OverviewStat icon={Clock} label="Temps total" value={formatDuration(data.group.totalTime)} delay={160} />
+        <OverviewStat icon={TrendingUp} label="Progression moyenne" value={formatPercentage(data.group.averageProgress)} delay={240} />
       </div>
 
       {data.learningPaths.length > 0 && (
-        <div className="section-card" style={{ marginBottom: '24px' }}>
-          <h3 style={{ marginBottom: '16px' }}>Parcours associés ({data.learningPaths.length})</h3>
-          <div className="learning-paths-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
-            {data.learningPaths.map((path) => (
-              <div
-                key={path.id}
-                className="learning-path-mini-card"
-                onClick={() => navigate(`/learningpaths/${path.id}`)}
-                style={{ cursor: 'pointer', padding: '12px', border: '1px solid #e2e8f0', borderRadius: '8px' }}
-              >
-                {path.imageUrl ? (
-                  <img src={path.imageUrl} alt={path.title} style={{ width: '100%', height: '80px', objectFit: 'cover', borderRadius: '4px', marginBottom: '8px' }} />
-                ) : (
-                  <div style={{ width: '100%', height: '80px', background: '#f1f5f9', borderRadius: '4px', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <BookOpen size={24} color="#94a3b8" />
-                  </div>
-                )}
-                <p style={{ fontSize: '13px', fontWeight: 500, margin: 0 }}>{path.title}</p>
-              </div>
-            ))}
-          </div>
-        </div>
+        <Card>
+          <CardContent className="flex flex-col gap-5 p-6">
+            <h3 className="font-display text-lg font-bold tracking-tight">Parcours associés ({data.learningPaths.length})</h3>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              {data.learningPaths.map((path) => (
+                <button
+                  key={path.id}
+                  onClick={() => navigate(`/learningpaths/${path.id}`)}
+                  type="button"
+                  className="rounded-md border border-border p-3 text-left transition hover:border-primary/40 hover:bg-muted/40"
+                >
+                  {path.imageUrl ? (
+                    <img src={path.imageUrl} alt={path.title} className="mb-2 h-20 w-full rounded-sm object-cover" />
+                  ) : (
+                    <div className="mb-2 flex h-20 w-full items-center justify-center rounded-sm bg-muted">
+                      <BookOpen size={22} className="text-muted-foreground" />
+                    </div>
+                  )}
+                  <p className="text-sm font-medium leading-tight">{path.title}</p>
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       <LearnerTable
@@ -191,5 +153,31 @@ export function GroupDetailPage() {
         />
       ) : null}
     </div>
+  );
+}
+
+function OverviewStat({
+  icon: Icon,
+  label,
+  value,
+  delay,
+}: {
+  icon: typeof Users;
+  label: string;
+  value: string | number;
+  delay: number;
+}) {
+  return (
+    <Card className="animate-rise-in hover:-translate-y-1 hover:shadow-soft-hover" style={{ animationDelay: `${delay}ms` }}>
+      <CardContent className="flex items-center gap-4 p-5">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-brand text-white">
+          <Icon size={20} />
+        </span>
+        <div>
+          <p className="text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
+          <CountUp value={value} className="text-xl" />
+        </div>
+      </CardContent>
+    </Card>
   );
 }

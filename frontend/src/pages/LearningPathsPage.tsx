@@ -3,8 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/useAuth';
 import { apiRequest, ApiError } from '../lib/api';
 import { clampPercentage, formatDuration, formatPercentage } from '../lib/format';
-import { Clock, Users, BookOpen, Search, TrendingUp, Eye, X } from 'lucide-react';
+import { Clock, Users, BookOpen, Search, TrendingUp, Eye } from 'lucide-react';
 import type { LearningPathSummary, LearningPathDetail } from '../types/trackup';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
+import { Progress } from '@/components/ui/progress';
+import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export function LearningPathsPage() {
   const { token } = useAuth();
@@ -78,57 +84,54 @@ export function LearningPathsPage() {
     setSelectedPathDetail(null);
   };
 
-
   return (
-    <section className="page-section">
-      <div className="page-header">
+    <section className="flex flex-col gap-8">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="eyebrow eyebrow-dark">Pilotage</p>
-          <h2>Parcours de formation</h2>
+          <p className="mb-1.5 text-xs uppercase tracking-[0.2em] text-muted-foreground">Pilotage</p>
+          <h2 className="font-display text-3xl font-extrabold tracking-tight">Parcours de formation</h2>
         </div>
-        <div className="header-meta">
-          <p className="muted">Explorez tous les parcours de formation synchronisés depuis Rise Up</p>
-          <span className="status-chip status-chip-soft">{learningPaths.length} parcours disponibles</span>
-        </div>
-      </div>
-
-      <div className="panel-card" style={{ marginBottom: '24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '4px' }}>
-          <Search size={20} style={{ color: '#9ca3af' }} />
-          <input
-            type="text"
-            placeholder="Rechercher un parcours par titre ou référence..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            style={{
-              flex: 1,
-              border: 'none',
-              outline: 'none',
-              fontSize: '15px',
-              padding: '8px 4px',
-            }}
-          />
+        <div className="flex flex-col items-end gap-2 text-right">
+          <p className="max-w-[38ch] text-sm text-muted-foreground">
+            Explorez tous les parcours de formation synchronisés depuis Rise Up
+          </p>
+          <Chip variant="neutral">{learningPaths.length} parcours disponibles</Chip>
         </div>
       </div>
 
-      {error ? <div className="panel-card error-panel">{error}</div> : null}
+      <Card>
+        <CardContent className="p-4">
+          <div className="relative">
+            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Rechercher un parcours par titre ou référence..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="border-0 pl-9 focus-visible:ring-0"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {error ? <Card className="border-destructive/30 bg-destructive/5"><CardContent className="p-5 text-sm text-destructive">{error}</CardContent></Card> : null}
 
       {loading ? (
-        <div className="panel-card" style={{ textAlign: 'center', padding: '48px' }}>
-          <p className="muted">Chargement des parcours...</p>
-        </div>
+        <Card><CardContent className="p-12 text-center text-sm text-muted-foreground">Chargement des parcours...</CardContent></Card>
       ) : learningPaths.length === 0 ? (
-        <div className="panel-card empty-state" style={{ textAlign: 'center', padding: '48px' }}>
-          <BookOpen size={48} style={{ margin: '0 auto 16px', color: '#9ca3af' }} />
-          <h3>Aucun parcours trouvé</h3>
-          <p className="muted">Aucun parcours ne correspond à votre recherche</p>
-        </div>
+        <Card>
+          <CardContent className="flex flex-col items-center gap-3 p-12 text-center">
+            <BookOpen size={36} className="text-muted-foreground opacity-40" />
+            <h3 className="font-display text-lg font-bold tracking-tight">Aucun parcours trouvé</h3>
+            <p className="text-sm text-muted-foreground">Aucun parcours ne correspond à votre recherche</p>
+          </CardContent>
+        </Card>
       ) : (
-        <div className="learning-paths-grid">
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {learningPaths.map((path) => (
-            <article
+            <Card
               key={path.id}
-              className="learning-path-card"
+              className="cursor-pointer overflow-hidden transition hover:-translate-y-0.5 hover:shadow-lg"
               onClick={() => navigate(`/learningpaths/${path.id}`)}
               role="button"
               tabIndex={0}
@@ -138,269 +141,105 @@ export function LearningPathsPage() {
                 }
               }}
             >
-              <div className="path-image">
+              <div className="flex h-36 w-full items-center justify-center bg-muted">
                 {path.imageUrl ? (
-                  <img src={path.imageUrl} alt={path.title} />
+                  <img src={path.imageUrl} alt={path.title} className="h-full w-full object-cover" />
                 ) : (
-                  <div className="path-image-placeholder">
-                    <BookOpen size={40} />
-                  </div>
+                  <BookOpen size={32} className="text-muted-foreground" />
                 )}
               </div>
-              <div className="path-content">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '8px' }}>
-                  <div style={{ flex: 1 }}>
-                    <h4>{path.title}</h4>
-                    <p className="muted" style={{ fontSize: '13px', marginTop: '4px' }}>
+              <CardContent className="flex flex-col gap-4 p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h4 className="font-display text-base font-bold leading-tight tracking-tight">{path.title}</h4>
+                    <p className="mt-1 text-xs uppercase tracking-wide text-muted-foreground">
                       {path.reference ?? `Réf. #${path.externalId}`}
                     </p>
                   </div>
-                  <button
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
-                      loadPathDetail(path.id);
-                    }}
-                    style={{
-                      padding: '8px 12px',
-                      borderRadius: '8px',
-                      border: '1px solid #e5e7eb',
-                      background: 'white',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      fontSize: '13px',
-                      fontWeight: '500',
-                      color: '#374151',
-                      transition: 'all 0.2s',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = '#f9fafb';
-                      e.currentTarget.style.borderColor = '#d1d5db';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'white';
-                      e.currentTarget.style.borderColor = '#e5e7eb';
+                      void loadPathDetail(path.id);
                     }}
                   >
-                    <Eye size={14} />
+                    <Eye size={13} />
                     Détails
-                  </button>
+                  </Button>
                 </div>
-                <div className="path-stats">
-                  <div className="path-stat">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#6b7280', marginBottom: '4px' }}>
-                      <Users size={14} />
-                      <span style={{ fontSize: '12px' }}>Apprenants</span>
-                    </div>
-                    <strong>{path.learnerCount}</strong>
-                  </div>
-                  <div className="path-stat">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#6b7280', marginBottom: '4px' }}>
-                      <BookOpen size={14} />
-                      <span style={{ fontSize: '12px' }}>Formations</span>
-                    </div>
-                    <strong>{path.trainingCount}</strong>
-                  </div>
-                  <div className="path-stat">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#6b7280', marginBottom: '4px' }}>
-                      <Clock size={14} />
-                      <span style={{ fontSize: '12px' }}>Temps total</span>
-                    </div>
-                    <strong>{formatDuration(path.totalTime)}</strong>
-                  </div>
+
+                <div className="grid grid-cols-3 gap-3 border-y border-border py-3">
+                  <StatMini icon={Users} label="Apprenants" value={path.learnerCount} />
+                  <StatMini icon={BookOpen} label="Formations" value={path.trainingCount} />
+                  <StatMini icon={Clock} label="Temps total" value={formatDuration(path.totalTime)} />
                 </div>
-                <div className="path-progress" style={{ marginTop: '16px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <TrendingUp size={14} style={{ color: '#10b981' }} />
-                      <span style={{ fontSize: '12px', color: '#6b7280' }}>Progression moyenne</span>
-                    </div>
-                    <strong style={{ fontSize: '14px', color: path.averageProgress >= 80 ? '#10b981' : '#f59e0b' }}>
+
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <TrendingUp size={12} />
+                      Progression moyenne
+                    </span>
+                    <strong className={`tabular text-sm font-bold ${path.averageProgress >= 80 ? 'text-success' : 'text-primary'}`}>
                       {formatPercentage(path.averageProgress)}
                     </strong>
                   </div>
-                  <div className="progress-bar">
-                    <div
-                      className="progress-fill"
-                      style={{
-                        width: `${clampPercentage(path.averageProgress)}%`,
-                        background: path.averageProgress >= 80
-                          ? 'linear-gradient(135deg, #34C4AC 0%, #00A67E 100%)'
-                          : 'linear-gradient(135deg, #FFB946 0%, #FF9A00 100%)',
-                      }}
-                    />
-                  </div>
+                  <Progress
+                    value={clampPercentage(path.averageProgress)}
+                    barClassName={path.averageProgress >= 80 ? 'bg-success' : 'bg-primary'}
+                  />
                 </div>
-              </div>
-            </article>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}
 
-      {selectedPathDetail && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '20px',
-          }}
-          onClick={closeModal}
-        >
-          <div
-            style={{
-              background: 'white',
-              borderRadius: '16px',
-              maxWidth: '900px',
-              width: '100%',
-              maxHeight: '90vh',
-              overflow: 'auto',
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ padding: '20px', borderBottom: '1px solid #e5e7eb' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                <div>
-                  <h2 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '4px', color: '#111827' }}>
-                    {selectedPathDetail.learningPath.title}
-                  </h2>
-                  <p className="muted" style={{ fontSize: '13px' }}>
-                    {selectedPathDetail.learningPath.reference ?? `Réf. #${selectedPathDetail.learningPath.externalId}`}
-                  </p>
-                </div>
-                <button
-                  onClick={closeModal}
-                  style={{
-                    padding: '6px',
-                    borderRadius: '6px',
-                    border: 'none',
-                    background: '#f3f4f6',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <X size={18} />
-                </button>
+      <Dialog open={selectedPathDetail !== null} onOpenChange={(open) => !open && closeModal()}>
+        {selectedPathDetail ? (
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{selectedPathDetail.learningPath.title}</DialogTitle>
+              <p className="text-sm text-white/50">
+                {selectedPathDetail.learningPath.reference ?? `Réf. #${selectedPathDetail.learningPath.externalId}`}
+              </p>
+              <div className="mt-2 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                <MiniStatChip icon={Users} label="Apprenants" value={selectedPathDetail.learningPath.learnerCount} />
+                <MiniStatChip icon={BookOpen} label="Formations" value={selectedPathDetail.learningPath.trainingCount} />
+                <MiniStatChip icon={Clock} label="Temps total" value={formatDuration(selectedPathDetail.learningPath.totalTime)} />
+                <MiniStatChip icon={TrendingUp} label="Progression" value={formatPercentage(selectedPathDetail.learningPath.averageProgress)} />
               </div>
+            </DialogHeader>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginTop: '16px' }}>
-                <div style={{ padding: '10px', borderRadius: '6px', background: '#f9fafb' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
-                    <Users size={14} style={{ color: '#6b7280' }} />
-                    <span style={{ fontSize: '11px', color: '#6b7280' }}>Apprenants</span>
-                  </div>
-                  <strong style={{ fontSize: '16px' }}>{selectedPathDetail.learningPath.learnerCount}</strong>
-                </div>
-                <div style={{ padding: '10px', borderRadius: '6px', background: '#f9fafb' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
-                    <BookOpen size={14} style={{ color: '#6b7280' }} />
-                    <span style={{ fontSize: '11px', color: '#6b7280' }}>Formations</span>
-                  </div>
-                  <strong style={{ fontSize: '16px' }}>{selectedPathDetail.learningPath.trainingCount}</strong>
-                </div>
-                <div style={{ padding: '10px', borderRadius: '6px', background: '#f9fafb' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
-                    <Clock size={14} style={{ color: '#6b7280' }} />
-                    <span style={{ fontSize: '11px', color: '#6b7280' }}>Temps total</span>
-                  </div>
-                  <strong style={{ fontSize: '16px' }}>{formatDuration(selectedPathDetail.learningPath.totalTime)}</strong>
-                </div>
-                <div style={{ padding: '10px', borderRadius: '6px', background: '#f9fafb' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
-                    <TrendingUp size={14} style={{ color: '#6b7280' }} />
-                    <span style={{ fontSize: '11px', color: '#6b7280' }}>Progression</span>
-                  </div>
-                  <strong style={{ fontSize: '16px' }}>{formatPercentage(selectedPathDetail.learningPath.averageProgress)}</strong>
-                </div>
-              </div>
-            </div>
-
-            <div style={{ padding: '20px' }}>
+            <DialogBody>
               {detailLoading ? (
-                <p className="muted" style={{ textAlign: 'center' }}>Chargement des détails...</p>
+                <p className="py-8 text-center text-sm text-muted-foreground">Chargement des détails...</p>
               ) : (
                 <>
-                  <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '12px', color: '#374151' }}>
+                  <h3 className="mb-3 font-display text-sm font-bold uppercase tracking-wide text-muted-foreground">
                     Formations du parcours ({selectedPathDetail.trainings.length})
                   </h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div className="flex flex-col gap-2.5">
                     {selectedPathDetail.trainings.map((training, index) => (
-                      <div
-                        key={training.id}
-                        style={{
-                          padding: '12px',
-                          borderRadius: '8px',
-                          border: '1px solid #e5e7eb',
-                          background: 'white',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'start', gap: '10px' }}>
-                          <div
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              width: '28px',
-                              height: '28px',
-                              borderRadius: '6px',
-                              background: '#f3f4f6',
-                              color: '#374151',
-                              fontWeight: '600',
-                              fontSize: '13px',
-                              flexShrink: 0,
-                            }}
-                          >
+                      <div key={training.id} className="rounded-md border border-border p-3.5">
+                        <div className="flex items-start gap-3">
+                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted text-xs font-bold">
                             {training.position !== null ? training.position + 1 : index + 1}
-                          </div>
-                          <div style={{ flex: 1 }}>
-                            <h4 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '2px', color: '#111827' }}>
-                              {training.title}
-                            </h4>
-                            {training.type && (
-                              <p className="muted" style={{ fontSize: '12px', marginBottom: '8px' }}>
-                                {training.type}
-                              </p>
-                            )}
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
-                              <div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '3px', marginBottom: '3px' }}>
-                                  <Users size={12} style={{ color: '#9ca3af' }} />
-                                  <span style={{ fontSize: '11px', color: '#6b7280' }}>Apprenants</span>
-                                </div>
-                                <strong style={{ fontSize: '13px' }}>{training.learnerCount}</strong>
-                              </div>
-                              <div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '3px', marginBottom: '3px' }}>
-                                  <Clock size={12} style={{ color: '#9ca3af' }} />
-                                  <span style={{ fontSize: '11px', color: '#6b7280' }}>Temps prévu</span>
-                                </div>
-                                <strong style={{ fontSize: '13px' }}>{training.eduDuration ? formatDuration(training.eduDuration) : '-'}</strong>
-                              </div>
-                              <div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '3px', marginBottom: '3px' }}>
-                                  <TrendingUp size={12} style={{ color: '#9ca3af' }} />
-                                  <span style={{ fontSize: '11px', color: '#6b7280' }}>Progression</span>
-                                </div>
-                                <strong
-                                  style={{
-                                    fontSize: '13px',
-                                    color: training.averageProgress >= 80 ? '#10b981' : '#f59e0b',
-                                  }}
-                                >
-                                  {formatPercentage(training.averageProgress)}
-                                </strong>
-                              </div>
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <h4 className="text-sm font-semibold">{training.title}</h4>
+                            {training.type && <p className="mt-0.5 text-xs text-muted-foreground">{training.type}</p>}
+                            <div className="mt-2.5 grid grid-cols-3 gap-3">
+                              <StatMini icon={Users} label="Apprenants" value={training.learnerCount} small />
+                              <StatMini icon={Clock} label="Temps prévu" value={training.eduDuration ? formatDuration(training.eduDuration) : '-'} small />
+                              <StatMini
+                                icon={TrendingUp}
+                                label="Progression"
+                                value={formatPercentage(training.averageProgress)}
+                                small
+                                valueClassName={training.averageProgress >= 80 ? 'text-success' : 'text-primary'}
+                              />
                             </div>
                           </div>
                         </div>
@@ -408,33 +247,57 @@ export function LearningPathsPage() {
                     ))}
                   </div>
 
-                  <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #e5e7eb' }}>
-                    <button
-                      onClick={() => {
-                        closeModal();
-                        navigate(`/learningpaths/${selectedPathDetail.learningPath.id}`);
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '10px',
-                        borderRadius: '6px',
-                        border: 'none',
-                        background: '#0063F7',
-                        color: 'white',
-                        fontSize: '14px',
-                        fontWeight: '500',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Voir le détail complet
-                    </button>
-                  </div>
+                  <Button
+                    className="mt-5 w-full"
+                    onClick={() => {
+                      closeModal();
+                      navigate(`/learningpaths/${selectedPathDetail.learningPath.id}`);
+                    }}
+                  >
+                    Voir le détail complet
+                  </Button>
                 </>
               )}
-            </div>
-          </div>
-        </div>
-      )}
+            </DialogBody>
+          </DialogContent>
+        ) : null}
+      </Dialog>
     </section>
+  );
+}
+
+function StatMini({
+  icon: Icon,
+  label,
+  value,
+  small,
+  valueClassName,
+}: {
+  icon: typeof Users;
+  label: string;
+  value: string | number;
+  small?: boolean;
+  valueClassName?: string;
+}) {
+  return (
+    <div>
+      <div className="mb-1 flex items-center gap-1.5 text-muted-foreground">
+        <Icon size={small ? 11 : 12} />
+        <span className="text-[0.68rem]">{label}</span>
+      </div>
+      <strong className={`tabular ${small ? 'text-xs' : 'text-sm'} font-bold ${valueClassName ?? ''}`}>{value}</strong>
+    </div>
+  );
+}
+
+function MiniStatChip({ icon: Icon, label, value }: { icon: typeof Users; label: string; value: string | number }) {
+  return (
+    <div className="rounded-md border border-white/10 bg-white/[0.04] p-2.5">
+      <div className="mb-1 flex items-center gap-1.5 text-white/50">
+        <Icon size={12} />
+        <span className="text-[0.66rem]">{label}</span>
+      </div>
+      <strong className="tabular text-sm font-bold">{value}</strong>
+    </div>
   );
 }

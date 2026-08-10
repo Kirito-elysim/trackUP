@@ -1,9 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Download } from 'lucide-react';
 import { useAuth } from '../contexts/useAuth';
 import { apiRequest, ApiError } from '../lib/api';
 import { buildCsv, downloadCsv } from '../lib/csv';
 import { formatDateTime, formatDuration, formatPercentage } from '../lib/format';
 import type { ExportsPayload } from '../types/trackup';
+import { Card, CardContent } from '@/components/ui/card';
+import { Select } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
+import { CountUp } from '@/components/ui/stat';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableShell } from '@/components/ui/table';
+import { cn } from '@/lib/utils';
 
 export function ExportsPage() {
   const { token } = useAuth();
@@ -109,304 +117,278 @@ export function ExportsPage() {
   }, [payload]);
 
   return (
-    <section className="page-section">
-      <div className="page-header">
+    <section className="flex flex-col gap-8">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="eyebrow eyebrow-dark">Conformité</p>
-          <h2>Exports</h2>
+          <p className="mb-1.5 text-xs uppercase tracking-[0.2em] text-muted-foreground">Conformité</p>
+          <h2 className="font-display text-3xl font-extrabold tracking-tight">Exports</h2>
         </div>
-        <div className="header-meta">
-          <p className="muted">Sélectionne un apprenant et reconstruis un journal exploitable de tout son parcours.</p>
-          <span className="status-chip status-chip-soft">Export apprenant</span>
+        <div className="flex flex-col items-end gap-2 text-right">
+          <p className="max-w-[38ch] text-sm text-muted-foreground">
+            Sélectionne un apprenant et reconstruis un journal exploitable de tout son parcours.
+          </p>
+          <Chip variant="neutral">Export apprenant</Chip>
         </div>
       </div>
 
-      <div className="panel-card filters-panel analytics-filters">
-        <label className="field field-inline">
-          <span>Apprenant</span>
-          <select value={learnerId} onChange={(event) => setLearnerId(event.target.value)}>
-            <option value="">Choisir un apprenant</option>
-            {(payload?.filters.availableLearners ?? []).map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.fullName} · {item.email}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+      <Card>
+        <CardContent className="p-5">
+          <label className="flex flex-col gap-2 sm:max-w-md">
+            <span className="text-sm font-semibold">Apprenant</span>
+            <Select value={learnerId} onChange={(event) => setLearnerId(event.target.value)}>
+              <option value="">Choisir un apprenant</option>
+              {(payload?.filters.availableLearners ?? []).map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.fullName} · {item.email}
+                </option>
+              ))}
+            </Select>
+          </label>
+        </CardContent>
+      </Card>
 
-      {loading ? <div className="panel-card">Chargement des données d’export...</div> : null}
-      {error ? <div className="panel-card error-panel">{error}</div> : null}
+      {loading ? <Card><CardContent className="p-5 text-sm text-muted-foreground">Chargement des données d&rsquo;export...</CardContent></Card> : null}
+      {error ? <Card className="border-destructive/30 bg-destructive/5"><CardContent className="p-5 text-sm text-destructive">{error}</CardContent></Card> : null}
 
       {payload ? (
         <>
-          <div className="hero-panel hero-panel-compact">
-            <div className="hero-copy">
-              <span className="status-chip">Dossier apprenant</span>
-              <h3>Un export clair, chronologique et vérifiable.</h3>
-              <p>
-                Le dossier regroupe les parcours, les formations, les activités modules et les masterclass de
-                l’apprenant sélectionné. Les temps `plateforme`, `module` et `masterclass` sont affichés séparément
-                pour éviter les ambiguïtés.
-              </p>
-            </div>
-          </div>
-
-          <div className="stats-grid">
-            <article className="metric-card">
-              <p className="metric-label">Apprenants avec temps</p>
-              <strong className="metric-value">{payload.metrics.learnersReadyCount}</strong>
-              <p className="metric-hint">Base exportable actuelle</p>
-            </article>
-            <article className="metric-card">
-              <p className="metric-label">Parcours suivis</p>
-              <strong className="metric-value">{payload.metrics.learningPathsCount}</strong>
-              <p className="metric-hint">Parcours détectés localement</p>
-            </article>
-            <article className="metric-card">
-              <p className="metric-label">Signatures remontées</p>
-              <strong className="metric-value">{payload.metrics.signedRegistrationsCount}</strong>
-              <p className="metric-hint">Preuves masterclass</p>
-            </article>
-            <article className="metric-card">
-              <p className="metric-label">Alertes conformité</p>
-              <strong className="metric-value">{payload.metrics.sessionsWithoutSignatureCount}</strong>
-              <p className="metric-hint">Présences sans signature</p>
-            </article>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCell label="Apprenants avec temps" value={payload.metrics.learnersReadyCount} hint="Base exportable actuelle" delay={0} />
+            <StatCell label="Parcours suivis" value={payload.metrics.learningPathsCount} hint="Parcours détectés localement" delay={80} />
+            <StatCell label="Signatures remontées" value={payload.metrics.signedRegistrationsCount} hint="Preuves masterclass" delay={160} />
+            <StatCell label="Alertes conformité" value={payload.metrics.sessionsWithoutSignatureCount} hint="Présences sans signature" delay={240} />
           </div>
 
           {learner ? (
             <>
-              <article className="panel-card detail-hero">
-                <div className="detail-hero-main">
-                  <div>
-                    <p className="section-kicker">Apprenant sélectionné</p>
-                    <h3>{learner.fullName}</h3>
-                    <p className="muted">
-                      {learner.email} · dernière connexion connue {formatDateTime(learner.lastLoginAt)}
-                    </p>
-                  </div>
-                  <button className="ghost-button analytics-clear-focus" onClick={exportCsv} type="button">
-                    Export CSV
-                  </button>
-                </div>
-
-                <div className="stats-grid stats-grid-compact">
-                  <article className="metric-card">
-                    <p className="metric-label">Temps plateforme</p>
-                    <strong className="metric-value">{formatDuration(learner.platformTime)}</strong>
-                    <p className="metric-hint">Total consolidé par inscriptions formation</p>
-                  </article>
-                  <article className="metric-card">
-                    <p className="metric-label">Temps module</p>
-                    <strong className="metric-value">{formatDuration(learner.moduleTime)}</strong>
-                    <p className="metric-hint">Activités steps réellement tracées</p>
-                  </article>
-                  <article className="metric-card">
-                    <p className="metric-label">Temps masterclass</p>
-                    <strong className="metric-value">{formatDuration(learner.masterclassTime)}</strong>
-                    <p className="metric-hint">Sessions et visios remontées</p>
-                  </article>
-                  <article className="metric-card">
-                    <p className="metric-label">Parcours / formations</p>
-                    <strong className="metric-value">
-                      {learner.learningPathCount} / {learner.trainingCount}
-                    </strong>
-                    <p className="metric-hint">
-                      {learner.signedAttendanceCount} signature(s) · {learner.unsignedAttendanceCount} alerte(s)
-                    </p>
-                  </article>
-                </div>
-              </article>
-
-              <div className="content-grid">
-                <article className="panel-card panel-card-emphasis">
-                  <div className="panel-card-header">
+              <Card>
+                <CardContent className="flex flex-col gap-6 p-6">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
-                      <p className="section-kicker">Parcours</p>
-                      <h3>Synthèse du parcours</h3>
+                      <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Apprenant sélectionné</p>
+                      <h3 className="font-display text-xl font-bold tracking-tight">{learner.fullName}</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {learner.email} · dernière connexion connue {formatDateTime(learner.lastLoginAt)}
+                      </p>
                     </div>
+                    <Button onClick={exportCsv} variant="outline">
+                      <Download size={15} />
+                      Export CSV
+                    </Button>
                   </div>
 
-                  <div className="table-shell">
-                    <table className="data-table">
-                      <thead>
-                        <tr>
-                          <th>Parcours</th>
-                          <th>Inscription</th>
-                          <th>Formations</th>
-                          <th>Temps plateforme</th>
-                          <th>Temps module</th>
-                          <th>Temps masterclass</th>
-                          <th>Avancement</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(selectedLearner?.learningPaths ?? []).map((path) => (
-                          <tr key={path.learningPathId}>
-                            <td>
-                              <strong>{path.title}</strong>
-                              <span>{path.reference ?? 'Référence non renseignée'}</span>
-                            </td>
-                            <td>{formatDateTime(path.subscribedAt)}</td>
-                            <td>{path.trainingCount}</td>
-                            <td>{formatDuration(path.platformTime)}</td>
-                            <td>{formatDuration(path.moduleTime)}</td>
-                            <td>{formatDuration(path.masterclassTime)}</td>
-                            <td>{formatPercentage(path.progress)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <StatCell label="Temps plateforme" value={formatDuration(learner.platformTime)} hint="Total consolidé par inscriptions formation" delay={0} muted />
+                    <StatCell label="Temps module" value={formatDuration(learner.moduleTime)} hint="Activités steps réellement tracées" delay={60} muted />
+                    <StatCell label="Temps masterclass" value={formatDuration(learner.masterclassTime)} hint="Sessions et visios remontées" delay={120} muted />
+                    <StatCell
+                      label="Parcours / formations"
+                      value={`${learner.learningPathCount} / ${learner.trainingCount}`}
+                      hint={`${learner.signedAttendanceCount} signature(s) · ${learner.unsignedAttendanceCount} alerte(s)`}
+                      delay={180}
+                      muted
+                    />
                   </div>
-                </article>
+                </CardContent>
+              </Card>
 
-                <article className="panel-card">
-                  <div className="panel-card-header">
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.3fr_0.7fr]">
+                <Card>
+                  <CardContent className="flex flex-col gap-5 p-6">
                     <div>
-                      <p className="section-kicker">Volumes</p>
-                      <h3>Répartition des traces</h3>
+                      <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Parcours</p>
+                      <h3 className="font-display text-lg font-bold tracking-tight">Synthèse du parcours</h3>
                     </div>
-                  </div>
 
-                  <div className="stack">
-                    <div className="list-row">
-                      <div>
-                        <strong>Inscriptions parcours</strong>
-                        <p className="muted">Entrées de structure</p>
-                      </div>
-                      <div className="list-row-meta">
-                        <span>{logCounts.pathway}</span>
-                      </div>
+                    <TableShell>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Parcours</TableHead>
+                            <TableHead>Inscription</TableHead>
+                            <TableHead>Formations</TableHead>
+                            <TableHead>Temps plateforme</TableHead>
+                            <TableHead>Temps module</TableHead>
+                            <TableHead>Temps masterclass</TableHead>
+                            <TableHead>Avancement</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {(selectedLearner?.learningPaths ?? []).map((path) => (
+                            <TableRow key={path.learningPathId}>
+                              <TableCell>
+                                <strong className="block text-sm font-semibold">{path.title}</strong>
+                                <span className="text-xs text-muted-foreground">{path.reference ?? 'Référence non renseignée'}</span>
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap text-sm text-muted-foreground">{formatDateTime(path.subscribedAt)}</TableCell>
+                              <TableCell className="tabular text-sm">{path.trainingCount}</TableCell>
+                              <TableCell className="tabular whitespace-nowrap text-sm">{formatDuration(path.platformTime)}</TableCell>
+                              <TableCell className="tabular whitespace-nowrap text-sm">{formatDuration(path.moduleTime)}</TableCell>
+                              <TableCell className="tabular whitespace-nowrap text-sm">{formatDuration(path.masterclassTime)}</TableCell>
+                              <TableCell className="tabular text-sm font-semibold">{formatPercentage(path.progress)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableShell>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="flex flex-col gap-5 p-6">
+                    <div>
+                      <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Volumes</p>
+                      <h3 className="font-display text-lg font-bold tracking-tight">Répartition des traces</h3>
                     </div>
-                    <div className="list-row">
-                      <div>
-                        <strong>Traces plateforme</strong>
-                        <p className="muted">Inscriptions formation consolidées</p>
-                      </div>
-                      <div className="list-row-meta">
-                        <span>{logCounts.platform}</span>
-                      </div>
+
+                    <div className="flex flex-col divide-y divide-border">
+                      <VolumeRow label="Inscriptions parcours" hint="Entrées de structure" value={logCounts.pathway} />
+                      <VolumeRow label="Traces plateforme" hint="Inscriptions formation consolidées" value={logCounts.platform} />
+                      <VolumeRow label="Activités module" hint="Steps et modules e-learning" value={logCounts.module} />
+                      <VolumeRow label="Masterclass" hint="Présences et sessions remontées" value={logCounts.masterclass} />
                     </div>
-                    <div className="list-row">
-                      <div>
-                        <strong>Activités module</strong>
-                        <p className="muted">Steps et modules e-learning</p>
-                      </div>
-                      <div className="list-row-meta">
-                        <span>{logCounts.module}</span>
-                      </div>
-                    </div>
-                    <div className="list-row">
-                      <div>
-                        <strong>Masterclass</strong>
-                        <p className="muted">Présences et sessions remontées</p>
-                      </div>
-                      <div className="list-row-meta">
-                        <span>{logCounts.masterclass}</span>
-                      </div>
-                    </div>
-                  </div>
-                </article>
+                  </CardContent>
+                </Card>
               </div>
 
-              <article className="panel-card">
-                <div className="panel-card-header">
+              <Card>
+                <CardContent className="flex flex-col gap-5 p-6">
                   <div>
-                    <p className="section-kicker">Formations</p>
-                    <h3>Détail par formation</h3>
+                    <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Formations</p>
+                    <h3 className="font-display text-lg font-bold tracking-tight">Détail par formation</h3>
                   </div>
-                </div>
 
-                <div className="table-shell">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Formation</th>
-                        <th>Parcours liés</th>
-                        <th>Inscription</th>
-                        <th>Temps plateforme</th>
-                        <th>Temps module</th>
-                        <th>Temps masterclass</th>
-                        <th>Avancement</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(selectedLearner?.trainings ?? []).map((training) => (
-                        <tr key={training.trainingId}>
-                          <td>
-                            <strong>{training.title}</strong>
-                            <span>{training.state ?? 'État non renseigné'}</span>
-                          </td>
-                          <td>{training.learningPathTitles.join(', ') || 'Aucun parcours lié'}</td>
-                          <td>{formatDateTime(training.subscribedAt)}</td>
-                          <td>{formatDuration(training.platformTime)}</td>
-                          <td>{formatDuration(training.moduleTime)}</td>
-                          <td>{formatDuration(training.masterclassTime)}</td>
-                          <td>{formatPercentage(training.progress)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </article>
+                  <TableShell>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Formation</TableHead>
+                          <TableHead>Parcours liés</TableHead>
+                          <TableHead>Inscription</TableHead>
+                          <TableHead>Temps plateforme</TableHead>
+                          <TableHead>Temps module</TableHead>
+                          <TableHead>Temps masterclass</TableHead>
+                          <TableHead>Avancement</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {(selectedLearner?.trainings ?? []).map((training) => (
+                          <TableRow key={training.trainingId}>
+                            <TableCell>
+                              <strong className="block text-sm font-semibold">{training.title}</strong>
+                              <span className="text-xs text-muted-foreground">{training.state ?? 'État non renseigné'}</span>
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{training.learningPathTitles.join(', ') || 'Aucun parcours lié'}</TableCell>
+                            <TableCell className="whitespace-nowrap text-sm text-muted-foreground">{formatDateTime(training.subscribedAt)}</TableCell>
+                            <TableCell className="tabular whitespace-nowrap text-sm">{formatDuration(training.platformTime)}</TableCell>
+                            <TableCell className="tabular whitespace-nowrap text-sm">{formatDuration(training.moduleTime)}</TableCell>
+                            <TableCell className="tabular whitespace-nowrap text-sm">{formatDuration(training.masterclassTime)}</TableCell>
+                            <TableCell className="tabular text-sm font-semibold">{formatPercentage(training.progress)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableShell>
+                </CardContent>
+              </Card>
 
-              <article className="panel-card">
-                <div className="panel-card-header">
+              <Card>
+                <CardContent className="flex flex-col gap-5 p-6">
                   <div>
-                    <p className="section-kicker">Journal</p>
-                    <h3>Logs chronologiques du parcours</h3>
+                    <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Journal</p>
+                    <h3 className="font-display text-lg font-bold tracking-tight">Logs chronologiques du parcours</h3>
                   </div>
-                </div>
 
-                <div className="table-shell">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Date</th>
-                        <th>Type</th>
-                        <th>Libellé</th>
-                        <th>Parcours</th>
-                        <th>Formation</th>
-                        <th>Module / Step</th>
-                        <th>Temps</th>
-                        <th>Statut</th>
-                        <th>Signature</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(selectedLearner?.logs ?? []).map((log, index) => (
-                        <tr key={`${log.sourceType}-${log.occurredAt}-${index}`}>
-                          <td>{formatDateTime(log.occurredAt)}</td>
-                          <td>{renderSourceType(log.sourceType)}</td>
-                          <td>
-                            <strong>{log.sourceLabel ?? 'Activité'}</strong>
-                            <span>{log.details ?? 'Aucun détail'}</span>
-                          </td>
-                          <td>{log.learningPathTitle ?? 'Non rattaché'}</td>
-                          <td>{log.trainingTitle ?? 'Non rattachée'}</td>
-                          <td>{[log.moduleTitle, log.stepTitle].filter(Boolean).join(' · ') || 'n/a'}</td>
-                          <td>{formatDuration(log.duration)}</td>
-                          <td>{log.status ?? 'Non renseigné'}</td>
-                          <td>{log.signed === null ? '-' : log.signed ? 'Oui' : 'Non'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </article>
+                  <TableShell>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Libellé</TableHead>
+                          <TableHead>Parcours</TableHead>
+                          <TableHead>Formation</TableHead>
+                          <TableHead>Module / Step</TableHead>
+                          <TableHead>Temps</TableHead>
+                          <TableHead>Statut</TableHead>
+                          <TableHead>Signature</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {(selectedLearner?.logs ?? []).map((log, index) => (
+                          <TableRow key={`${log.sourceType}-${log.occurredAt}-${index}`}>
+                            <TableCell className="whitespace-nowrap text-sm text-muted-foreground">{formatDateTime(log.occurredAt)}</TableCell>
+                            <TableCell><Chip variant="neutral">{renderSourceType(log.sourceType)}</Chip></TableCell>
+                            <TableCell>
+                              <strong className="block text-sm font-semibold">{log.sourceLabel ?? 'Activité'}</strong>
+                              <span className="text-xs text-muted-foreground">{log.details ?? 'Aucun détail'}</span>
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{log.learningPathTitle ?? 'Non rattaché'}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{log.trainingTitle ?? 'Non rattachée'}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {[log.moduleTitle, log.stepTitle].filter(Boolean).join(' · ') || 'n/a'}
+                            </TableCell>
+                            <TableCell className="tabular whitespace-nowrap text-sm">{formatDuration(log.duration)}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{log.status ?? 'Non renseigné'}</TableCell>
+                            <TableCell className="text-sm">{log.signed === null ? '-' : log.signed ? 'Oui' : 'Non'}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableShell>
+                </CardContent>
+              </Card>
             </>
           ) : (
-            <article className="panel-card">
-              <p className="muted">
+            <Card>
+              <CardContent className="p-6 text-sm text-muted-foreground">
                 Choisis un apprenant pour charger son dossier exportable : parcours, formations, temps consolidés et
                 journal de traces.
-              </p>
-            </article>
+              </CardContent>
+            </Card>
           )}
         </>
       ) : null}
     </section>
+  );
+}
+
+function StatCell({
+  label,
+  value,
+  hint,
+  delay,
+  muted,
+}: {
+  label: string;
+  value: string | number;
+  hint: string;
+  delay: number;
+  muted?: boolean;
+}) {
+  return (
+    <Card
+      className={cn('animate-rise-in hover:-translate-y-1 hover:shadow-soft-hover', muted && 'bg-muted/40 shadow-none')}
+      style={{ animationDelay: `${delay}ms` }}
+    >
+      <CardContent className="flex flex-col gap-1.5 p-5">
+        <p className="text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
+        <CountUp value={value} className="text-xl" />
+        <p className="text-xs text-muted-foreground">{hint}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function VolumeRow({ label, hint, value }: { label: string; hint: string; value: number }) {
+  return (
+    <div className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
+      <div>
+        <strong className="text-sm font-semibold">{label}</strong>
+        <p className="text-xs text-muted-foreground">{hint}</p>
+      </div>
+      <span className="tabular text-sm font-semibold">{value}</span>
+    </div>
   );
 }
 

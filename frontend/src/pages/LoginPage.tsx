@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/useAuth';
 import { ApiError } from '../lib/api';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -34,53 +36,75 @@ export function LoginPage() {
   };
 
   return (
-    <div className="login-shell">
-      <section className="login-layout">
-        <div className="login-showcase">
-          <div className="brand-block">
-            <img alt="TrackUp" className="brand-logo brand-logo-hero" src="/trackup-logo.png" />
-            <p className="eyebrow">Powered by Ed'Up spirit</p>
-            <h1>Piloter les heures. Clarifier la conformité.</h1>
-            <p className="muted">
-              Console unifiée pour centraliser les données Rise Up, suivre les apprenants et produire des exports lisibles.
+    <div className="grid min-h-screen place-items-center bg-background p-5">
+      <section className="animate-rise-in grid w-full max-w-5xl grid-cols-1 overflow-hidden rounded-2xl border border-border bg-card shadow-soft-hover lg:grid-cols-[1.15fr_0.85fr]">
+        <div className="flex flex-col justify-between gap-10 bg-gradient-brand p-10 text-white">
+          <div className="flex flex-col gap-5">
+            <span className="inline-flex w-fit items-center rounded-md bg-white px-3 py-2">
+              <img alt="TrackUp" className="h-8 w-auto" src="/trackup-logo.png" />
+            </span>
+            <p className="text-xs uppercase tracking-[0.24em] text-white/50">Powered by Ed&apos;Up spirit</p>
+            <h1 className="font-display text-4xl font-extrabold leading-[1.05] tracking-tight">
+              Piloter les heures.
+              <br />
+              Clarifier la conformité.
+            </h1>
+            <p className="max-w-[42ch] text-sm text-white/65">
+              Console unifiée pour centraliser les données Rise Up, suivre les apprenants et produire des exports
+              lisibles.
             </p>
           </div>
 
-          <div className="showcase-grid">
-            <article className="showcase-card">
-              <span className="showcase-kicker">Vision globale</span>
-              <strong>Temps total, progression et masterclass dans une seule lecture.</strong>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <article className="rounded-xl border border-white/10 bg-white/[0.06] p-4">
+              <span className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-white">
+                Vision globale
+              </span>
+              <strong className="mt-2 block text-sm font-semibold leading-snug text-white/90">
+                Temps total, progression et masterclass dans une seule lecture.
+              </strong>
             </article>
-            <article className="showcase-card">
-              <span className="showcase-kicker">Conformité</span>
-              <strong>Exports propres, signatures de présence et détails à la demande.</strong>
+            <article className="rounded-xl border border-white/10 bg-white/[0.06] p-4">
+              <span className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-white">
+                Conformité
+              </span>
+              <strong className="mt-2 block text-sm font-semibold leading-snug text-white/90">
+                Exports propres, signatures de présence et détails à la demande.
+              </strong>
             </article>
           </div>
         </div>
 
-        <div className="login-card">
+        <div className="flex flex-col justify-center gap-8 p-10">
           <div>
-            <p className="eyebrow eyebrow-dark">Accès sécurisé</p>
-            <h2>Connexion admin</h2>
-            <p className="muted">Le menu visible dépend du rôle et des features attribuées à l’utilisateur connecté.</p>
+            <p className="mb-2 text-xs uppercase tracking-[0.2em] text-muted-foreground">Accès sécurisé</p>
+            <h2 className="font-display text-2xl font-extrabold tracking-tight">Connexion admin</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Le menu visible dépend du rôle et des features attribuées à l&rsquo;utilisateur connecté.
+            </p>
           </div>
 
-          <form className="stack" onSubmit={handleSubmit}>
-            <label className="field">
-              <span>Email</span>
-              <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+          <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-semibold">Email</span>
+              <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
             </label>
 
-            <label className="field">
-              <span>Mot de passe</span>
-              <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-semibold">Mot de passe</span>
+              <Input
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                required
+              />
             </label>
 
-            {error ? <p className="error-text">{error}</p> : null}
+            {error ? <p className="text-sm font-medium text-destructive">{error}</p> : null}
 
-            <button className="primary-button" disabled={submitting} type="submit">
+            <Button disabled={submitting} type="submit" size="lg">
               {submitting ? 'Connexion...' : 'Se connecter'}
-            </button>
+            </Button>
           </form>
         </div>
       </section>

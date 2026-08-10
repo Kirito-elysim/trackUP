@@ -4,6 +4,13 @@ import { apiRequest, ApiError } from '../lib/api';
 import { clampPercentage, formatDuration, formatPercentage, formatDateTime } from '../lib/format';
 import { Search, Clock, TrendingUp, BookOpen, User, Calendar, CheckCircle, XCircle, Activity, X, Award, Target, Zap, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { LearnerDetail, LearnerSummary } from '../types/trackup';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
+import { Progress } from '@/components/ui/progress';
+import { Avatar } from '@/components/ui/avatar';
+import { CountUp } from '@/components/ui/stat';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export function LearnersPage() {
   const { token } = useAuth();
@@ -115,440 +122,382 @@ export function LearnersPage() {
     setSearchQuery('');
   };
 
+  const attendanceRate =
+    selectedLearner && selectedLearner.learner.sessionRegistrationCount > 0
+      ? (selectedLearner.learner.signedAttendanceCount / selectedLearner.learner.sessionRegistrationCount) * 100
+      : 0;
+  const completedTrainingsCount = selectedLearner
+    ? selectedLearner.trainingRegistrations.filter((t) => (t.progress ?? 0) >= 100).length
+    : 0;
+
   return (
-    <div className="page-container">
-      <div className="learner-page-header">
-        <h1>Apprenants</h1>
-        <p className="page-subtitle">Recherchez et consultez les détails de vos apprenants</p>
+    <div className="flex flex-col gap-8">
+      <div>
+        <h2 className="font-display text-3xl font-extrabold tracking-tight">Apprenants</h2>
+        <p className="mt-1.5 text-sm text-muted-foreground">Recherchez et consultez les détails de vos apprenants</p>
       </div>
 
-      <div className="learner-search-section">
-        <div className="learner-search-container">
-          <Search size={24} className="search-icon-large" />
-          <input
-            type="text"
-            className="search-input-large"
-            placeholder="Rechercher un apprenant par nom ou email..."
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setShowSearchResults(e.target.value.length >= 2);
-            }}
-            onFocus={() => setShowSearchResults(searchQuery.length >= 2)}
-          />
-          {searchQuery.length > 0 && (
-            <button
-              className="search-clear-btn"
-              onClick={() => {
-                setSearchQuery('');
-                setShowSearchResults(false);
+      <div className="relative mx-auto w-full max-w-2xl">
+        <Card className="p-1">
+          <div className="relative flex items-center">
+            <Search size={18} className="pointer-events-none absolute left-4 text-primary" />
+            <input
+              type="text"
+              placeholder="Rechercher un apprenant par nom ou email..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setShowSearchResults(e.target.value.length >= 2);
               }}
-              type="button"
-            >
-              <X size={18} />
-            </button>
-          )}
-        </div>
+              onFocus={() => setShowSearchResults(searchQuery.length >= 2)}
+              className="h-12 w-full rounded-md border-0 bg-transparent pl-11 pr-11 text-sm focus:outline-none"
+            />
+            {searchQuery.length > 0 && (
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setShowSearchResults(false);
+                }}
+                type="button"
+                className="absolute right-3 flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <X size={15} />
+              </button>
+            )}
+          </div>
+        </Card>
 
         {showSearchResults && (
-          <div className="learner-search-dropdown">
+          <div className="absolute top-full z-20 mt-2 w-full overflow-hidden rounded-md border border-border bg-card shadow-lg">
             {visibleLearners.length > 0 ? (
-              <div className="search-results-list">
+              <div className="max-h-96 overflow-y-auto p-2">
                 {visibleLearners.map((learner) => (
                   <button
                     key={learner.id}
-                    className="search-result-item"
                     onClick={() => handleSelectLearner(learner.id)}
                     type="button"
+                    className="flex w-full items-center gap-3 rounded-md p-3 text-left transition hover:bg-muted"
                   >
-                    <div className="result-avatar">
-                      <User size={24} />
+                    <Avatar name={learner.fullName} className="h-10 w-10 text-sm" />
+                    <div className="min-w-0 flex-1">
+                      <strong className="block truncate text-sm font-semibold">{learner.fullName}</strong>
+                      <span className="block truncate text-xs text-muted-foreground">{learner.email}</span>
                     </div>
-                    <div className="result-info">
-                      <strong>{learner.fullName}</strong>
-                      <span>{learner.email}</span>
-                    </div>
-                    <div className="result-meta">
-                      <span className="meta-badge">{learner.state}</span>
-                    </div>
+                    <Chip variant="neutral">{learner.state}</Chip>
                   </button>
                 ))}
               </div>
             ) : (
-              <div className="search-empty">
-                <User size={32} />
-                <p>{searchQuery.length < 2 ? 'Tapez au moins 2 caractères pour rechercher' : 'Aucun apprenant trouvé'}</p>
+              <div className="flex flex-col items-center gap-3 p-10 text-center text-muted-foreground">
+                <User size={26} className="opacity-40" />
+                <p className="text-sm">{searchQuery.length < 2 ? 'Tapez au moins 2 caractères pour rechercher' : 'Aucun apprenant trouvé'}</p>
               </div>
             )}
           </div>
         )}
       </div>
 
-      {error && <div className="error-state">{error}</div>}
+      {error && (
+        <Card className="border-destructive/30 bg-destructive/5">
+          <CardContent className="p-5 text-sm text-destructive">{error}</CardContent>
+        </Card>
+      )}
 
       {!selectedLearner && !detailLoading && (
-        <div className="learner-empty-state">
-          <div className="empty-icon">
-            <User size={64} />
-          </div>
-          <h3>Sélectionnez un apprenant</h3>
-          <p>Utilisez la barre de recherche ci-dessus pour trouver et afficher les détails d'un apprenant</p>
-        </div>
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center gap-3 p-16 text-center">
+            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <User size={30} />
+            </span>
+            <h3 className="font-display text-lg font-bold tracking-tight">Sélectionnez un apprenant</h3>
+            <p className="max-w-sm text-sm text-muted-foreground">
+              Utilisez la barre de recherche ci-dessus pour trouver et afficher les détails d&rsquo;un apprenant
+            </p>
+          </CardContent>
+        </Card>
       )}
 
-      {detailLoading && (
-        <div className="loading-state" style={{ marginTop: '3rem' }}>Chargement des détails...</div>
-      )}
+      {detailLoading && <p className="py-12 text-center text-sm text-muted-foreground">Chargement des détails...</p>}
 
       {selectedLearner && (
-        <div className="learner-detail-content">
-          {/* Profil Header */}
-          <div className="learner-profile-card">
-            <div className="learner-profile-avatar">
-              <User size={40} />
-            </div>
-            <div className="learner-profile-info">
-              <h2>{selectedLearner.learner.fullName}</h2>
-              <p className="learner-profile-role">{selectedLearner.learner.state}</p>
-              <p className="learner-profile-email">{selectedLearner.learner.email}</p>
-            </div>
-            <div className="learner-profile-meta">
-              {selectedLearner.learner.lastActivityAt && (
-                <div className="meta-item">
-                  <Activity size={16} />
-                  <span>Dernière activité : {formatDateTime(selectedLearner.learner.lastActivityAt)}</span>
-                </div>
-              )}
-              {selectedLearner.learner.activatedAt && (
-                <div className="meta-item">
-                  <CheckCircle size={16} />
-                  <span>Activé le : {formatDateTime(selectedLearner.learner.activatedAt)}</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* KPIs Section */}
-          <div className="kpi-grid">
-            <div className="kpi-card" style={{ borderLeftColor: '#FF6B9D' }}>
-              <div className="kpi-header">
-                <div className="kpi-icon" style={{ background: 'linear-gradient(135deg, #FF6B9D 0%, #C239B3 100%)' }}>
-                  <Clock size={20} color="white" />
-                </div>
-                <span className="kpi-label">Temps du groupe</span>
+        <div className="flex flex-col gap-8">
+          <Card>
+            <CardContent className="flex flex-wrap items-start gap-5 p-6">
+              <Avatar name={selectedLearner.learner.fullName} className="h-16 w-16 text-lg" />
+              <div className="min-w-0 flex-1">
+                <h2 className="font-display text-xl font-bold tracking-tight">{selectedLearner.learner.fullName}</h2>
+                <Chip variant="primary" className="mt-1.5">{selectedLearner.learner.state}</Chip>
+                <p className="mt-1.5 text-sm text-muted-foreground">{selectedLearner.learner.email}</p>
               </div>
-              <div className="kpi-value">{formatDuration(selectedLearner.learner.groupTotalTime)}</div>
-              <div className="kpi-progress">
-                <div className="kpi-progress-bar">
-                  <div 
-                    className="kpi-progress-fill" 
-                    style={{ 
-                      width: `${Math.min((selectedLearner.learner.groupTotalTime / (100 * 60)) * 100, 100)}%`,
-                      background: 'linear-gradient(90deg, #FF6B9D 0%, #C239B3 100%)'
-                    }}
-                  />
-                </div>
-                <span className="kpi-hint">{selectedLearner.learner.groupName || 'Aucun groupe'}</span>
-              </div>
-            </div>
-
-            <div className="kpi-card" style={{ borderLeftColor: '#5B8DEE' }}>
-              <div className="kpi-header">
-                <div className="kpi-icon" style={{ background: 'linear-gradient(135deg, #5B8DEE 0%, #0063F7 100%)' }}>
-                  <TrendingUp size={20} color="white" />
-                </div>
-                <span className="kpi-label">Progression moyenne</span>
-              </div>
-              <div className="kpi-value">{formatPercentage(selectedLearner.learner.averageProgress)}</div>
-              <div className="kpi-progress">
-                <div className="kpi-progress-bar">
-                  <div 
-                    className="kpi-progress-fill" 
-                    style={{ 
-                      width: `${clampPercentage(selectedLearner.learner.averageProgress)}%`,
-                      background: 'linear-gradient(90deg, #5B8DEE 0%, #0063F7 100%)'
-                    }}
-                  />
-                </div>
-                <span className="kpi-hint">{selectedLearner.trainingRegistrations.length} formations</span>
-              </div>
-            </div>
-
-            <div className="kpi-card" style={{ borderLeftColor: '#00A67E' }}>
-              <div className="kpi-header">
-                <div className="kpi-icon" style={{ background: 'linear-gradient(135deg, #34C4AC 0%, #00A67E 100%)' }}>
-                  <Target size={20} color="white" />
-                </div>
-                <span className="kpi-label">Taux d'assiduité</span>
-              </div>
-              <div className="kpi-value">
-                {selectedLearner.learner.sessionRegistrationCount > 0 
-                  ? formatPercentage((selectedLearner.learner.signedAttendanceCount / selectedLearner.learner.sessionRegistrationCount) * 100)
-                  : '0%'
-                }
-              </div>
-              <div className="kpi-progress">
-                <div className="kpi-progress-bar">
-                  <div 
-                    className="kpi-progress-fill" 
-                    style={{ 
-                      width: selectedLearner.learner.sessionRegistrationCount > 0 
-                        ? `${(selectedLearner.learner.signedAttendanceCount / selectedLearner.learner.sessionRegistrationCount) * 100}%`
-                        : '0%',
-                      background: 'linear-gradient(90deg, #34C4AC 0%, #00A67E 100%)'
-                    }}
-                  />
-                </div>
-                <span className="kpi-hint">
-                  {selectedLearner.learner.signedAttendanceCount} / {selectedLearner.learner.sessionRegistrationCount} sessions
-                </span>
-              </div>
-            </div>
-
-            <div className="kpi-card" style={{ borderLeftColor: '#FFB946' }}>
-              <div className="kpi-header">
-                <div className="kpi-icon" style={{ background: 'linear-gradient(135deg, #FFB946 0%, #FF9A00 100%)' }}>
-                  <Award size={20} color="white" />
-                </div>
-                <span className="kpi-label">Formations complètes</span>
-              </div>
-              <div className="kpi-value">
-                {selectedLearner.trainingRegistrations.filter(t => (t.progress ?? 0) >= 100).length}
-              </div>
-              <div className="kpi-progress">
-                <div className="kpi-progress-bar">
-                  <div 
-                    className="kpi-progress-fill" 
-                    style={{ 
-                      width: selectedLearner.trainingRegistrations.length > 0
-                        ? `${(selectedLearner.trainingRegistrations.filter(t => (t.progress ?? 0) >= 100).length / selectedLearner.trainingRegistrations.length) * 100}%`
-                        : '0%',
-                      background: 'linear-gradient(90deg, #FFB946 0%, #FF9A00 100%)'
-                    }}
-                  />
-                </div>
-                <span className="kpi-hint">
-                  {selectedLearner.trainingRegistrations.filter(t => (t.progress ?? 0) >= 100).length} / {selectedLearner.trainingRegistrations.length}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Sessions à venir */}
-          {upcomingSessions.length > 0 && (
-            <div className="upcoming-sessions-section">
-              <div className="section-title">
-                <Zap size={20} color="#0063F7" />
-                <h3>Sessions à venir</h3>
-                <span className="badge-count">
-                  {upcomingSessions.length}
-                </span>
-                {upcomingTotalPages > 1 && (
-                  <div className="upcoming-pagination">
-                    <button
-                      type="button"
-                      className="upcoming-pagination-button"
-                      onClick={() => setUpcomingPage((page) => Math.max(1, page - 1))}
-                      disabled={upcomingPage === 1}
-                      aria-label="Page précédente"
-                    >
-                      <ChevronLeft size={18} />
-                    </button>
-                    <span className="upcoming-pagination-status">
-                      {upcomingPage} / {upcomingTotalPages}
-                    </span>
-                    <button
-                      type="button"
-                      className="upcoming-pagination-button"
-                      onClick={() => setUpcomingPage((page) => Math.min(upcomingTotalPages, page + 1))}
-                      disabled={upcomingPage === upcomingTotalPages}
-                      aria-label="Page suivante"
-                    >
-                      <ChevronRight size={18} />
-                    </button>
-                  </div>
+              <div className="ml-auto flex flex-col gap-2">
+                {selectedLearner.learner.lastActivityAt && (
+                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Activity size={13} className="text-primary" />
+                    Dernière activité : {formatDateTime(selectedLearner.learner.lastActivityAt)}
+                  </span>
+                )}
+                {selectedLearner.learner.activatedAt && (
+                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <CheckCircle size={13} className="text-primary" />
+                    Activé le : {formatDateTime(selectedLearner.learner.activatedAt)}
+                  </span>
                 )}
               </div>
-              <div className="upcoming-sessions-grid">
-                {upcomingPageItems.map((session) => (
-                    <div key={session.id} className="upcoming-session-card">
-                      <div className="session-date-badge">
-                        <Calendar size={16} />
-                        <span>{new Date(session.startAt!).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</span>
-                      </div>
-                      <h4>{session.trainingTitle || 'Session'}</h4>
-                      <p className="session-time">
+            </CardContent>
+          </Card>
+
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            <KpiCard
+              icon={Clock}
+              label="Temps du groupe"
+              value={formatDuration(selectedLearner.learner.groupTotalTime)}
+              progress={Math.min((selectedLearner.learner.groupTotalTime / (100 * 60)) * 100, 100)}
+              hint={selectedLearner.learner.groupName || 'Aucun groupe'}
+            />
+            <KpiCard
+              icon={TrendingUp}
+              label="Progression moyenne"
+              value={formatPercentage(selectedLearner.learner.averageProgress)}
+              progress={clampPercentage(selectedLearner.learner.averageProgress)}
+              hint={`${selectedLearner.trainingRegistrations.length} formations`}
+            />
+            <KpiCard
+              icon={Target}
+              label="Taux d&rsquo;assiduité"
+              value={formatPercentage(attendanceRate)}
+              progress={attendanceRate}
+              hint={`${selectedLearner.learner.signedAttendanceCount} / ${selectedLearner.learner.sessionRegistrationCount} sessions`}
+            />
+            <KpiCard
+              icon={Award}
+              label="Formations complètes"
+              value={completedTrainingsCount}
+              progress={
+                selectedLearner.trainingRegistrations.length > 0
+                  ? (completedTrainingsCount / selectedLearner.trainingRegistrations.length) * 100
+                  : 0
+              }
+              hint={`${completedTrainingsCount} / ${selectedLearner.trainingRegistrations.length}`}
+            />
+          </div>
+
+          {upcomingSessions.length > 0 && (
+            <Card>
+              <CardContent className="flex flex-col gap-5 p-6">
+                <div className="flex flex-wrap items-center gap-3">
+                  <Zap size={17} className="text-primary" />
+                  <h3 className="font-display text-lg font-bold tracking-tight">Sessions à venir</h3>
+                  <Chip variant="neutral">{upcomingSessions.length}</Chip>
+                  {upcomingTotalPages > 1 && (
+                    <div className="ml-auto flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => setUpcomingPage((page) => Math.max(1, page - 1))}
+                        disabled={upcomingPage === 1}
+                        aria-label="Page précédente"
+                      >
+                        <ChevronLeft size={15} />
+                      </Button>
+                      <span className="tabular w-14 text-center text-sm font-semibold text-muted-foreground">
+                        {upcomingPage} / {upcomingTotalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => setUpcomingPage((page) => Math.min(upcomingTotalPages, page + 1))}
+                        disabled={upcomingPage === upcomingTotalPages}
+                        aria-label="Page suivante"
+                      >
+                        <ChevronRight size={15} />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  {upcomingPageItems.map((session) => (
+                    <div key={session.id} className="rounded-md border border-primary/20 bg-primary/5 p-4">
+                      <span className="mb-2 inline-flex items-center gap-1.5 rounded-md bg-card px-2.5 py-1 text-xs font-semibold">
+                        <Calendar size={13} className="text-primary" />
+                        {new Date(session.startAt!).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                      </span>
+                      <h4 className="text-sm font-semibold leading-tight">{session.trainingTitle || 'Session'}</h4>
+                      <p className="tabular mt-1.5 text-xs text-muted-foreground">
                         {new Date(session.startAt!).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                         {session.endAt && ` - ${new Date(session.endAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`}
                       </p>
-                      <span className="session-type-badge">{session.sessionType || 'Session'}</span>
-                    </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="learner-tabs-section">
-            <div className="tabs-header">
-              <button
-                className={`tab-button ${activeTab === 'formations' ? 'tab-button-active' : ''}`}
-                onClick={() => setActiveTab('formations')}
-                type="button"
-              >
-                <BookOpen size={18} />
-                <span>Formations ({selectedLearner.trainingRegistrations.length})</span>
-              </button>
-              <button
-                className={`tab-button ${activeTab === 'sessions' ? 'tab-button-active' : ''}`}
-                onClick={() => setActiveTab('sessions')}
-                type="button"
-              >
-                <Calendar size={18} />
-                <span>Sessions ({selectedLearner.sessionRegistrations.length})</span>
-              </button>
-              <button
-                className={`tab-button ${activeTab === 'activity' ? 'tab-button-active' : ''}`}
-                onClick={() => setActiveTab('activity')}
-                type="button"
-              >
-                <Activity size={18} />
-                <span>Activité récente ({selectedLearner.recentActivities.length})</span>
-              </button>
-            </div>
-
-            <div className="tabs-content">
-              {activeTab === 'formations' && (
-                <div className="trainings-grid">
-                  {selectedLearner.trainingRegistrations.map((registration) => (
-                    <div key={registration.id} className="training-card">
-                      <div className="training-image">
-                        <BookOpen size={32} color="white" />
-                        <div className="training-badge">{formatPercentage(registration.progress ?? 0)}</div>
-                      </div>
-                      <div className="training-content">
-                        <h4>{registration.trainingTitle}</h4>
-                        <div className="training-meta">
-                          <Clock size={14} />
-                          <span>{formatDuration(registration.totalTime)}</span>
-                        </div>
-                        <div className="training-meta" style={{ marginTop: '4px' }}>
-                          <span className="training-state-badge">{registration.state}</span>
-                        </div>
-                        <div className="training-progress">
-                          <div className="training-progress-bar">
-                            <div 
-                              className="training-progress-fill"
-                              style={{ width: `${registration.progress ?? 0}%` }}
-                            />
-                          </div>
-                          <span className="training-progress-value">{formatPercentage(registration.progress ?? 0)}</span>
-                        </div>
-                        {registration.score !== null && (
-                          <p className="training-score">Score: {registration.score}%</p>
-                        )}
-                      </div>
+                      <Chip variant="neutral" className="mt-2.5">{session.sessionType || 'Session'}</Chip>
                     </div>
                   ))}
                 </div>
-              )}
+              </CardContent>
+            </Card>
+          )}
 
-              {activeTab === 'sessions' && (
-                <div className="sessions-list">
-                  {selectedLearner.sessionRegistrations.map((session) => (
-                    <div key={session.id} className="session-card">
-                      <div className="session-header">
-                        <div className="session-info">
-                          <h4>{session.trainingTitle || 'Session sans formation'}</h4>
-                          <p className="session-type">{session.sessionType || 'Session'}</p>
+          <Card>
+            <CardContent className="p-6">
+              <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)}>
+                <TabsList>
+                  <TabsTrigger value="formations">
+                    <BookOpen size={15} />
+                    Formations ({selectedLearner.trainingRegistrations.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="sessions">
+                    <Calendar size={15} />
+                    Sessions ({selectedLearner.sessionRegistrations.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="activity">
+                    <Activity size={15} />
+                    Activité récente ({selectedLearner.recentActivities.length})
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="formations">
+                  <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                    {selectedLearner.trainingRegistrations.map((registration) => (
+                      <div key={registration.id} className="overflow-hidden rounded-xl border border-border">
+                        <div className="relative flex h-24 items-center justify-center bg-gradient-brand">
+                          <BookOpen size={26} className="text-white" />
+                          <span className="absolute right-2.5 top-2.5 rounded-md bg-black/40 px-2 py-1 text-xs font-bold text-white">
+                            {formatPercentage(registration.progress ?? 0)}
+                          </span>
                         </div>
-                        <div className="session-status">
-                          {session.signedCount > 0 ? (
-                            <div className="status-badge status-success">
-                              <CheckCircle size={16} />
-                              <span>{session.signedCount} signature{session.signedCount > 1 ? 's' : ''}</span>
-                            </div>
-                          ) : (
-                            <div className="status-badge status-neutral">
-                              <XCircle size={16} />
-                              <span>Non signé</span>
-                            </div>
+                        <div className="flex flex-col gap-2.5 p-4">
+                          <h4 className="text-sm font-semibold leading-tight">{registration.trainingTitle}</h4>
+                          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Clock size={12} />
+                            {formatDuration(registration.totalTime)}
+                          </span>
+                          <Chip variant="neutral" className="w-fit">{registration.state}</Chip>
+                          <div className="flex items-center gap-2.5">
+                            <Progress value={registration.progress ?? 0} className="flex-1" />
+                            <span className="tabular text-xs font-semibold text-primary">{formatPercentage(registration.progress ?? 0)}</span>
+                          </div>
+                          {registration.score !== null && (
+                            <p className="text-xs text-muted-foreground">Score: {registration.score}%</p>
                           )}
                         </div>
                       </div>
-                      <div className="session-details">
-                        <div className="session-detail-item">
-                          <Calendar size={16} />
-                          <span>
+                    ))}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="sessions">
+                  <div className="flex flex-col gap-3">
+                    {selectedLearner.sessionRegistrations.map((session) => (
+                      <div key={session.id} className="rounded-md border border-border p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <h4 className="text-sm font-semibold">{session.trainingTitle || 'Session sans formation'}</h4>
+                            <p className="text-xs text-muted-foreground">{session.sessionType || 'Session'}</p>
+                          </div>
+                          {session.signedCount > 0 ? (
+                            <Chip variant="success">
+                              <CheckCircle size={13} />
+                              {session.signedCount} signature{session.signedCount > 1 ? 's' : ''}
+                            </Chip>
+                          ) : (
+                            <Chip variant="neutral">
+                              <XCircle size={13} />
+                              Non signé
+                            </Chip>
+                          )}
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-4 border-t border-border pt-3">
+                          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Calendar size={13} />
                             {session.startAt ? formatDateTime(session.startAt) : 'Date non définie'}
                             {session.endAt && ` - ${formatDateTime(session.endAt)}`}
                           </span>
-                        </div>
-                        {session.eduDuration && (
-                          <div className="session-detail-item">
-                            <Clock size={16} />
-                            <span>Durée: {formatDuration(session.eduDuration)}</span>
-                          </div>
-                        )}
-                        {session.attended !== null && (
-                          <div className="session-detail-item">
-                            <span className={`session-state-badge ${session.attended ? 'status-success' : 'status-error'}`}>
-                              {session.attended ? 'Présent' : 'Absent'}
+                          {session.eduDuration && (
+                            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <Clock size={13} />
+                              Durée: {formatDuration(session.eduDuration)}
                             </span>
-                          </div>
-                        )}
-                        <div className="session-detail-item">
-                          <span className="session-state-badge">{session.state}</span>
+                          )}
+                          {session.attended !== null && (
+                            <Chip variant={session.attended ? 'success' : 'destructive'}>
+                              {session.attended ? 'Présent' : 'Absent'}
+                            </Chip>
+                          )}
+                          <Chip variant="neutral">{session.state}</Chip>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                  {selectedLearner.sessionRegistrations.length === 0 && (
-                    <p className="muted" style={{ textAlign: 'center', padding: '2rem' }}>
-                      Aucune session enregistrée
-                    </p>
-                  )}
-                </div>
-              )}
+                    ))}
+                    {selectedLearner.sessionRegistrations.length === 0 && (
+                      <p className="py-8 text-center text-sm text-muted-foreground">Aucune session enregistrée</p>
+                    )}
+                  </div>
+                </TabsContent>
 
-              {activeTab === 'activity' && (
-                <div className="activity-list">
-                  {selectedLearner.recentActivities.map((activity) => (
-                    <div key={activity.id} className="activity-card">
-                      <div className="activity-icon">
-                        <Activity size={20} color="#FF6B9D" />
-                      </div>
-                      <div className="activity-content">
-                        <h4>{activity.stepTitle}</h4>
-                        <p className="activity-path">
-                          {activity.trainingTitle} › {activity.moduleTitle}
-                        </p>
-                        <div className="activity-meta">
-                          <span className="activity-type">{activity.stepType || 'Step'}</span>
-                          <span className="activity-time">{formatDuration(activity.totalTime ?? activity.timeSpent ?? 0)}</span>
-                          <span className="activity-date">{formatDateTime(activity.activityAt || '')}</span>
-                        </div>
-                        {activity.score !== null && (
-                          <div className="activity-score">Score: {activity.score}%</div>
-                        )}
-                      </div>
-                      <div className="activity-state">
-                        <span className={`state-badge state-${activity.state.toLowerCase()}`}>
-                          {activity.state}
+                <TabsContent value="activity">
+                  <div className="flex flex-col gap-3">
+                    {selectedLearner.recentActivities.map((activity) => (
+                      <div key={activity.id} className="flex gap-3.5 rounded-md border border-border p-4">
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                          <Activity size={17} />
                         </span>
+                        <div className="min-w-0 flex-1">
+                          <h4 className="text-sm font-semibold">{activity.stepTitle}</h4>
+                          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                            {activity.trainingTitle} › {activity.moduleTitle}
+                          </p>
+                          <div className="mt-2 flex flex-wrap items-center gap-3">
+                            <Chip variant="neutral">{activity.stepType || 'Step'}</Chip>
+                            <span className="tabular text-xs font-semibold text-primary">
+                              {formatDuration(activity.totalTime ?? activity.timeSpent ?? 0)}
+                            </span>
+                            <span className="text-xs text-muted-foreground">{formatDateTime(activity.activityAt || '')}</span>
+                          </div>
+                          {activity.score !== null && (
+                            <p className="mt-1.5 text-xs font-semibold text-success">Score: {activity.score}%</p>
+                          )}
+                        </div>
+                        <Chip variant={activity.state.toLowerCase() === 'completed' ? 'success' : 'neutral'}>{activity.state}</Chip>
                       </div>
-                    </div>
-                  ))}
-                  {selectedLearner.recentActivities.length === 0 && (
-                    <p className="muted" style={{ textAlign: 'center', padding: '2rem' }}>
-                      Aucune activité récente
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
+                    ))}
+                    {selectedLearner.recentActivities.length === 0 && (
+                      <p className="py-8 text-center text-sm text-muted-foreground">Aucune activité récente</p>
+                    )}
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
         </div>
       )}
     </div>
+  );
+}
+
+function KpiCard({
+  icon: Icon,
+  label,
+  value,
+  progress,
+  hint,
+}: {
+  icon: typeof Clock;
+  label: string;
+  value: string | number;
+  progress: number;
+  hint: string;
+}) {
+  return (
+    <Card>
+      <CardContent className="flex flex-col gap-3 p-5">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-gradient-brand text-white">
+            <Icon size={17} />
+          </span>
+          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</span>
+        </div>
+        <CountUp value={value} className="text-2xl" />
+        <Progress value={progress} />
+        <span className="text-xs text-muted-foreground">{hint}</span>
+      </CardContent>
+    </Card>
   );
 }

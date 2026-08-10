@@ -2,6 +2,10 @@ import { useState } from 'react';
 import { useAuth } from '../contexts/useAuth';
 import { ApiError, apiRequest, apiUrl } from '../lib/api';
 import { RefreshCw, Upload, Database, Users, TrendingUp, BookOpen, CheckCircle, XCircle, Clock, FileText, Layers, ClipboardList, CheckSquare, Link2 } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
+import { cn } from '@/lib/utils';
 
 interface SyncStatus {
   type: string;
@@ -103,7 +107,6 @@ export function SyncManagementPage() {
       description: 'Synchroniser tous les groupes et classes depuis Rise Up',
       endpoint: '/api/sync/groups',
       icon: Users,
-      color: '#FF6B9D'
     },
     {
       type: 'groupMemberships',
@@ -111,7 +114,6 @@ export function SyncManagementPage() {
       description: 'Synchroniser les liens apprenants ↔ groupes',
       endpoint: '/api/sync/riseup-group-memberships',
       icon: Link2,
-      color: '#7F8C8D'
     },
     {
       type: 'learningPaths',
@@ -119,7 +121,6 @@ export function SyncManagementPage() {
       description: 'Synchroniser les parcours et leurs contenus',
       endpoint: '/api/sync/learning-paths',
       icon: TrendingUp,
-      color: '#5B8DEE'
     },
     {
       type: 'trainings',
@@ -127,7 +128,6 @@ export function SyncManagementPage() {
       description: 'Synchroniser toutes les formations disponibles',
       endpoint: '/api/sync/trainings',
       icon: BookOpen,
-      color: '#FFB946'
     },
     {
       type: 'learners',
@@ -135,7 +135,6 @@ export function SyncManagementPage() {
       description: 'Synchroniser les apprenants et leurs inscriptions',
       endpoint: '/api/sync/learners',
       icon: Users,
-      color: '#00A67E'
     },
     {
       type: 'sessions',
@@ -143,7 +142,6 @@ export function SyncManagementPage() {
       description: 'Synchroniser les sessions et les présences',
       endpoint: '/api/sync/sessions',
       icon: Clock,
-      color: '#C239B3'
     },
     {
       type: 'registrations',
@@ -151,7 +149,6 @@ export function SyncManagementPage() {
       description: 'Synchroniser les inscriptions aux formations',
       endpoint: '/api/sync/registrations',
       icon: ClipboardList,
-      color: '#8E44AD'
     },
     {
       type: 'modulesSteps',
@@ -159,7 +156,6 @@ export function SyncManagementPage() {
       description: 'Synchroniser les modules et les étapes des formations',
       endpoint: '/api/sync/modules-steps',
       icon: Layers,
-      color: '#2980B9'
     },
     {
       type: 'userStepStates',
@@ -167,7 +163,6 @@ export function SyncManagementPage() {
       description: 'Synchroniser la progression des apprenants (états des étapes)',
       endpoint: '/api/sync/userstepstates',
       icon: CheckSquare,
-      color: '#16A085'
     }
   ];
 
@@ -178,167 +173,154 @@ export function SyncManagementPage() {
   };
 
   return (
-    <div className="page-container">
-      <div className="page-header-modern">
-        <div>
-          <div className="page-breadcrumb">
-            <span className="breadcrumb-item">Administration</span>
-            <span className="breadcrumb-separator">›</span>
-            <span className="breadcrumb-item active">Synchronisation</span>
-          </div>
-          <h1>Gestion de la synchronisation</h1>
-          <p className="page-description">Synchronisez manuellement les données depuis l'API Rise Up ou importez des logs d'activité</p>
-        </div>
+    <div className="flex flex-col gap-10">
+      <div>
+        <Breadcrumb items={[{ label: 'Administration' }, { label: 'Synchronisation' }]} />
+        <h2 className="mt-1.5 font-display text-3xl font-extrabold tracking-tight">Gestion de la synchronisation</h2>
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          Synchronisez manuellement les données depuis l&rsquo;API Rise Up ou importez des logs d&rsquo;activité
+        </p>
       </div>
 
-      {/* Sync from API Section */}
-      <div className="sync-section">
-        <div className="section-title">
-          <Database size={24} color="#FF6B9D" />
-          <h2>Synchronisation depuis l'API Rise Up</h2>
+      <section className="flex flex-col gap-5">
+        <div className="flex items-center gap-2.5">
+          <Database size={18} className="text-primary" />
+          <h3 className="font-display text-lg font-bold tracking-tight">Synchronisation depuis l&rsquo;API Rise Up</h3>
         </div>
-        <p className="section-description">
-          Cliquez sur un bouton pour lancer la synchronisation manuelle des données depuis l'API Rise Up.
+        <p className="-mt-2 text-sm text-muted-foreground">
+          Cliquez sur un bouton pour lancer la synchronisation manuelle des données depuis l&rsquo;API Rise Up.
         </p>
 
-        <div className="sync-grid">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {syncActions.map((action) => {
             const status = syncStatuses[action.type] || { status: 'idle' };
             const Icon = action.icon;
 
             return (
-              <div key={action.type} className="sync-card">
-                <div className="sync-card-header">
-                  <div className="sync-icon" style={{ background: `linear-gradient(135deg, ${action.color} 0%, ${action.color}dd 100%)` }}>
-                    <Icon size={24} color="white" />
+              <Card key={action.type}>
+                <CardContent className="flex flex-col gap-4 p-5">
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-gradient-brand text-white">
+                      <Icon size={20} />
+                    </span>
+                    <div className="min-w-0">
+                      <h4 className="text-sm font-semibold">{action.label}</h4>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{action.description}</p>
+                    </div>
                   </div>
-                  <div className="sync-info">
-                    <h3>{action.label}</h3>
-                    <p>{action.description}</p>
-                  </div>
-                </div>
 
-                <button
-                  className={`sync-button ${status.status === 'loading' ? 'sync-button-loading' : ''}`}
-                  onClick={() => triggerSync(action.type, action.endpoint, action.label)}
-                  disabled={status.status === 'loading'}
-                  type="button"
-                >
-                  {status.status === 'loading' ? (
-                    <>
-                      <RefreshCw size={18} className="spin" />
-                      <span>Synchronisation...</span>
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw size={18} />
-                      <span>Synchroniser</span>
-                    </>
+                  <Button
+                    variant={status.status === 'loading' ? 'secondary' : 'outline'}
+                    onClick={() => triggerSync(action.type, action.endpoint, action.label)}
+                    disabled={status.status === 'loading'}
+                  >
+                    <RefreshCw size={15} className={status.status === 'loading' ? 'animate-spin' : undefined} />
+                    {status.status === 'loading' ? 'Synchronisation...' : 'Synchroniser'}
+                  </Button>
+
+                  {status.message && (
+                    <div
+                      className={cn(
+                        'flex items-center gap-2 rounded-md border px-3 py-2 text-xs font-medium',
+                        status.status === 'success' && 'border-success/25 bg-success/10 text-success',
+                        status.status === 'error' && 'border-destructive/25 bg-destructive/10 text-destructive',
+                      )}
+                    >
+                      {status.status === 'success' && <CheckCircle size={14} className="shrink-0" />}
+                      {status.status === 'error' && <XCircle size={14} className="shrink-0" />}
+                      <span className="flex-1">{status.message}</span>
+                      {status.startTime && status.endTime && (
+                        <span className="tabular opacity-70">({formatDuration(status.startTime, status.endTime)})</span>
+                      )}
+                    </div>
                   )}
-                </button>
-
-                {status.message && (
-                  <div className={`sync-status sync-status-${status.status}`}>
-                    {status.status === 'success' && <CheckCircle size={16} />}
-                    {status.status === 'error' && <XCircle size={16} />}
-                    <span>{status.message}</span>
-                    {status.startTime && status.endTime && (
-                      <span className="sync-duration">({formatDuration(status.startTime, status.endTime)})</span>
-                    )}
-                  </div>
-                )}
-              </div>
+                </CardContent>
+              </Card>
             );
           })}
         </div>
-      </div>
+      </section>
 
-      {/* File Upload Section */}
-      <div className="sync-section">
-        <div className="section-title">
-          <Upload size={24} color="#5B8DEE" />
-          <h2>Import de logs d'activité</h2>
+      <section className="flex flex-col gap-5">
+        <div className="flex items-center gap-2.5">
+          <Upload size={18} className="text-primary" />
+          <h3 className="font-display text-lg font-bold tracking-tight">Import de logs d&rsquo;activité</h3>
         </div>
-        <p className="section-description">
-          Importez un fichier CSV d'export d'activité Rise Up pour alimenter le journal d'activité.
+        <p className="-mt-2 text-sm text-muted-foreground">
+          Importez un fichier CSV d&rsquo;export d&rsquo;activité Rise Up pour alimenter le journal d&rsquo;activité.
         </p>
 
-        <div className="format-info-card">
-          <div className="format-info-header">
-            <FileText size={20} color="#5B8DEE" />
-            <h4>Format de fichier requis</h4>
-          </div>
-          <div className="format-info-content">
-            <p><strong>Type :</strong> Fichier Excel (XLSX)</p>
-            <p><strong>Colonnes obligatoires :</strong></p>
-            <ul className="format-list">
-              <li><code>ID de la formation</code> - Identifiant Rise Up de la formation</li>
-              <li><code>Date de connexion</code> - Date et heure de début de session</li>
-              <li><code>Date de déconnexion</code> - Date et heure de fin de session</li>
-              <li><code>Temps passé (heures)</code> - Durée en heures décimales</li>
-            </ul>
-            <p className="format-note">
-              <strong>Note :</strong> Le fichier doit correspondre au format des exports d'activité Rise Up standard (XLSX).
-            </p>
-          </div>
-        </div>
-
-        <div className="upload-card">
-          <div className="upload-area">
-            <input
-              type="file"
-              id="file-upload"
-              accept=".xlsx"
-              onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-              className="file-input"
-            />
-            <label htmlFor="file-upload" className="file-label">
-              <FileText size={48} color="#5B8DEE" />
-              <p className="upload-title">
-                {selectedFile ? selectedFile.name : 'Choisir un fichier XLSX'}
-              </p>
-              <p className="upload-hint">
-                {selectedFile 
-                  ? `Taille: ${(selectedFile.size / 1024).toFixed(2)} KB`
-                  : 'Cliquez pour sélectionner ou glissez-déposez un fichier'
-                }
-              </p>
-            </label>
-          </div>
-
-          {selectedFile && (
-            <button
-              className={`upload-button ${uploadStatus.status === 'loading' ? 'upload-button-loading' : ''}`}
-              onClick={handleFileUpload}
-              disabled={uploadStatus.status === 'loading'}
-              type="button"
-            >
-              {uploadStatus.status === 'loading' ? (
-                <>
-                  <RefreshCw size={18} className="spin" />
-                  <span>Import en cours...</span>
-                </>
-              ) : (
-                <>
-                  <Upload size={18} />
-                  <span>Importer le fichier</span>
-                </>
-              )}
-            </button>
-          )}
-
-          {uploadStatus.message && (
-            <div className={`sync-status sync-status-${uploadStatus.status}`}>
-              {uploadStatus.status === 'success' && <CheckCircle size={16} />}
-              {uploadStatus.status === 'error' && <XCircle size={16} />}
-              <span>{uploadStatus.message}</span>
-              {uploadStatus.startTime && uploadStatus.endTime && (
-                <span className="sync-duration">({formatDuration(uploadStatus.startTime, uploadStatus.endTime)})</span>
-              )}
+        <Card className="border-0 bg-gradient-brand text-white">
+          <CardContent className="flex flex-col gap-3 p-6">
+            <div className="flex items-center gap-2.5 border-b border-white/10 pb-3">
+              <FileText size={17} className="text-white" />
+              <h4 className="text-sm font-semibold">Format de fichier requis</h4>
             </div>
-          )}
-        </div>
-      </div>
+            <div className="flex flex-col gap-2.5 text-sm text-white/70">
+              <p><strong className="text-white">Type :</strong> Fichier Excel (XLSX)</p>
+              <p><strong className="text-white">Colonnes obligatoires :</strong></p>
+              <ul className="flex flex-col gap-1.5">
+                <li className="flex gap-2"><span className="text-white/70">→</span><span><code className="rounded bg-white/15 px-1.5 py-0.5 text-xs font-semibold text-white">ID de la formation</code> - Identifiant Rise Up de la formation</span></li>
+                <li className="flex gap-2"><span className="text-white/70">→</span><span><code className="rounded bg-white/15 px-1.5 py-0.5 text-xs font-semibold text-white">Date de connexion</code> - Date et heure de début de session</span></li>
+                <li className="flex gap-2"><span className="text-white/70">→</span><span><code className="rounded bg-white/15 px-1.5 py-0.5 text-xs font-semibold text-white">Date de déconnexion</code> - Date et heure de fin de session</span></li>
+                <li className="flex gap-2"><span className="text-white/70">→</span><span><code className="rounded bg-white/15 px-1.5 py-0.5 text-xs font-semibold text-white">Temps passé (heures)</code> - Durée en heures décimales</span></li>
+              </ul>
+              <p className="rounded-md border-l-2 border-white/40 bg-white/[0.08] px-3 py-2">
+                <strong className="text-white">Note :</strong> Le fichier doit correspondre au format des exports d&rsquo;activité Rise Up standard (XLSX).
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="flex flex-col gap-4 p-6">
+            <div className="relative">
+              <input
+                type="file"
+                id="file-upload"
+                accept=".xlsx"
+                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                className="absolute h-px w-px overflow-hidden opacity-0"
+              />
+              <label
+                htmlFor="file-upload"
+                className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed border-border p-12 text-center transition hover:border-primary/40 hover:bg-muted/30"
+              >
+                <FileText size={36} className="text-primary" />
+                <p className="text-sm font-semibold">{selectedFile ? selectedFile.name : 'Choisir un fichier XLSX'}</p>
+                <p className="text-xs text-muted-foreground">
+                  {selectedFile ? `Taille: ${(selectedFile.size / 1024).toFixed(2)} KB` : 'Cliquez pour sélectionner ou glissez-déposez un fichier'}
+                </p>
+              </label>
+            </div>
+
+            {selectedFile && (
+              <Button onClick={() => void handleFileUpload()} disabled={uploadStatus.status === 'loading'}>
+                <RefreshCw size={15} className={uploadStatus.status === 'loading' ? 'animate-spin' : 'hidden'} />
+                <Upload size={15} className={uploadStatus.status === 'loading' ? 'hidden' : undefined} />
+                {uploadStatus.status === 'loading' ? 'Import en cours...' : 'Importer le fichier'}
+              </Button>
+            )}
+
+            {uploadStatus.message && (
+              <div
+                className={cn(
+                  'flex items-center gap-2 rounded-md border px-3 py-2 text-xs font-medium',
+                  uploadStatus.status === 'success' && 'border-success/25 bg-success/10 text-success',
+                  uploadStatus.status === 'error' && 'border-destructive/25 bg-destructive/10 text-destructive',
+                )}
+              >
+                {uploadStatus.status === 'success' && <CheckCircle size={14} className="shrink-0" />}
+                {uploadStatus.status === 'error' && <XCircle size={14} className="shrink-0" />}
+                <span className="flex-1">{uploadStatus.message}</span>
+                {uploadStatus.startTime && uploadStatus.endTime && (
+                  <span className="tabular opacity-70">({formatDuration(uploadStatus.startTime, uploadStatus.endTime)})</span>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </section>
     </div>
   );
 }

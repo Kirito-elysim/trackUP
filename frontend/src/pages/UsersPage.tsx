@@ -2,6 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../contexts/useAuth';
 import { apiRequest, ApiError } from '../lib/api';
 import type { Role, UserSummary } from '../types/auth';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
+import { Badge } from '@/components/ui/badge';
+import { CountUp } from '@/components/ui/stat';
 
 export function UsersPage() {
   const { token } = useAuth();
@@ -107,165 +113,173 @@ export function UsersPage() {
   };
 
   return (
-    <section className="page-section">
-      <div className="page-header">
+    <section className="flex flex-col gap-8">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="eyebrow eyebrow-dark">Administration</p>
-          <h2>Utilisateurs</h2>
+          <p className="mb-1.5 text-xs uppercase tracking-[0.2em] text-muted-foreground">Administration</p>
+          <h2 className="font-display text-3xl font-extrabold tracking-tight">Utilisateurs</h2>
         </div>
-        <div className="header-meta">
-          <p className="muted">Gestion des comptes internes et de l’attribution des rôles applicatifs.</p>
-          <span className="status-chip status-chip-soft">{users.length} comptes</span>
+        <div className="flex flex-col items-end gap-2 text-right">
+          <p className="max-w-[38ch] text-sm text-muted-foreground">
+            Gestion des comptes internes et de l&rsquo;attribution des rôles applicatifs.
+          </p>
+          <Chip variant="neutral">{users.length} comptes</Chip>
         </div>
       </div>
 
-      <div className="stats-grid stats-grid-compact">
-        <article className="metric-card">
-          <p className="metric-label">Comptes actifs</p>
-          <strong className="metric-value">{activeUsersCount}</strong>
-          <p className="metric-hint">Utilisateurs immédiatement opérationnels</p>
-        </article>
-        <article className="metric-card">
-          <p className="metric-label">Admins</p>
-          <strong className="metric-value">{adminUsersCount}</strong>
-          <p className="metric-hint">Accès complet aux features système</p>
-        </article>
-        <article className="metric-card">
-          <p className="metric-label">Rôles disponibles</p>
-          <strong className="metric-value">{roles.length}</strong>
-          <p className="metric-hint">Profils réutilisables pour les équipes</p>
-        </article>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Card className="animate-rise-in hover:-translate-y-1 hover:shadow-soft-hover">
+          <CardContent className="flex flex-col gap-1.5 p-5">
+            <p className="text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Comptes actifs</p>
+            <CountUp value={activeUsersCount} className="text-xl" />
+            <p className="text-xs text-muted-foreground">Utilisateurs immédiatement opérationnels</p>
+          </CardContent>
+        </Card>
+        <Card className="animate-rise-in hover:-translate-y-1 hover:shadow-soft-hover" style={{ animationDelay: '80ms' }}>
+          <CardContent className="flex flex-col gap-1.5 p-5">
+            <p className="text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Admins</p>
+            <CountUp value={adminUsersCount} className="text-xl" />
+            <p className="text-xs text-muted-foreground">Accès complet aux features système</p>
+          </CardContent>
+        </Card>
+        <Card className="animate-rise-in hover:-translate-y-1 hover:shadow-soft-hover" style={{ animationDelay: '160ms' }}>
+          <CardContent className="flex flex-col gap-1.5 p-5">
+            <p className="text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Rôles disponibles</p>
+            <CountUp value={roles.length} className="text-xl" />
+            <p className="text-xs text-muted-foreground">Profils réutilisables pour les équipes</p>
+          </CardContent>
+        </Card>
       </div>
 
-      <div className="admin-page-grid">
-        <div className="surface-stack">
-          <article className="hero-panel hero-panel-compact">
-            <div className="hero-copy">
-              <span className="status-chip">RBAC</span>
-              <h3>Accorder seulement les écrans utiles.</h3>
-              <p>
-                Les utilisateurs n’affichent que les onglets autorisés par leurs rôles. L’objectif est de garder un
-                back-office lisible et sûr, sans surface inutile.
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="flex flex-col gap-6">
+          <Card className="overflow-hidden border-0 bg-gradient-brand text-white">
+            <CardContent className="flex flex-col gap-3 p-7">
+              <Chip variant="onGradient" className="w-fit">RBAC</Chip>
+              <h3 className="font-display text-xl font-extrabold leading-tight tracking-tight">
+                Accorder seulement les écrans utiles.
+              </h3>
+              <p className="max-w-[55ch] text-sm text-white/65">
+                Les utilisateurs n&rsquo;affichent que les onglets autorisés par leurs rôles. L&rsquo;objectif est de
+                garder un back-office lisible et sûr, sans surface inutile.
               </p>
-            </div>
-          </article>
+            </CardContent>
+          </Card>
 
-          <article className="panel-card">
-            <div className="panel-card-header">
+          <Card>
+            <CardContent className="flex flex-col gap-5 p-6">
               <div>
-                <p className="section-kicker">Annuaire</p>
-                <h3>Comptes internes</h3>
+                <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Annuaire</p>
+                <h3 className="font-display text-lg font-bold tracking-tight">Comptes internes</h3>
               </div>
-            </div>
 
-            <div className="stack">
-              {users.map((user) => (
-                <article className="panel-card panel-card-nested" key={user.id}>
-                  <div className="panel-headline">
-                    <div>
-                      <strong>
-                        {user.firstName} {user.lastName}
-                      </strong>
-                      <p className="muted">{user.email}</p>
+              <div className="flex flex-col gap-4">
+                {users.map((user) => (
+                  <div className="rounded-md border border-border p-4" key={user.id}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <strong className="text-sm font-semibold">
+                          {user.firstName} {user.lastName}
+                        </strong>
+                        <p className="text-xs text-muted-foreground">{user.email}</p>
+                      </div>
+                      <Chip variant={user.active ? 'success' : 'destructive'}>{user.active ? 'Actif' : 'Inactif'}</Chip>
                     </div>
-                    <span className={`status-pill ${user.active ? 'status-pill-active' : 'status-pill-off'}`}>
-                      {user.active ? 'Actif' : 'Inactif'}
-                    </span>
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {user.roles.map((role) => (
+                        <Badge variant="secondary" key={role.id}>
+                          {role.name}
+                        </Badge>
+                      ))}
+                    </div>
                   </div>
-                  <div className="tag-list">
-                    {user.roles.map((role) => (
-                      <span className="tag" key={role.id}>
-                        {role.name}
-                      </span>
-                    ))}
-                  </div>
-                </article>
-              ))}
-            </div>
-          </article>
-        </div>
-
-        <article className="panel-card">
-          <div className="panel-card-header">
-            <div>
-              <p className="section-kicker">Provisioning</p>
-              <h3>Nouvel utilisateur</h3>
-            </div>
-          </div>
-
-          <form className="stack" onSubmit={handleSubmit}>
-            <div className="inline-fields">
-              <label className="field">
-                <span>Prénom</span>
-                <input
-                  value={form.firstName}
-                  onChange={(event) => setForm((current) => ({ ...current, firstName: event.target.value }))}
-                />
-              </label>
-
-              <label className="field">
-                <span>Nom</span>
-                <input
-                  value={form.lastName}
-                  onChange={(event) => setForm((current) => ({ ...current, lastName: event.target.value }))}
-                />
-              </label>
-            </div>
-
-            <label className="field">
-              <span>Email</span>
-              <input
-                type="email"
-                value={form.email}
-                onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
-              />
-            </label>
-
-            <label className="field">
-              <span>Mot de passe</span>
-              <input
-                required
-                type="password"
-                value={form.password}
-                onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
-              />
-            </label>
-
-            <label className="switch-row">
-              <input
-                checked={form.active}
-                onChange={(event) => setForm((current) => ({ ...current, active: event.target.checked }))}
-                type="checkbox"
-              />
-              <span>Compte actif dès la création</span>
-            </label>
-
-            <div className="stack-sm">
-              <span className="field-label">Rôles</span>
-              <div className="checkbox-grid">
-                {roles.map((role) => (
-                  <label className="checkbox-row" key={role.id}>
-                    <input
-                      checked={form.roleIds.includes(role.id)}
-                      onChange={() => handleToggleRole(role.id)}
-                      type="checkbox"
-                    />
-                    <span>
-                      <strong>{role.name}</strong>
-                      <small>{role.code}</small>
-                    </span>
-                  </label>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="mb-5">
+              <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Provisioning</p>
+              <h3 className="font-display text-lg font-bold tracking-tight">Nouvel utilisateur</h3>
             </div>
 
-            {message ? <p className="form-note">{message}</p> : null}
+            <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
+              <div className="grid grid-cols-2 gap-4">
+                <label className="flex flex-col gap-2">
+                  <span className="text-sm font-semibold">Prénom</span>
+                  <Input
+                    value={form.firstName}
+                    onChange={(event) => setForm((current) => ({ ...current, firstName: event.target.value }))}
+                  />
+                </label>
 
-            <button className="primary-button" type="submit">
-              Créer l’utilisateur
-            </button>
-          </form>
-        </article>
+                <label className="flex flex-col gap-2">
+                  <span className="text-sm font-semibold">Nom</span>
+                  <Input
+                    value={form.lastName}
+                    onChange={(event) => setForm((current) => ({ ...current, lastName: event.target.value }))}
+                  />
+                </label>
+              </div>
+
+              <label className="flex flex-col gap-2">
+                <span className="text-sm font-semibold">Email</span>
+                <Input
+                  type="email"
+                  value={form.email}
+                  onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
+                />
+              </label>
+
+              <label className="flex flex-col gap-2">
+                <span className="text-sm font-semibold">Mot de passe</span>
+                <Input
+                  required
+                  type="password"
+                  value={form.password}
+                  onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
+                />
+              </label>
+
+              <label className="flex items-center gap-2.5 rounded-md border border-border bg-muted/30 px-3.5 py-3 text-sm font-medium">
+                <input
+                  checked={form.active}
+                  onChange={(event) => setForm((current) => ({ ...current, active: event.target.checked }))}
+                  type="checkbox"
+                  className="accent-primary"
+                />
+                Compte actif dès la création
+              </label>
+
+              <div className="flex flex-col gap-3">
+                <span className="text-sm font-semibold">Rôles</span>
+                <div className="flex flex-col gap-1.5">
+                  {roles.map((role) => (
+                    <label className="flex items-start gap-2.5 rounded-md border border-border px-2.5 py-2 text-sm" key={role.id}>
+                      <input
+                        checked={form.roleIds.includes(role.id)}
+                        onChange={() => handleToggleRole(role.id)}
+                        type="checkbox"
+                        className="mt-0.5 accent-primary"
+                      />
+                      <span className="flex flex-col">
+                        <strong className="font-medium">{role.name}</strong>
+                        <small className="text-xs text-muted-foreground">{role.code}</small>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
+
+              <Button type="submit">Créer l&rsquo;utilisateur</Button>
+            </form>
+          </CardContent>
+        </Card>
       </div>
     </section>
   );

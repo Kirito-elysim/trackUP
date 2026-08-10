@@ -1,6 +1,11 @@
 import { useState, useMemo } from 'react';
-import { Clock, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { clampPercentage, formatDuration, formatPercentage, formatDateTime } from '../lib/format';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Progress } from '@/components/ui/progress';
+import { Avatar } from '@/components/ui/avatar';
+import { SortableHead, Table, TableBody, TableCell, TableHeader, TableRow, TableShell } from '@/components/ui/table';
 
 export type LearnerTableData = {
   id: number;
@@ -17,16 +22,16 @@ export type LearnerTableData = {
   joinedAt?: string | null;
 };
 
-type SortField = 
-  | 'name' 
-  | 'combinedTime' 
-  | 'sessionTime' 
-  | 'elearningTime' 
-  | 'expectedTime' 
-  | 'expectedElearningTime' 
-  | 'timeCompletion' 
-  | 'elearningCompletion' 
-  | 'progress' 
+type SortField =
+  | 'name'
+  | 'combinedTime'
+  | 'sessionTime'
+  | 'elearningTime'
+  | 'expectedTime'
+  | 'expectedElearningTime'
+  | 'timeCompletion'
+  | 'elearningCompletion'
+  | 'progress'
   | 'subscribedAt';
 
 type SortDirection = 'asc' | 'desc';
@@ -38,29 +43,7 @@ type LearnerTableProps = {
   onRowClick?: (learner: LearnerTableData) => void;
 };
 
-type SortIconProps = {
-  field: SortField;
-  sortField: SortField;
-  sortDirection: SortDirection;
-};
-
-function SortIcon({ field, sortField, sortDirection }: SortIconProps) {
-  if (sortField !== field) {
-    return <ArrowUpDown size={14} className="sort-icon" />;
-  }
-  return sortDirection === 'asc' ? (
-    <ArrowUp size={14} className="sort-icon active" />
-  ) : (
-    <ArrowDown size={14} className="sort-icon active" />
-  );
-}
-
-export function LearnerTable({ 
-  data, 
-  title = 'Apprenants',
-  showProgress = true,
-  onRowClick 
-}: LearnerTableProps) {
+export function LearnerTable({ data, title = 'Apprenants', showProgress = true, onRowClick }: LearnerTableProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -74,6 +57,12 @@ export function LearnerTable({
     }
   };
 
+  const sortableHeadProps = (field: SortField) => ({
+    active: sortField === field,
+    direction: sortDirection,
+    onClick: () => handleSort(field),
+  });
+
   const filteredAndSorted = useMemo(() => {
     let filtered = data;
 
@@ -81,8 +70,7 @@ export function LearnerTable({
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
         (learner) =>
-          learner.fullName.toLowerCase().includes(query) ||
-          learner.email?.toLowerCase().includes(query)
+          learner.fullName.toLowerCase().includes(query) || learner.email?.toLowerCase().includes(query),
       );
     }
 
@@ -144,208 +132,124 @@ export function LearnerTable({
   }, [data, searchQuery, sortField, sortDirection]);
 
   return (
-    <div className="section-card">
-      <div className="learners-section-header">
-        <div className="learners-title">
-          <h3>{title}</h3>
-          <p className="muted">{filteredAndSorted.length} {title.toLowerCase()} ({data.length} total)</p>
+    <Card>
+      <CardContent className="flex flex-col gap-5 p-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h3 className="font-display text-lg font-bold tracking-tight">{title}</h3>
+            <p className="text-sm text-muted-foreground">
+              {filteredAndSorted.length} {title.toLowerCase()} ({data.length} total)
+            </p>
+          </div>
+
+          <div className="relative w-full max-w-xs">
+            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              type="text"
+              className="pl-9"
+              placeholder={`Rechercher un ${title.toLowerCase().slice(0, -1)}...`}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
         </div>
 
-        <div className="search-bar">
-          <Search size={18} className="search-icon" />
-          <input
-            type="text"
-            className="search-input"
-            placeholder={`Rechercher un ${title.toLowerCase().slice(0, -1)}...`}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-      </div>
-
-      <div className="learners-table-container" style={{ overflowX: 'auto' }}>
-        <table className="learners-table" style={{ minWidth: '75rem' }}>
-          <thead>
-            <tr>
-              <th className="sortable-header" onClick={() => handleSort('name')}>
-                <div className="header-content">
-                  <span>{title === 'Membres' ? 'Membre' : 'Apprenant'}</span>
-                  <SortIcon field="name" sortField={sortField} sortDirection={sortDirection} />
-                </div>
-              </th>
-              <th className="sortable-header" onClick={() => handleSort('combinedTime')}>
-                <div className="header-content">
-                  <span>Temps passé</span>
-                  <SortIcon field="combinedTime" sortField={sortField} sortDirection={sortDirection} />
-                </div>
-              </th>
-              <th className="sortable-header" onClick={() => handleSort('sessionTime')}>
-                <div className="header-content">
-                  <span>Temps sessions</span>
-                  <SortIcon field="sessionTime" sortField={sortField} sortDirection={sortDirection} />
-                </div>
-              </th>
-              <th className="sortable-header" onClick={() => handleSort('expectedTime')}>
-                <div className="header-content">
-                  <span>Temps prévu sessions</span>
-                  <SortIcon field="expectedTime" sortField={sortField} sortDirection={sortDirection} />
-                </div>
-              </th>
-              <th className="sortable-header" onClick={() => handleSort('timeCompletion')}>
-                <div className="header-content">
-                  <span>Completion sessions</span>
-                  <SortIcon field="timeCompletion" sortField={sortField} sortDirection={sortDirection} />
-                </div>
-              </th>
-              <th className="sortable-header" onClick={() => handleSort('elearningTime')}>
-                <div className="header-content">
-                  <span>Temps e-learning</span>
-                  <SortIcon field="elearningTime" sortField={sortField} sortDirection={sortDirection} />
-                </div>
-              </th>
-              <th className="sortable-header" onClick={() => handleSort('expectedElearningTime')}>
-                <div className="header-content">
-                  <span>Temps prévu e-learning</span>
-                  <SortIcon field="expectedElearningTime" sortField={sortField} sortDirection={sortDirection} />
-                </div>
-              </th>
-              <th className="sortable-header" onClick={() => handleSort('elearningCompletion')}>
-                <div className="header-content">
-                  <span>Completion e-learning</span>
-                  <SortIcon field="elearningCompletion" sortField={sortField} sortDirection={sortDirection} />
-                </div>
-              </th>
-              {showProgress && (
-                <th className="sortable-header" onClick={() => handleSort('progress')}>
-                  <div className="header-content">
-                    <span>Progression</span>
-                    <SortIcon field="progress" sortField={sortField} sortDirection={sortDirection} />
-                  </div>
-                </th>
-              )}
-              <th className="sortable-header" onClick={() => handleSort('subscribedAt')}>
-                <div className="header-content">
-                  <span>Date d'inscription</span>
-                  <SortIcon field="subscribedAt" sortField={sortField} sortDirection={sortDirection} />
-                </div>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredAndSorted.map((learner) => (
-              <tr
-                key={learner.id}
-                onClick={() => onRowClick?.(learner)}
-                style={{ cursor: onRowClick ? 'pointer' : 'default' }}
-              >
-                <td>
-                  <div className="learner-info">
-                    <div className="learner-avatar">
-                      {learner.fullName.charAt(0).toUpperCase()}
-                    </div>
-                    <div>
-                      <strong>{learner.fullName}</strong>
-                      <p className="learner-email">{learner.email}</p>
-                    </div>
-                  </div>
-                </td>
-                <td>
-                  <div className="time-cell">
-                    <Clock size={16} />
-                    <strong>{formatDuration(learner.sessionTime + learner.elearningTime)}</strong>
-                  </div>
-                </td>
-                <td>
-                  <div className="time-cell">
-                    <Clock size={16} />
-                    <strong>{formatDuration(learner.sessionTime)}</strong>
-                  </div>
-                </td>
-                <td>
-                  <div className="time-cell">
-                    <Clock size={16} />
-                    <strong>{formatDuration(learner.expectedTime)}</strong>
-                  </div>
-                </td>
-                <td>
-                  <div className="completion-cell">
-                    <div className="progress-bar-small">
-                      <div
-                        className="progress-fill-small"
-                        style={{ 
-                          width: `${Math.min(learner.expectedTime > 0 ? (learner.sessionTime / learner.expectedTime) * 100 : 0, 100)}%`,
-                          background: learner.expectedTime > 0 && (learner.sessionTime / learner.expectedTime) >= 0.8 
-                            ? 'linear-gradient(135deg, #34C4AC 0%, #00A67E 100%)' 
-                            : 'linear-gradient(135deg, #FFB946 0%, #FF9A00 100%)'
-                        }}
-                      />
-                    </div>
-                    <span className="progress-text">
-                      {learner.expectedTime > 0 
-                        ? formatPercentage((learner.sessionTime / learner.expectedTime) * 100)
-                        : '0%'
-                      }
-                    </span>
-                  </div>
-                </td>
-                <td>
-                  <div className="time-cell">
-                    <Clock size={16} />
-                    <strong>{formatDuration(learner.elearningTime)}</strong>
-                  </div>
-                </td>
-                <td>
-                  <div className="time-cell">
-                    <Clock size={16} />
-                    <strong>{formatDuration(learner.expectedElearningTime)}</strong>
-                  </div>
-                </td>
-                <td>
-                  <div className="completion-cell">
-                    <div className="progress-bar-small">
-                      <div
-                        className="progress-fill-small"
-                        style={{ 
-                          width: `${Math.min(learner.expectedElearningTime > 0 ? (learner.elearningTime / learner.expectedElearningTime) * 100 : 0, 100)}%`,
-                          background: learner.expectedElearningTime > 0 && (learner.elearningTime / learner.expectedElearningTime) >= 0.8 
-                            ? 'linear-gradient(135deg, #34C4AC 0%, #00A67E 100%)' 
-                            : 'linear-gradient(135deg, #FFB946 0%, #FF9A00 100%)'
-                        }}
-                      />
-                    </div>
-                    <span className="progress-text">
-                      {learner.expectedElearningTime > 0 
-                        ? formatPercentage((learner.elearningTime / learner.expectedElearningTime) * 100)
-                        : '0%'
-                      }
-                    </span>
-                  </div>
-                </td>
-                {showProgress && (
-                  <td>
-                    <div className="progress-cell">
-                      <div className="progress-bar-small">
-                        <div
-                          className="progress-fill-small"
-                          style={{ width: `${clampPercentage(learner.averageProgress)}%` }}
-                        />
+        <TableShell>
+          <Table className="min-w-[75rem]">
+            <TableHeader>
+              <TableRow>
+                <SortableHead {...sortableHeadProps('name')}>{title === 'Membres' ? 'Membre' : 'Apprenant'}</SortableHead>
+                <SortableHead {...sortableHeadProps('combinedTime')}>Temps passé</SortableHead>
+                <SortableHead {...sortableHeadProps('sessionTime')}>Temps sessions</SortableHead>
+                <SortableHead {...sortableHeadProps('expectedTime')}>Temps prévu sessions</SortableHead>
+                <SortableHead {...sortableHeadProps('timeCompletion')}>Completion sessions</SortableHead>
+                <SortableHead {...sortableHeadProps('elearningTime')}>Temps e-learning</SortableHead>
+                <SortableHead {...sortableHeadProps('expectedElearningTime')}>Temps prévu e-learning</SortableHead>
+                <SortableHead {...sortableHeadProps('elearningCompletion')}>Completion e-learning</SortableHead>
+                {showProgress ? <SortableHead {...sortableHeadProps('progress')}>Progression</SortableHead> : null}
+                <SortableHead {...sortableHeadProps('subscribedAt')}>Date d&apos;inscription</SortableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredAndSorted.map((learner) => (
+                <TableRow
+                  key={learner.id}
+                  onClick={() => onRowClick?.(learner)}
+                  className={onRowClick ? 'cursor-pointer' : undefined}
+                >
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <Avatar name={learner.fullName} />
+                      <div className="min-w-0">
+                        <strong className="block truncate text-sm font-semibold">{learner.fullName}</strong>
+                        <p className="truncate text-xs text-muted-foreground">{learner.email}</p>
                       </div>
-                      <span className="progress-text">{formatPercentage(learner.averageProgress ?? 0)}</span>
                     </div>
-                  </td>
-                )}
-                <td>{learner.subscribedAt ? formatDateTime(learner.subscribedAt) : (learner.joinedAt ? formatDateTime(learner.joinedAt) : '-')}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  </TableCell>
+                  <TableCell className="tabular whitespace-nowrap text-sm font-semibold">
+                    {formatDuration(learner.sessionTime + learner.elearningTime)}
+                  </TableCell>
+                  <TableCell className="tabular whitespace-nowrap text-sm font-semibold">
+                    {formatDuration(learner.sessionTime)}
+                  </TableCell>
+                  <TableCell className="tabular whitespace-nowrap text-sm font-semibold">
+                    {formatDuration(learner.expectedTime)}
+                  </TableCell>
+                  <TableCell>
+                    <CompletionCell current={learner.sessionTime} expected={learner.expectedTime} />
+                  </TableCell>
+                  <TableCell className="tabular whitespace-nowrap text-sm font-semibold">
+                    {formatDuration(learner.elearningTime)}
+                  </TableCell>
+                  <TableCell className="tabular whitespace-nowrap text-sm font-semibold">
+                    {formatDuration(learner.expectedElearningTime)}
+                  </TableCell>
+                  <TableCell>
+                    <CompletionCell current={learner.elearningTime} expected={learner.expectedElearningTime} />
+                  </TableCell>
+                  {showProgress ? (
+                    <TableCell>
+                      <div className="flex items-center gap-2.5">
+                        <Progress value={clampPercentage(learner.averageProgress)} className="w-24" />
+                        <span className="tabular text-xs font-semibold text-muted-foreground">
+                          {formatPercentage(learner.averageProgress ?? 0)}
+                        </span>
+                      </div>
+                    </TableCell>
+                  ) : null}
+                  <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                    {learner.subscribedAt
+                      ? formatDateTime(learner.subscribedAt)
+                      : learner.joinedAt
+                        ? formatDateTime(learner.joinedAt)
+                        : '-'}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableShell>
 
         {filteredAndSorted.length === 0 && (
-          <div className="empty-state">
-            <p>Aucun {title.toLowerCase().slice(0, -1)} trouvé.</p>
-          </div>
+          <p className="py-10 text-center text-sm text-muted-foreground">
+            Aucun {title.toLowerCase().slice(0, -1)} trouvé.
+          </p>
         )}
-      </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function CompletionCell({ current, expected }: { current: number; expected: number }) {
+  const percent = expected > 0 ? (current / expected) * 100 : 0;
+  const onTrack = expected > 0 && current / expected >= 0.8;
+
+  return (
+    <div className="flex items-center gap-2.5">
+      <Progress value={Math.min(percent, 100)} className="w-24" barClassName={onTrack ? 'bg-success' : 'bg-primary'} />
+      <span className="tabular text-xs font-semibold text-muted-foreground">
+        {expected > 0 ? formatPercentage(percent) : '0%'}
+      </span>
     </div>
   );
 }

@@ -28,7 +28,16 @@ function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <Suspense fallback={<div className="screen-state">Chargement...</div>}>
+        <Suspense
+          fallback={
+            <div className="grid min-h-screen place-items-center bg-background">
+              <p className="flex items-center gap-2.5 text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-primary" aria-hidden="true" />
+                Chargement...
+              </p>
+            </div>
+          }
+        >
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route element={<ProtectedRoute />}>

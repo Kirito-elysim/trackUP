@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Clock, BookOpen } from 'lucide-react';
+import { BookOpen, Clock, Route, Users } from 'lucide-react';
 import { useAuth } from '../contexts/useAuth';
 import { apiRequest, ApiError } from '../lib/api';
 import { clampPercentage, formatDuration, formatPercentage } from '../lib/format';
 import type { DashboardPayload } from '../types/trackup';
+import { Card, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { CountUp } from '@/components/ui/stat';
+import { Progress } from '@/components/ui/progress';
 
 export function DashboardPage() {
   const { token } = useAuth();
@@ -49,72 +53,60 @@ export function DashboardPage() {
   }, [token]);
 
   return (
-    <section className="page-section">
-      <div className="page-header">
-        <div>
-          <p className="eyebrow eyebrow-dark">Tableau de bord</p>
-          <h2>Bonjour, voici votre tableau de bord !</h2>
-        </div>
+    <section className="flex flex-col gap-8">
+      <div>
+        <p className="mb-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          Tableau de bord &middot; {new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
+        </p>
+        <h2 className="font-display text-3xl font-extrabold tracking-tight">Bonjour, voici votre tableau de bord !</h2>
       </div>
 
-      {loading ? <div className="panel-card">Chargement du dashboard...</div> : null}
-      {error ? <div className="panel-card error-panel">{error}</div> : null}
+      {loading ? (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <Card key={index}>
+              <CardContent className="p-5">
+                <Skeleton className="h-16" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : null}
+      {error ? (
+        <Card className="border-destructive/30 bg-destructive/5">
+          <CardContent className="p-5 text-sm text-destructive">{error}</CardContent>
+        </Card>
+      ) : null}
 
       {dashboard ? (
         <>
-          <div className="dashboard-metrics">
-            <div className="metric-card-new">
-              <div className="metric-icon" style={{ background: 'linear-gradient(135deg, #FF0F7B 0%, #FF6B9D 100%)' }}>
-                <BookOpen size={24} color="white" />
-              </div>
-              <div className="metric-content">
-                <p className="metric-label-new">Formations</p>
-                <strong className="metric-value-new">{dashboard.metrics.trainingsCount}</strong>
-              </div>
-            </div>
-
-            <div className="metric-card-new">
-              <div className="metric-icon" style={{ background: 'linear-gradient(135deg, #FF0F7B 0%, #FF6B9D 100%)' }}>
-                <Users size={24} color="white" />
-              </div>
-              <div className="metric-content">
-                <p className="metric-label-new">Parcours</p>
-                <strong className="metric-value-new">{dashboard.metrics.learningPathsCount}</strong>
-              </div>
-            </div>
-
-            <div className="metric-card-new">
-              <div className="metric-icon" style={{ background: 'linear-gradient(135deg, #FF0F7B 0%, #FF6B9D 100%)' }}>
-                <Users size={24} color="white" />
-              </div>
-              <div className="metric-content">
-                <p className="metric-label-new">Apprenants</p>
-                <strong className="metric-value-new">{dashboard.metrics.learnersCount}</strong>
-              </div>
-            </div>
-
-            <div className="metric-card-new">
-              <div className="metric-icon" style={{ background: 'linear-gradient(135deg, #FF0F7B 0%, #FF6B9D 100%)' }}>
-                <Clock size={24} color="white" />
-              </div>
-              <div className="metric-content">
-                <p className="metric-label-new">Temps total actif de formation</p>
-                <strong className="metric-value-new">{formatDuration(dashboard.metrics.totalYearTime)}</strong>
-                <p className="metric-hint-new">Parcours Manager Efficace</p>
-              </div>
-            </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard icon={BookOpen} label="Formations" value={dashboard.metrics.trainingsCount} delay={0} />
+            <StatCard icon={Route} label="Parcours" value={dashboard.metrics.learningPathsCount} delay={80} />
+            <StatCard icon={Users} label="Apprenants" value={dashboard.metrics.learnersCount} delay={160} />
+            <StatCard
+              icon={Clock}
+              label="Temps actif de formation"
+              value={formatDuration(dashboard.metrics.totalYearTime)}
+              hint="Parcours Manager Efficace"
+              delay={240}
+            />
           </div>
 
-          <div className="dashboard-section">
-            <div className="section-header">
-              <h3>Groupes</h3>
+          <div className="flex flex-col gap-4">
+            <div className="flex items-baseline justify-between">
+              <h3 className="font-display text-xl font-bold tracking-tight">Groupes</h3>
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {dashboard.groups.length} au registre
+              </span>
             </div>
 
-            <div className="learning-paths-grid">
-              {dashboard.groups.map((group) => (
-                <article
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {dashboard.groups.map((group, index) => (
+                <Card
                   key={group.id}
-                  className="learning-path-card"
+                  className="animate-rise-in cursor-pointer overflow-hidden hover:-translate-y-1 hover:shadow-soft-hover"
+                  style={{ animationDelay: `${index * 60}ms` }}
                   onClick={() => navigate(`/groups/${group.id}`)}
                   role="button"
                   tabIndex={0}
@@ -124,82 +116,105 @@ export function DashboardPage() {
                     }
                   }}
                 >
-                  <div className="path-image">
+                  <div className="flex h-28 w-full items-center justify-center bg-muted">
                     {group.imageUrl ? (
-                      <img src={group.imageUrl} alt={group.name} />
+                      <img src={group.imageUrl} alt={group.name} className="h-full w-full object-cover" />
                     ) : (
-                      <div className="path-image-placeholder">
-                        <Users size={32} />
-                      </div>
+                      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-brand text-white">
+                        <Users size={20} />
+                      </span>
                     )}
                   </div>
-                  <div className="path-content">
-                    <h4>{group.name}</h4>
-                    {group.reference && (
-                      <p className="muted" style={{ fontSize: '13px', marginTop: '4px', marginBottom: '12px' }}>
-                        {group.reference}
-                      </p>
-                    )}
-                    <div className="path-stats">
-                      <div className="path-stat">
-                        <strong>{group.memberCount}</strong>
-                        <span>Membres</span>
-                      </div>
-                      <div className="path-stat">
-                        <strong>{group.learningPathCount}</strong>
-                        <span>Parcours</span>
-                      </div>
-                      <div className="path-stat">
-                        <strong>{formatDuration(group.totalTime)}</strong>
-                        <span>Temps total</span>
-                      </div>
+                  <CardContent className="flex flex-col gap-3 p-5">
+                    <div>
+                      <h4 className="font-display text-base font-bold leading-tight tracking-tight">{group.name}</h4>
+                      {group.reference && (
+                        <p className="mt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          Réf. {group.reference}
+                        </p>
+                      )}
                     </div>
-                    <div className="path-progress">
-                      <div className="progress-bar">
-                        <div
-                          className="progress-fill"
-                          style={{ width: `${clampPercentage(group.averageProgress)}%` }}
-                        />
+                    <dl className="flex items-center justify-between border-y border-border py-2 text-sm">
+                      <div>
+                        <dt className="text-[0.62rem] uppercase tracking-wide text-muted-foreground">Membres</dt>
+                        <dd className="font-semibold">{group.memberCount}</dd>
                       </div>
-                      <span className="progress-label">{formatPercentage(group.averageProgress)}</span>
+                      <div>
+                        <dt className="text-[0.62rem] uppercase tracking-wide text-muted-foreground">Parcours</dt>
+                        <dd className="font-semibold">{group.learningPathCount}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-[0.62rem] uppercase tracking-wide text-muted-foreground">Temps</dt>
+                        <dd className="font-semibold">{formatDuration(group.totalTime)}</dd>
+                      </div>
+                    </dl>
+                    <div className="flex items-center gap-3">
+                      <Progress value={clampPercentage(group.averageProgress)} className="flex-1" />
+                      <span className="tabular text-xs font-semibold text-muted-foreground">
+                        {formatPercentage(group.averageProgress)}
+                      </span>
                     </div>
-                  </div>
-                </article>
+                  </CardContent>
+                </Card>
               ))}
             </div>
           </div>
 
-          <div className="dashboard-time-section">
-            <div className="section-header">
-              <h3>Temps total par formation</h3>
-            </div>
-            <div className="time-chart">
-              {dashboard.topTrainings.slice(0, 3).map((training, index) => (
-                <div key={training.id} className="time-bar-item">
-                  <div className="time-bar-label">
-                    <strong>{formatDuration(training.totalTime)}</strong>
-                    <span>{training.title}</span>
-                  </div>
-                  <div className="time-bar">
-                    <div
-                      className="time-bar-fill"
-                      style={{
-                        width: `${(training.totalTime / (dashboard.topTrainings[0]?.totalTime || 1)) * 100}%`,
-                        background:
-                          index === 0
-                            ? 'linear-gradient(90deg, #5B8DEE 0%, #0063F7 100%)'
-                            : index === 1
-                              ? 'linear-gradient(90deg, #FFB946 0%, #FF9A00 100%)'
-                              : 'linear-gradient(90deg, #34C4AC 0%, #00A67E 100%)',
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <Card>
+            <CardContent className="flex flex-col gap-5 p-6">
+              <h3 className="font-display text-xl font-bold tracking-tight">Temps total par formation</h3>
+              <ol className="flex flex-col gap-4">
+                {dashboard.topTrainings.slice(0, 3).map((training, index) => (
+                  <li key={training.id} className="flex items-center gap-4">
+                    <span className="w-5 shrink-0 text-sm font-semibold text-muted-foreground">
+                      {String(index + 1).padStart(2, '0')}
+                    </span>
+                    <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="min-w-0 flex-1 truncate text-sm">{training.title}</span>
+                        <strong className="tabular shrink-0 text-sm">{formatDuration(training.totalTime)}</strong>
+                      </div>
+                      <Progress
+                        value={(training.totalTime / (dashboard.topTrainings[0]?.totalTime || 1)) * 100}
+                        barClassName="bg-accent"
+                      />
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </CardContent>
+          </Card>
         </>
       ) : null}
     </section>
+  );
+}
+
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  hint,
+  delay,
+}: {
+  icon: typeof Users;
+  label: string;
+  value: string | number;
+  hint?: string;
+  delay: number;
+}) {
+  return (
+    <Card className="animate-rise-in hover:-translate-y-1 hover:shadow-soft-hover" style={{ animationDelay: `${delay}ms` }}>
+      <CardContent className="flex flex-col gap-3 p-5">
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-brand text-white">
+          <Icon size={18} />
+        </span>
+        <div>
+          <p className="mb-1 text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">{label}</p>
+          <CountUp value={value} className="text-3xl" />
+          {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

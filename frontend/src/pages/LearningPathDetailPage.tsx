@@ -7,6 +7,9 @@ import { formatDuration, formatPercentage } from '../lib/format';
 import { SessionsModal } from '../components/SessionsModal';
 import { LearnerTable, type LearnerTableData } from '../components/LearnerTable';
 import type { LearningPathDetail } from '../types/trackup';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { CountUp } from '@/components/ui/stat';
 
 export function LearningPathDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -67,55 +70,29 @@ export function LearningPathDetailPage() {
   })) || [];
 
   return (
-    <section className="page-section">
-      <div className="page-header">
-        <button className="back-button" onClick={() => navigate('/dashboard')} type="button">
-          <ArrowLeft size={20} />
+    <section className="flex flex-col gap-8">
+      <div>
+        <Button variant="outline" size="sm" onClick={() => navigate('/dashboard')} className="mb-4">
+          <ArrowLeft size={15} />
           Retour au tableau de bord
-        </button>
+        </Button>
         {data ? (
           <>
-            <h2>{data.learningPath.title}</h2>
-            {data.learningPath.description ? <p className="muted">{data.learningPath.description}</p> : null}
+            <h2 className="font-display text-3xl font-extrabold tracking-tight">{data.learningPath.title}</h2>
+            {data.learningPath.description ? <p className="mt-1.5 text-sm text-muted-foreground">{data.learningPath.description}</p> : null}
           </>
         ) : null}
       </div>
 
-      {loading ? <div className="panel-card">Chargement...</div> : null}
-      {error ? <div className="panel-card error-panel">{error}</div> : null}
+      {loading ? <Card><CardContent className="p-5 text-sm text-muted-foreground">Chargement...</CardContent></Card> : null}
+      {error ? <Card className="border-destructive/30 bg-destructive/5"><CardContent className="p-5 text-sm text-destructive">{error}</CardContent></Card> : null}
 
       {data ? (
         <>
-          <div className="learning-path-overview">
-            <div className="overview-card">
-              <div className="overview-icon" style={{ background: 'linear-gradient(135deg, #5B8DEE 0%, #0063F7 100%)' }}>
-                <Users size={24} color="white" />
-              </div>
-              <div className="overview-content">
-                <p className="overview-label">Apprenants inscrits</p>
-                <strong className="overview-value">{data.learningPath.learnerCount}</strong>
-              </div>
-            </div>
-
-            <div className="overview-card">
-              <div className="overview-icon" style={{ background: 'linear-gradient(135deg, #FFB946 0%, #FF9A00 100%)' }}>
-                <Clock size={24} color="white" />
-              </div>
-              <div className="overview-content">
-                <p className="overview-label">Temps total</p>
-                <strong className="overview-value">{formatDuration(data.learningPath.totalTime)}</strong>
-              </div>
-            </div>
-
-            <div className="overview-card">
-              <div className="overview-icon" style={{ background: 'linear-gradient(135deg, #34C4AC 0%, #00A67E 100%)' }}>
-                <TrendingUp size={24} color="white" />
-              </div>
-              <div className="overview-content">
-                <p className="overview-label">Progression moyenne</p>
-                <strong className="overview-value">{formatPercentage(data.learningPath.averageProgress)}</strong>
-              </div>
-            </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <OverviewStat icon={Users} label="Apprenants inscrits" value={data.learningPath.learnerCount} delay={0} />
+            <OverviewStat icon={Clock} label="Temps total" value={formatDuration(data.learningPath.totalTime)} delay={80} />
+            <OverviewStat icon={TrendingUp} label="Progression moyenne" value={formatPercentage(data.learningPath.averageProgress)} delay={160} />
           </div>
 
           <LearnerTable
@@ -138,5 +115,31 @@ export function LearningPathDetailPage() {
         />
       ) : null}
     </section>
+  );
+}
+
+function OverviewStat({
+  icon: Icon,
+  label,
+  value,
+  delay,
+}: {
+  icon: typeof Users;
+  label: string;
+  value: string | number;
+  delay: number;
+}) {
+  return (
+    <Card className="animate-rise-in hover:-translate-y-1 hover:shadow-soft-hover" style={{ animationDelay: `${delay}ms` }}>
+      <CardContent className="flex items-center gap-4 p-5">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-brand text-white">
+          <Icon size={20} />
+        </span>
+        <div>
+          <p className="text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
+          <CountUp value={value} className="text-xl" />
+        </div>
+      </CardContent>
+    </Card>
   );
 }
