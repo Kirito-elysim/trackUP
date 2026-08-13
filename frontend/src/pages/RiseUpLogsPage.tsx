@@ -543,7 +543,7 @@ export function RiseUpLogsPage() {
                     {payload.rows.map((row) => (
                       <TableRow key={row.id}>
                         <TableCell>
-                          <Chip variant={row.sourceType === 'session' ? 'primary' : 'neutral'}>
+                          <Chip variant={row.sourceType === 'session' ? 'primary' : 'info'}>
                             {row.sourceType === 'session' ? 'Session' : 'E-learning'}
                           </Chip>
                         </TableCell>

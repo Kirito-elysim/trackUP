@@ -31,7 +31,7 @@ const NAV_ITEMS = [
   { to: '/courses', label: 'Formations', feature: 'courses.view', group: 'Pilotage', icon: BookOpen },
   { to: '/riseup-logs', label: 'Logs exacts', feature: 'exports.view', group: 'Conformité', icon: FileSearch },
   { to: '/exports', label: 'Exports', feature: 'exports.view', group: 'Conformité', icon: Download },
-  { to: '/integrations', label: 'Intégrations', feature: 'integrations.view', group: 'Conformité', icon: Plug },
+  { to: '/integrations', label: 'Intégrations', feature: 'integrations.view', group: 'Administration', icon: Plug },
   { to: '/sync', label: 'Synchronisation', feature: 'settings.users', group: 'Administration', icon: RefreshCw },
   { to: '/roles', label: 'Rôles', feature: 'settings.roles', group: 'Administration', icon: ShieldCheck },
   { to: '/users', label: 'Utilisateurs', feature: 'settings.users', group: 'Administration', icon: UserCog },
