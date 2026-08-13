@@ -38,24 +38,24 @@ export function LoginPage() {
   return (
     <div className="grid min-h-screen place-items-center bg-background p-5">
       <section className="animate-rise-in grid w-full max-w-5xl grid-cols-1 overflow-hidden rounded-2xl border border-border bg-card shadow-soft-hover lg:grid-cols-[1.15fr_0.85fr]">
-        <div className="flex flex-col justify-between gap-10 bg-gradient-brand p-10 text-white">
-          <div className="flex flex-col gap-5">
-            <span className="inline-flex w-fit items-center rounded-md bg-white px-3 py-2">
-              <img alt="TrackUp" className="h-8 w-auto" src="/trackup-logo.png" />
-            </span>
-            <p className="text-xs uppercase tracking-[0.24em] text-white/50">Powered by Ed&apos;Up spirit</p>
-            <h1 className="font-display text-4xl font-extrabold leading-[1.05] tracking-tight">
-              Piloter les heures.
-              <br />
-              Clarifier la conformité.
-            </h1>
-            <p className="max-w-[42ch] text-sm text-white/65">
-              Console unifiée pour centraliser les données Rise Up, suivre les apprenants et produire des exports
-              lisibles.
-            </p>
+        <div className="flex flex-col items-center justify-center gap-10 bg-[#457dc5] p-8 text-white lg:items-stretch lg:justify-between lg:p-10">
+          <div className="flex flex-col items-center gap-5 lg:items-stretch">
+            <img alt="TrackUp" className="h-28 w-auto lg:h-40 lg:self-start" src="/trackup-logo.png" />
+            <div className="hidden flex-col gap-5 lg:flex">
+              <p className="text-xs uppercase tracking-[0.24em] text-white/50">Powered by Elysium solution</p>
+              <h1 className="font-display text-4xl font-extrabold leading-[1.05] tracking-tight">
+                Piloter les heures.
+                <br />
+                Clarifier la conformité.
+              </h1>
+              <p className="max-w-[42ch] text-sm text-white/65">
+                Console unifiée pour centraliser les données Rise Up, suivre les apprenants et produire des exports
+                lisibles.
+              </p>
+            </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="hidden gap-3 lg:grid lg:grid-cols-2">
             <article className="rounded-xl border border-white/10 bg-white/[0.06] p-4">
               <span className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-white">
                 Vision globale

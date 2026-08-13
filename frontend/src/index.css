@@ -6,9 +6,10 @@
   --font-display: 'Sora', ui-rounded, sans-serif;
   --font-sans: 'Plus Jakarta Sans', ui-rounded, sans-serif;
 
-  /* Chaleur SaaS: warm lavender canvas, white cards, indigo->coral gradient
-     accent used sparingly. No monospace anywhere — numbers stay warm, not
-     "systemsy": tabular-nums on the body face does the alignment work. */
+  /* Chaleur SaaS: warm lavender canvas, white cards, brand pink->orange
+     gradient accent used sparingly. No monospace anywhere — numbers stay
+     warm, not "systemsy": tabular-nums on the body face does the alignment
+     work. */
   --color-background: #f6f4fb;
   --color-foreground: #1e1b2e;
   --color-card: #ffffff;
@@ -17,13 +18,13 @@
   --color-muted-foreground: #726f87;
   --color-border: #e7e3f3;
   --color-input: #e7e3f3;
-  --color-ring: #6d5ef5;
+  --color-ring: #ff0f7b;
 
-  --color-primary: #6d5ef5;
+  --color-primary: #ff0f7b;
   --color-primary-foreground: #ffffff;
   --color-secondary: #efedf9;
   --color-secondary-foreground: #1e1b2e;
-  --color-accent: #ff7a59;
+  --color-accent: #ff6b2c;
   --color-accent-foreground: #ffffff;
   --color-destructive: #e5484d;
   --color-destructive-foreground: #ffffff;
