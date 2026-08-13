@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { SearchSelect } from '@/components/ui/search-select';
 import { Chip } from '@/components/ui/chip';
 import { CountUp } from '@/components/ui/stat';
 import { SortableHead, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableShell } from '@/components/ui/table';
@@ -271,32 +272,33 @@ export function AnalyticsPage() {
 
           <label className="flex flex-col gap-2">
             <span className="text-sm font-semibold">Parcours</span>
-            <Select
+            <SearchSelect
               value={learningPathId}
-              onChange={(event) => {
-                setLearningPathId(event.target.value);
+              onChange={(next) => {
+                setLearningPathId(next);
                 setLearnerId('');
               }}
-            >
-              <option value="">Tous les parcours</option>
-              {(analytics?.filters.availableLearningPaths ?? []).map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.title}
-                </option>
-              ))}
-            </Select>
+              placeholder="Rechercher un parcours..."
+              allLabel="Tous les parcours"
+              options={(analytics?.filters.availableLearningPaths ?? []).map((item) => ({
+                value: String(item.id),
+                label: item.title,
+              }))}
+            />
           </label>
 
           <label className="flex flex-col gap-2">
             <span className="text-sm font-semibold">Apprenant</span>
-            <Select value={learnerId} onChange={(event) => setLearnerId(event.target.value)}>
-              <option value="">Tous les apprenants</option>
-              {(analytics?.filters.availableLearners ?? []).map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.fullName}
-                </option>
-              ))}
-            </Select>
+            <SearchSelect
+              value={learnerId}
+              onChange={setLearnerId}
+              placeholder="Rechercher un apprenant..."
+              allLabel="Tous les apprenants"
+              options={(analytics?.filters.availableLearners ?? []).map((item) => ({
+                value: String(item.id),
+                label: item.fullName,
+              }))}
+            />
           </label>
 
           {period === 'custom' ? (
