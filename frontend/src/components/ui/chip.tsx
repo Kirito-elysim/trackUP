@@ -11,6 +11,7 @@ const chipVariants = cva(
       variant: {
         primary: 'bg-primary/10 text-primary',
         accent: 'bg-accent/10 text-accent',
+        info: 'bg-info/10 text-info',
         success: 'bg-success/10 text-success',
         destructive: 'bg-destructive/10 text-destructive',
         neutral: 'bg-muted text-muted-foreground',

@@ -11,6 +11,7 @@ import { Progress } from '@/components/ui/progress';
 import { Avatar } from '@/components/ui/avatar';
 import { CountUp } from '@/components/ui/stat';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { cn, learnerStateChipClass, stateChipVariant } from '@/lib/utils';
 
 export function LearnersPage() {
   const { token } = useAuth();
@@ -183,7 +184,9 @@ export function LearnersPage() {
                       <strong className="block truncate text-sm font-semibold">{learner.fullName}</strong>
                       <span className="block truncate text-xs text-muted-foreground">{learner.email}</span>
                     </div>
-                    <Chip variant="neutral">{learner.state}</Chip>
+                    <Chip variant="neutral" className={cn('capitalize', learnerStateChipClass(learner.state))}>
+                      {learner.state}
+                    </Chip>
                   </button>
                 ))}
               </div>
@@ -370,7 +373,9 @@ export function LearnersPage() {
                             <Clock size={12} />
                             {formatDuration(registration.totalTime)}
                           </span>
-                          <Chip variant="neutral" className="w-fit">{registration.state}</Chip>
+                          <Chip variant={stateChipVariant(registration.state)} className="w-fit capitalize">
+                            {registration.state}
+                          </Chip>
                           <div className="flex items-center gap-2.5">
                             <Progress value={registration.progress ?? 0} className="flex-1" />
                             <span className="tabular text-xs font-semibold text-primary">{formatPercentage(registration.progress ?? 0)}</span>
@@ -399,7 +404,7 @@ export function LearnersPage() {
                               {session.signedCount} signature{session.signedCount > 1 ? 's' : ''}
                             </Chip>
                           ) : (
-                            <Chip variant="neutral">
+                            <Chip variant="destructive">
                               <XCircle size={13} />
                               Non signé
                             </Chip>
@@ -407,13 +412,13 @@ export function LearnersPage() {
                         </div>
                         <div className="mt-3 flex flex-wrap gap-4 border-t border-border pt-3">
                           <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <Calendar size={13} />
+                            <Calendar size={13} className="text-[#ff6b9d]" />
                             {session.startAt ? formatDateTime(session.startAt) : 'Date non définie'}
                             {session.endAt && ` - ${formatDateTime(session.endAt)}`}
                           </span>
                           {session.eduDuration && (
                             <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                              <Clock size={13} />
+                              <Clock size={13} className="text-[#ff6b9d]" />
                               Durée: {formatDuration(session.eduDuration)}
                             </span>
                           )}
@@ -422,7 +427,9 @@ export function LearnersPage() {
                               {session.attended ? 'Présent' : 'Absent'}
                             </Chip>
                           )}
-                          <Chip variant="neutral">{session.state}</Chip>
+                          <Chip variant={stateChipVariant(session.state)} className="capitalize">
+                            {session.state}
+                          </Chip>
                         </div>
                       </div>
                     ))}
@@ -445,7 +452,9 @@ export function LearnersPage() {
                             {activity.trainingTitle} › {activity.moduleTitle}
                           </p>
                           <div className="mt-2 flex flex-wrap items-center gap-3">
-                            <Chip variant="neutral">{activity.stepType || 'Step'}</Chip>
+                            <Chip variant="info" className="capitalize">
+                              {activity.stepType || 'Step'}
+                            </Chip>
                             <span className="tabular text-xs font-semibold text-primary">
                               {formatDuration(activity.totalTime ?? activity.timeSpent ?? 0)}
                             </span>
@@ -455,7 +464,10 @@ export function LearnersPage() {
                             <p className="mt-1.5 text-xs font-semibold text-success">Score: {activity.score}%</p>
                           )}
                         </div>
-                        <Chip variant={activity.state.toLowerCase() === 'completed' ? 'success' : 'neutral'}>{activity.state}</Chip>
+                        {(() => {
+                          const state = activityStateMeta(activity.state);
+                          return <Chip variant={state.variant}>{state.label}</Chip>;
+                        })()}
                       </div>
                     ))}
                     {selectedLearner.recentActivities.length === 0 && (
@@ -500,4 +512,17 @@ function KpiCard({
       </CardContent>
     </Card>
   );
+}
+
+function activityStateMeta(state: string): { label: string; variant: 'success' | 'accent' | 'neutral' } {
+  switch (state.toLowerCase()) {
+    case 'completed':
+      return { label: 'Terminé', variant: 'success' };
+    case 'in_progress':
+      return { label: 'En cours', variant: 'accent' };
+    case 'not_started':
+      return { label: 'Non démarré', variant: 'neutral' };
+    default:
+      return { label: state, variant: 'neutral' };
+  }
 }

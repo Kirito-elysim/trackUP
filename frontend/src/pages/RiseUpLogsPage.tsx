@@ -12,6 +12,7 @@ import { Chip } from '@/components/ui/chip';
 import { CountUp } from '@/components/ui/stat';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableShell } from '@/components/ui/table';
+import { cn, learnerStateChipClass } from '@/lib/utils';
 
 function formatDurationClock(totalSeconds: number): string {
   const seconds = Math.max(0, totalSeconds);
@@ -317,7 +318,9 @@ export function RiseUpLogsPage() {
                             <strong className="block truncate text-sm font-semibold">{learner.fullName}</strong>
                             <span className="block truncate text-xs text-muted-foreground">{learner.email}</span>
                           </span>
-                          <Chip variant="neutral">{learner.state}</Chip>
+                          <Chip variant="neutral" className={cn('capitalize', learnerStateChipClass(learner.state))}>
+                            {learner.state}
+                          </Chip>
                         </button>
                       ))}
                     </div>
