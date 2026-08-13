@@ -86,9 +86,8 @@ export function DashboardPage() {
             <StatCard icon={Users} label="Apprenants" value={dashboard.metrics.learnersCount} delay={160} />
             <StatCard
               icon={Clock}
-              label="Temps actif de formation"
+              label="Temps de formation"
               value={formatDuration(dashboard.metrics.totalYearTime)}
-              hint="Parcours Manager Efficace"
               delay={240}
             />
           </div>
@@ -116,41 +115,41 @@ export function DashboardPage() {
                     }
                   }}
                 >
-                  <div className="flex h-28 w-full items-center justify-center bg-muted">
+                  <div className="flex h-40 w-full items-center justify-center bg-muted">
                     {group.imageUrl ? (
                       <img src={group.imageUrl} alt={group.name} className="h-full w-full object-cover" />
                     ) : (
-                      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-brand text-white">
-                        <Users size={20} />
+                      <span className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-brand text-white">
+                        <Users size={24} />
                       </span>
                     )}
                   </div>
-                  <CardContent className="flex flex-col gap-3 p-5">
+                  <CardContent className="flex flex-col gap-5 p-6">
                     <div>
                       <h4 className="font-display text-base font-bold leading-tight tracking-tight">{group.name}</h4>
                       {group.reference && (
-                        <p className="mt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        <p className="mt-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                           Réf. {group.reference}
                         </p>
                       )}
                     </div>
-                    <dl className="flex items-center justify-between border-y border-border py-2 text-sm">
+                    <dl className="flex items-center justify-between border-y border-border py-3 text-sm">
                       <div>
                         <dt className="text-[0.62rem] uppercase tracking-wide text-muted-foreground">Membres</dt>
-                        <dd className="font-semibold">{group.memberCount}</dd>
+                        <dd className="tabular mt-1 font-bold text-primary">{group.memberCount}</dd>
                       </div>
                       <div>
                         <dt className="text-[0.62rem] uppercase tracking-wide text-muted-foreground">Parcours</dt>
-                        <dd className="font-semibold">{group.learningPathCount}</dd>
+                        <dd className="tabular mt-1 font-bold text-primary">{group.learningPathCount}</dd>
                       </div>
                       <div>
                         <dt className="text-[0.62rem] uppercase tracking-wide text-muted-foreground">Temps</dt>
-                        <dd className="font-semibold">{formatDuration(group.totalTime)}</dd>
+                        <dd className="tabular mt-1 font-bold text-primary">{formatDuration(group.totalTime)}</dd>
                       </div>
                     </dl>
                     <div className="flex items-center gap-3">
                       <Progress value={clampPercentage(group.averageProgress)} className="flex-1" />
-                      <span className="tabular text-xs font-semibold text-muted-foreground">
+                      <span className="tabular text-xs font-bold text-primary">
                         {formatPercentage(group.averageProgress)}
                       </span>
                     </div>
@@ -159,31 +158,6 @@ export function DashboardPage() {
               ))}
             </div>
           </div>
-
-          <Card>
-            <CardContent className="flex flex-col gap-5 p-6">
-              <h3 className="font-display text-xl font-bold tracking-tight">Temps total par formation</h3>
-              <ol className="flex flex-col gap-4">
-                {dashboard.topTrainings.slice(0, 3).map((training, index) => (
-                  <li key={training.id} className="flex items-center gap-4">
-                    <span className="w-5 shrink-0 text-sm font-semibold text-muted-foreground">
-                      {String(index + 1).padStart(2, '0')}
-                    </span>
-                    <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                      <div className="flex items-baseline justify-between gap-3">
-                        <span className="min-w-0 flex-1 truncate text-sm">{training.title}</span>
-                        <strong className="tabular shrink-0 text-sm">{formatDuration(training.totalTime)}</strong>
-                      </div>
-                      <Progress
-                        value={(training.totalTime / (dashboard.topTrainings[0]?.totalTime || 1)) * 100}
-                        barClassName="bg-accent"
-                      />
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </CardContent>
-          </Card>
         </>
       ) : null}
     </section>
@@ -205,13 +179,13 @@ function StatCard({
 }) {
   return (
     <Card className="animate-rise-in hover:-translate-y-1 hover:shadow-soft-hover" style={{ animationDelay: `${delay}ms` }}>
-      <CardContent className="flex flex-col gap-3 p-5">
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-brand text-white">
+      <CardContent className="flex items-center gap-4 p-5">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-brand text-white">
           <Icon size={18} />
         </span>
-        <div>
+        <div className="min-w-0">
           <p className="mb-1 text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">{label}</p>
-          <CountUp value={value} className="text-3xl" />
+          <CountUp value={value} className="text-3xl text-primary" />
           {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
         </div>
       </CardContent>
