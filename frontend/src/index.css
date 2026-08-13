@@ -30,6 +30,8 @@
   --color-destructive-foreground: #ffffff;
   --color-success: #1fae7d;
   --color-success-foreground: #ffffff;
+  --color-info: #3b82f6;
+  --color-info-foreground: #ffffff;
 
   --color-sidebar: #fdfcff;
   --color-sidebar-foreground: #1e1b2e;

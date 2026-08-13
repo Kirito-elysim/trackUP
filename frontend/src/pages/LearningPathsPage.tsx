@@ -127,11 +127,12 @@ export function LearningPathsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {learningPaths.map((path) => (
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {learningPaths.map((path, index) => (
             <Card
               key={path.id}
-              className="cursor-pointer overflow-hidden transition hover:-translate-y-0.5 hover:shadow-lg"
+              className="animate-rise-in cursor-pointer overflow-hidden hover:-translate-y-1 hover:shadow-soft-hover"
+              style={{ animationDelay: `${index * 60}ms` }}
               onClick={() => navigate(`/learningpaths/${path.id}`)}
               role="button"
               tabIndex={0}
@@ -141,18 +142,20 @@ export function LearningPathsPage() {
                 }
               }}
             >
-              <div className="flex h-36 w-full items-center justify-center bg-muted">
+              <div className="flex h-40 w-full items-center justify-center bg-muted">
                 {path.imageUrl ? (
                   <img src={path.imageUrl} alt={path.title} className="h-full w-full object-cover" />
                 ) : (
-                  <BookOpen size={32} className="text-muted-foreground" />
+                  <span className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-brand text-white">
+                    <BookOpen size={24} />
+                  </span>
                 )}
               </div>
-              <CardContent className="flex flex-col gap-4 p-5">
+              <CardContent className="flex flex-col gap-5 p-6">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <h4 className="font-display text-base font-bold leading-tight tracking-tight">{path.title}</h4>
-                    <p className="mt-1 text-xs uppercase tracking-wide text-muted-foreground">
+                    <p className="mt-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       {path.reference ?? `Réf. #${path.externalId}`}
                     </p>
                   </div>
@@ -169,26 +172,24 @@ export function LearningPathsPage() {
                   </Button>
                 </div>
 
-                <div className="grid grid-cols-3 gap-3 border-y border-border py-3">
-                  <StatMini icon={Users} label="Apprenants" value={path.learnerCount} />
-                  <StatMini icon={BookOpen} label="Formations" value={path.trainingCount} />
-                  <StatMini icon={Clock} label="Temps total" value={formatDuration(path.totalTime)} />
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <TrendingUp size={12} />
-                      Progression moyenne
-                    </span>
-                    <strong className={`tabular text-sm font-bold ${path.averageProgress >= 80 ? 'text-success' : 'text-primary'}`}>
-                      {formatPercentage(path.averageProgress)}
-                    </strong>
+                <dl className="flex items-center justify-between border-y border-border py-3 text-sm">
+                  <div>
+                    <dt className="text-[0.62rem] uppercase tracking-wide text-muted-foreground">Apprenants</dt>
+                    <dd className="tabular mt-1 font-bold text-primary">{path.learnerCount}</dd>
                   </div>
-                  <Progress
-                    value={clampPercentage(path.averageProgress)}
-                    barClassName={path.averageProgress >= 80 ? 'bg-success' : 'bg-primary'}
-                  />
+                  <div>
+                    <dt className="text-[0.62rem] uppercase tracking-wide text-muted-foreground">Formations</dt>
+                    <dd className="tabular mt-1 font-bold text-primary">{path.trainingCount}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[0.62rem] uppercase tracking-wide text-muted-foreground">Temps</dt>
+                    <dd className="tabular mt-1 font-bold text-primary">{formatDuration(path.totalTime)}</dd>
+                  </div>
+                </dl>
+
+                <div className="flex items-center gap-3">
+                  <Progress value={clampPercentage(path.averageProgress)} className="flex-1" />
+                  <span className="tabular text-xs font-bold text-primary">{formatPercentage(path.averageProgress)}</span>
                 </div>
               </CardContent>
             </Card>
@@ -201,7 +202,7 @@ export function LearningPathsPage() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{selectedPathDetail.learningPath.title}</DialogTitle>
-              <p className="text-sm text-white/50">
+              <p className="text-sm text-muted-foreground">
                 {selectedPathDetail.learningPath.reference ?? `Réf. #${selectedPathDetail.learningPath.externalId}`}
               </p>
               <div className="mt-2 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
@@ -292,12 +293,12 @@ function StatMini({
 
 function MiniStatChip({ icon: Icon, label, value }: { icon: typeof Users; label: string; value: string | number }) {
   return (
-    <div className="rounded-md border border-white/10 bg-white/[0.04] p-2.5">
-      <div className="mb-1 flex items-center gap-1.5 text-white/50">
+    <div className="rounded-xl border border-border bg-muted/50 p-2.5">
+      <div className="mb-1 flex items-center gap-1.5 text-muted-foreground">
         <Icon size={12} />
         <span className="text-[0.66rem]">{label}</span>
       </div>
-      <strong className="tabular text-sm font-bold">{value}</strong>
+      <strong className="tabular text-sm font-bold text-primary">{value}</strong>
     </div>
   );
 }

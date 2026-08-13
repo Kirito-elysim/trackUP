@@ -242,11 +242,10 @@ export function LearnerTable({ data, title = 'Apprenants', showProgress = true, 
 
 function CompletionCell({ current, expected }: { current: number; expected: number }) {
   const percent = expected > 0 ? (current / expected) * 100 : 0;
-  const onTrack = expected > 0 && current / expected >= 0.8;
 
   return (
     <div className="flex items-center gap-2.5">
-      <Progress value={Math.min(percent, 100)} className="w-24" barClassName={onTrack ? 'bg-success' : 'bg-primary'} />
+      <Progress value={Math.min(percent, 100)} className="w-24" />
       <span className="tabular text-xs font-semibold text-muted-foreground">
         {expected > 0 ? formatPercentage(percent) : '0%'}
       </span>

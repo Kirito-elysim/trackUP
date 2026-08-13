@@ -38,7 +38,7 @@ export function DialogContent({
 export function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn('flex flex-col gap-1 bg-gradient-brand px-6 py-6 text-white', className)}
+      className={cn('flex flex-col gap-1 border-b border-border bg-card px-6 py-6 text-foreground', className)}
       {...props}
     />
   );
@@ -60,7 +60,7 @@ export function DialogDescription({
   className,
   ...props
 }: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>) {
-  return <DialogPrimitive.Description className={cn('text-sm text-white/70', className)} {...props} />;
+  return <DialogPrimitive.Description className={cn('text-sm text-muted-foreground', className)} {...props} />;
 }
 
 export function DialogBody({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
