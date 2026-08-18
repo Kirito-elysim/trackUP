@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { AlertCircle, Loader2, TimerReset } from 'lucide-react';
 import { useAuth } from '../contexts/useAuth';
 import { ApiError } from '../lib/api';
 import { Button } from '@/components/ui/button';
@@ -8,13 +9,14 @@ import { Input } from '@/components/ui/input';
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login } = useAuth();
-  const [email, setEmail] = useState('admin@trackup.local');
-  const [password, setPassword] = useState('TrackUp123!');
+  const { login, sessionExpired } = useAuth();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? '/dashboard';
+  const showSessionExpired = !error && (sessionExpired || (location.state as { reason?: string } | null)?.reason === 'expired');
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -28,7 +30,7 @@ export function LoginPage() {
       if (caught instanceof ApiError) {
         setError(caught.message);
       } else {
-        setError('Connexion impossible.');
+        setError('Connexion impossible. Merci de réessayer.');
       }
     } finally {
       setSubmitting(false);
@@ -84,25 +86,55 @@ export function LoginPage() {
             </p>
           </div>
 
+          {showSessionExpired ? (
+            <div className="flex items-start gap-2.5 rounded-xl border border-border bg-muted/60 p-3.5 text-sm text-muted-foreground">
+              <TimerReset size={17} className="mt-0.5 shrink-0 text-foreground/70" />
+              <span>Votre session a expiré. Merci de vous reconnecter.</span>
+            </div>
+          ) : null}
+
           <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
             <label className="flex flex-col gap-2">
               <span className="text-sm font-semibold">Email</span>
-              <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
-            </label>
-
-            <label className="flex flex-col gap-2">
-              <span className="text-sm font-semibold">Mot de passe</span>
               <Input
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                disabled={submitting}
+                autoComplete="email"
                 required
               />
             </label>
 
-            {error ? <p className="text-sm font-medium text-destructive">{error}</p> : null}
+            <label className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold">Mot de passe</span>
+                <Link to="/forgot-password" className="text-xs font-semibold text-primary hover:underline">
+                  Mot de passe oublié ?
+                </Link>
+              </div>
+              <Input
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                disabled={submitting}
+                autoComplete="current-password"
+                required
+              />
+            </label>
+
+            {error ? (
+              <div
+                role="alert"
+                className="flex items-start gap-2.5 rounded-xl border border-destructive/20 bg-destructive/10 p-3.5 text-sm font-medium text-destructive"
+              >
+                <AlertCircle size={17} className="mt-0.5 shrink-0" />
+                <span>{error}</span>
+              </div>
+            ) : null}
 
             <Button disabled={submitting} type="submit" size="lg">
+              {submitting ? <Loader2 size={16} className="animate-spin" /> : null}
               {submitting ? 'Connexion...' : 'Se connecter'}
             </Button>
           </form>

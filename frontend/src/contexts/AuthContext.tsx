@@ -13,21 +13,26 @@ import { AuthContext, type AuthContextValue } from './auth-context';
 
 const TOKEN_STORAGE_KEY = 'trackup.auth.token';
 
-function readStoredToken(): string | null {
+function readStoredToken(): { token: string | null; wasExpired: boolean } {
   const stored = localStorage.getItem(TOKEN_STORAGE_KEY);
 
   if (stored && isTokenExpired(stored)) {
     localStorage.removeItem(TOKEN_STORAGE_KEY);
-    return null;
+    return { token: null, wasExpired: true };
   }
 
-  return stored;
+  return { token: stored, wasExpired: false };
 }
 
 export function AuthProvider({ children }: PropsWithChildren) {
-  const [token, setToken] = useState<string | null>(readStoredToken);
+  // Read once and reuse for both fields below — calling readStoredToken() twice would
+  // have the second call miss the expired token, since the first call already removed
+  // it from localStorage.
+  const [initial] = useState(readStoredToken);
+  const [token, setToken] = useState<string | null>(initial.token);
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sessionExpired, setSessionExpired] = useState(initial.wasExpired);
 
   const refreshUser = useCallback(async () => {
     if (!token) {
@@ -60,6 +65,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const login = useCallback(async (email: string, password: string) => {
     setLoading(true);
+    setSessionExpired(false);
     try {
       const response = await apiRequest<{ token: string }>('/api/auth/login', {
         method: 'POST',
@@ -79,17 +85,18 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback((reason?: 'expired') => {
     localStorage.removeItem(TOKEN_STORAGE_KEY);
     startTransition(() => {
       setToken(null);
       setUser(null);
       setLoading(false);
+      setSessionExpired(reason === 'expired');
     });
   }, []);
 
   useEffect(() => {
-    setUnauthorizedHandler(logout);
+    setUnauthorizedHandler(() => logout('expired'));
     return () => setUnauthorizedHandler(null);
   }, [logout]);
 
@@ -103,12 +110,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
       token,
       user,
       loading,
+      sessionExpired,
       login,
       logout,
       refreshUser,
       canAccess,
     }),
-    [canAccess, loading, login, logout, refreshUser, token, user],
+    [canAccess, loading, login, logout, refreshUser, sessionExpired, token, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

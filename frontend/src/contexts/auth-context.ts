@@ -5,8 +5,9 @@ export type AuthContextValue = {
   token: string | null;
   user: AuthenticatedUser | null;
   loading: boolean;
+  sessionExpired: boolean;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: (reason?: 'expired') => void;
   refreshUser: () => Promise<void>;
   canAccess: (featureCode: string) => boolean;
 };

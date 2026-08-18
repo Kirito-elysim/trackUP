@@ -5,7 +5,6 @@ import { useAuth } from '../contexts/useAuth';
 import { formatDateTime, formatDuration } from '../lib/format';
 import type { LearnerSessionsPayload } from '../types/trackup';
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Chip } from '@/components/ui/chip';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableShell } from '@/components/ui/table';
 
 type Props = {
@@ -63,7 +62,7 @@ export function SessionsModal({ endpoint, learnerName, subtitle, emptyMessage, s
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="w-[min(94vw,900px)]">
+      <DialogContent className="w-[min(96vw,1180px)]">
         <DialogHeader>
           <DialogTitle>Sessions de {learnerName}</DialogTitle>
           <DialogDescription>{subtitle}</DialogDescription>
@@ -90,9 +89,8 @@ export function SessionsModal({ endpoint, learnerName, subtitle, emptyMessage, s
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Session</TableHead>
-                      {showLearningPathColumn ? <TableHead>Parcours</TableHead> : null}
-                      <TableHead>Formation</TableHead>
+                      {showLearningPathColumn ? <TableHead className="w-[200px]">Parcours</TableHead> : null}
+                      <TableHead className="w-[200px]">Formation</TableHead>
                       <TableHead>Dates</TableHead>
                       <TableHead>Durée prévue</TableHead>
                     </TableRow>
@@ -100,18 +98,14 @@ export function SessionsModal({ endpoint, learnerName, subtitle, emptyMessage, s
                   <TableBody>
                     {upcoming.map((session) => (
                       <TableRow key={session.id} className="bg-primary/5">
-                        <TableCell>
-                          <div className="flex flex-col gap-1.5">
-                            <strong className="text-sm font-semibold">{session.title || 'Session sans titre'}</strong>
-                            <Chip variant="primary" className="w-fit">
-                              À venir
-                            </Chip>
-                          </div>
-                        </TableCell>
                         {showLearningPathColumn ? (
-                          <TableCell className="text-sm text-muted-foreground">{session.learningPathTitle}</TableCell>
+                          <TableCell className="w-[200px] whitespace-normal break-words text-sm text-muted-foreground">
+                            {session.learningPathTitle}
+                          </TableCell>
                         ) : null}
-                        <TableCell className="text-sm text-muted-foreground">{session.trainingTitle}</TableCell>
+                        <TableCell className="w-[200px] whitespace-normal break-words text-sm text-muted-foreground">
+                          {session.trainingTitle}
+                        </TableCell>
                         <TableCell>
                           <SessionDates session={session} />
                         </TableCell>
@@ -136,9 +130,8 @@ export function SessionsModal({ endpoint, learnerName, subtitle, emptyMessage, s
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Session</TableHead>
-                      {showLearningPathColumn ? <TableHead>Parcours</TableHead> : null}
-                      <TableHead>Formation</TableHead>
+                      {showLearningPathColumn ? <TableHead className="w-[200px]">Parcours</TableHead> : null}
+                      <TableHead className="w-[200px]">Formation</TableHead>
                       <TableHead>Dates</TableHead>
                       <TableHead>Durée</TableHead>
                       <TableHead>Temps compté</TableHead>
@@ -148,18 +141,14 @@ export function SessionsModal({ endpoint, learnerName, subtitle, emptyMessage, s
                   <TableBody>
                     {past.map((session) => (
                       <TableRow key={session.id}>
-                        <TableCell>
-                          <div className="flex flex-col gap-1.5">
-                            <strong className="text-sm font-semibold">{session.title || 'Session sans titre'}</strong>
-                            <Chip variant="neutral" className="w-fit">
-                              {session.sessionType}
-                            </Chip>
-                          </div>
-                        </TableCell>
                         {showLearningPathColumn ? (
-                          <TableCell className="text-sm text-muted-foreground">{session.learningPathTitle}</TableCell>
+                          <TableCell className="w-[200px] whitespace-normal break-words text-sm text-muted-foreground">
+                            {session.learningPathTitle}
+                          </TableCell>
                         ) : null}
-                        <TableCell className="text-sm text-muted-foreground">{session.trainingTitle}</TableCell>
+                        <TableCell className="w-[200px] whitespace-normal break-words text-sm text-muted-foreground">
+                          {session.trainingTitle}
+                        </TableCell>
                         <TableCell>
                           <SessionDates session={session} />
                         </TableCell>

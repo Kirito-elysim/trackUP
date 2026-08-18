@@ -9,13 +9,20 @@ import { LoginPage } from './pages/LoginPage';
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage').then((m) => ({ default: m.AnalyticsPage })));
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
 const ExportsPage = lazy(() => import('./pages/ExportsPage').then((m) => ({ default: m.ExportsPage })));
+const ForgotPasswordPage = lazy(() =>
+  import('./pages/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage })),
+);
 const IntegrationsPage = lazy(() => import('./pages/IntegrationsPage').then((m) => ({ default: m.IntegrationsPage })));
 const LearnersPage = lazy(() => import('./pages/LearnersPage').then((m) => ({ default: m.LearnersPage })));
 const LearningPathsPage = lazy(() => import('./pages/LearningPathsPage').then((m) => ({ default: m.LearningPathsPage })));
+const ProfilePage = lazy(() => import('./pages/ProfilePage').then((m) => ({ default: m.ProfilePage })));
 const LearningPathDetailPage = lazy(() =>
   import('./pages/LearningPathDetailPage').then((m) => ({ default: m.LearningPathDetailPage })),
 );
 const GroupDetailPage = lazy(() => import('./pages/GroupDetailPage').then((m) => ({ default: m.GroupDetailPage })));
+const ResetPasswordPage = lazy(() =>
+  import('./pages/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage })),
+);
 const RiseUpLogsPage = lazy(() => import('./pages/RiseUpLogsPage').then((m) => ({ default: m.RiseUpLogsPage })));
 const RolesPage = lazy(() => import('./pages/RolesPage').then((m) => ({ default: m.RolesPage })));
 const SyncManagementPage = lazy(() =>
@@ -40,6 +47,8 @@ function App() {
         >
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>
               <Route path="/" element={<Navigate replace to="/dashboard" />} />
@@ -151,6 +160,7 @@ function App() {
                   </FeatureGate>
                 }
               />
+              <Route path="/profile" element={<ProfilePage />} />
             </Route>
           </Route>
         </Routes>

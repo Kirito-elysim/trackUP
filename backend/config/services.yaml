@@ -9,6 +9,8 @@
 parameters:
     app.riseup.base_url: '%env(RISEUP_API_BASE_URL)%'
     app.timezone: '%env(APP_TIMEZONE)%'
+    app.frontend_url: '%env(FRONTEND_URL)%'
+    app.mailer_from_address: '%env(MAILER_FROM_ADDRESS)%'
 
 services:
     # default configuration for services in *this* file
@@ -30,6 +32,11 @@ services:
     App\Integration\RiseUp\RiseUpApiClient:
         arguments:
             $baseUrl: '%app.riseup.base_url%'
+
+    App\Controller\Api\AuthController:
+        arguments:
+            $frontendUrl: '%app.frontend_url%'
+            $fromAddress: '%app.mailer_from_address%'
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones

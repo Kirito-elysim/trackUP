@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/useAuth';
 import { isTokenExpired } from '../lib/jwt';
 
 export function ProtectedRoute() {
-  const { token, loading } = useAuth();
+  const { token, loading, sessionExpired } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -18,7 +18,11 @@ export function ProtectedRoute() {
   }
 
   if (!token || isTokenExpired(token)) {
-    return <Navigate to="/login" replace state={{ from: location }} />;
+    // sessionExpired (not the local token, which AuthContext already scrubs from
+    // localStorage as soon as it's found to be expired) is the source of truth for
+    // whether the user was previously logged in and should see an explanation here.
+    const reason = sessionExpired ? 'expired' : undefined;
+    return <Navigate to="/login" replace state={{ from: location, reason }} />;
   }
 
   return <Outlet />;

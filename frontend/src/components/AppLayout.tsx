@@ -154,17 +154,28 @@ export function AppLayout() {
         </nav>
 
         <div className="mt-auto px-5 py-4">
-          {!sidebarCollapsed && (
-            <div className="mb-3 flex items-center gap-2.5">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-brand text-xs font-bold text-white">
-                {user?.fullName?.[0]?.toUpperCase() ?? '?'}
-              </span>
+          <NavLink
+            to="/profile"
+            onClick={() => setSidebarOpen(false)}
+            className={({ isActive }) =>
+              cn(
+                'mb-3 flex items-center gap-2.5 rounded-xl p-1.5 transition-colors duration-200 hover:bg-sidebar-accent',
+                isActive && 'bg-sidebar-accent',
+                sidebarCollapsed && 'justify-center px-0',
+              )
+            }
+            title={sidebarCollapsed ? 'Profil' : undefined}
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-brand text-xs font-bold text-white">
+              {user?.fullName?.[0]?.toUpperCase() ?? '?'}
+            </span>
+            {!sidebarCollapsed && (
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">{user?.fullName}</p>
                 <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
               </div>
-            </div>
-          )}
+            )}
+          </NavLink>
           <Button
             className={cn('w-full justify-start', sidebarCollapsed && 'justify-center px-0')}
             onClick={() => {
