@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertCircle, ArrowLeft, CheckCircle2, Loader2, Mail } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Loader2, Mail } from 'lucide-react';
 import { apiRequest, ApiError } from '../lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { FormError } from '@/components/ui/form-error';
 
 export function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -50,7 +51,7 @@ export function ForgotPasswordPage() {
             </Link>
           </div>
         ) : (
-          <form className="mt-8 flex flex-col gap-5" onSubmit={handleSubmit}>
+          <form className="mt-8 flex flex-col gap-5" noValidate onSubmit={handleSubmit}>
             <label className="flex flex-col gap-2">
               <span className="text-sm font-semibold">Email</span>
               <Input
@@ -64,15 +65,7 @@ export function ForgotPasswordPage() {
               />
             </label>
 
-            {error ? (
-              <div
-                role="alert"
-                className="flex items-start gap-2.5 rounded-xl border border-destructive/20 bg-destructive/10 p-3.5 text-sm font-medium text-destructive"
-              >
-                <AlertCircle size={17} className="mt-0.5 shrink-0" />
-                <span>{error}</span>
-              </div>
-            ) : null}
+            <FormError message={error} />
 
             <Button disabled={submitting} type="submit" size="lg">
               {submitting ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16} />}

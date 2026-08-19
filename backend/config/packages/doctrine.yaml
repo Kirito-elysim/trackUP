@@ -15,6 +15,10 @@ doctrine:
                 alias: App
         controller_resolver:
             auto_mapping: false
+        filters:
+            soft_deleteable:
+                class: App\Doctrine\SoftDeleteableFilter
+                enabled: true
 
 when@test:
     doctrine:

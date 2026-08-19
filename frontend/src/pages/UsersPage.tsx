@@ -8,12 +8,15 @@ import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
 import { Badge } from '@/components/ui/badge';
 import { CountUp } from '@/components/ui/stat';
+import { FormError } from '@/components/ui/form-error';
+import { FormSuccess } from '@/components/ui/form-success';
 
 export function UsersPage() {
   const { token } = useAuth();
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
-  const [message, setMessage] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [form, setForm] = useState({
     firstName: '',
     lastName: '',
@@ -83,10 +86,11 @@ export function UsersPage() {
       return;
     }
 
-    setMessage(null);
+    setFormError(null);
+    setSuccessMessage(null);
 
     if (form.password.trim() === '') {
-      setMessage('Le mot de passe est obligatoire.');
+      setFormError('Le mot de passe est obligatoire.');
       return;
     }
 
@@ -105,10 +109,10 @@ export function UsersPage() {
         active: true,
         roleIds: [],
       });
-      setMessage('Utilisateur créé.');
+      setSuccessMessage('Utilisateur créé.');
       await load();
     } catch (caught) {
-      setMessage(caught instanceof ApiError ? caught.message : 'Création impossible.');
+      setFormError(caught instanceof ApiError ? caught.message : 'Création impossible.');
     }
   };
 
@@ -206,7 +210,7 @@ export function UsersPage() {
               <h3 className="font-display text-lg font-bold tracking-tight">Nouvel utilisateur</h3>
             </div>
 
-            <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
+            <form className="flex flex-col gap-5" noValidate onSubmit={handleSubmit}>
               <div className="grid grid-cols-2 gap-4">
                 <label className="flex flex-col gap-2">
                   <span className="text-sm font-semibold">Prénom</span>
@@ -274,7 +278,8 @@ export function UsersPage() {
                 </div>
               </div>
 
-              {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
+              <FormError message={formError} />
+              <FormSuccess message={successMessage} />
 
               <Button type="submit">Créer l&rsquo;utilisateur</Button>
             </form>

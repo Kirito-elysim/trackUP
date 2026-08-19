@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { AlertCircle, CheckCircle2, KeyRound, Loader2 } from 'lucide-react';
+import { CheckCircle2, KeyRound, Loader2 } from 'lucide-react';
 import { apiRequest, ApiError } from '../lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { FormError } from '@/components/ui/form-error';
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -51,10 +52,7 @@ export function ResetPasswordPage() {
 
         {!token ? (
           <div className="mt-8 flex flex-col gap-6">
-            <div className="flex items-start gap-2.5 rounded-xl border border-destructive/20 bg-destructive/10 p-3.5 text-sm font-medium text-destructive">
-              <AlertCircle size={17} className="mt-0.5 shrink-0" />
-              <span>Ce lien de réinitialisation est invalide.</span>
-            </div>
+            <FormError message="Ce lien de réinitialisation est invalide." />
             <Link to="/forgot-password" className="text-sm font-semibold text-primary hover:underline">
               Demander un nouveau lien
             </Link>
@@ -72,7 +70,7 @@ export function ResetPasswordPage() {
         ) : (
           <>
             <p className="mt-2 text-sm text-muted-foreground">Choisissez un nouveau mot de passe pour votre compte.</p>
-            <form className="mt-8 flex flex-col gap-5" onSubmit={handleSubmit}>
+            <form className="mt-8 flex flex-col gap-5" noValidate onSubmit={handleSubmit}>
               <label className="flex flex-col gap-2">
                 <span className="text-sm font-semibold">Nouveau mot de passe</span>
                 <Input
@@ -98,15 +96,7 @@ export function ResetPasswordPage() {
                 />
               </label>
 
-              {error ? (
-                <div
-                  role="alert"
-                  className="flex items-start gap-2.5 rounded-xl border border-destructive/20 bg-destructive/10 p-3.5 text-sm font-medium text-destructive"
-                >
-                  <AlertCircle size={17} className="mt-0.5 shrink-0" />
-                  <span>{error}</span>
-                </div>
-              ) : null}
+              <FormError message={error} />
 
               <Button disabled={submitting} type="submit" size="lg">
                 {submitting ? <Loader2 size={16} className="animate-spin" /> : <KeyRound size={16} />}

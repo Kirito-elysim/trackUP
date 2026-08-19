@@ -1,24 +1,56 @@
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/useAuth';
 import { apiRequest, ApiError } from '../lib/api';
 import { clampPercentage, formatDuration, formatPercentage, formatDateTime } from '../lib/format';
-import { Search, Clock, TrendingUp, BookOpen, User, Calendar, CheckCircle, XCircle, Activity, X, Award, Target, Zap, ChevronLeft, ChevronRight } from 'lucide-react';
-import type { LearnerDetail, LearnerSummary } from '../types/trackup';
+import {
+  Search,
+  Clock,
+  TrendingUp,
+  BookOpen,
+  User,
+  Calendar,
+  CheckCircle,
+  XCircle,
+  Activity,
+  X,
+  Award,
+  Target,
+  Zap,
+  ChevronLeft,
+  ChevronRight,
+  Building2,
+  Loader2,
+  Pencil,
+  UserRound,
+  Phone,
+  MapPin,
+  MessageSquare,
+} from 'lucide-react';
+import type { Company, LearnerDetail, LearnerSummary, Tutor, TutorsIndexResponse } from '../types/trackup';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Chip } from '@/components/ui/chip';
 import { Progress } from '@/components/ui/progress';
 import { Avatar } from '@/components/ui/avatar';
 import { CountUp } from '@/components/ui/stat';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SearchSelect } from '@/components/ui/search-select';
 import { cn, learnerStateChipClass, stateChipVariant } from '@/lib/utils';
 
 export function LearnersPage() {
-  const { token } = useAuth();
+  const { token, canAccess } = useAuth();
+  const canManageAssignment = canAccess('companies.view');
+  const navigate = useNavigate();
+  const { id: routeLearnerId } = useParams<{ id?: string }>();
   const [searchQuery, setSearchQuery] = useState('');
   const deferredQuery = useDeferredValue(searchQuery);
   const [learners, setLearners] = useState<LearnerSummary[]>([]);
-  const [selectedLearnerId, setSelectedLearnerId] = useState<number | null>(null);
+  const [selectedLearnerId, setSelectedLearnerId] = useState<number | null>(
+    routeLearnerId ? Number(routeLearnerId) : null,
+  );
   const [selectedLearner, setSelectedLearner] = useState<LearnerDetail | null>(null);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -28,6 +60,27 @@ export function LearnersPage() {
   const upcomingPageSize = 4;
 
   const [now, setNow] = useState(() => Date.now());
+
+  const [tutors, setTutors] = useState<Tutor[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [editingAssignment, setEditingAssignment] = useState(false);
+  const [assignmentTutorId, setAssignmentTutorId] = useState('');
+  const [assignmentCompanyId, setAssignmentCompanyId] = useState('');
+  const [assignmentSaving, setAssignmentSaving] = useState(false);
+  const [assignmentMessage, setAssignmentMessage] = useState<string | null>(null);
+
+  const [editingProspect, setEditingProspect] = useState(false);
+  const [prospectForm, setProspectForm] = useState({
+    phoneMobile: '',
+    phoneFixe: '',
+    address: '',
+    postalCode: '',
+    city: '',
+    dateOfBirth: '',
+    comment: '',
+  });
+  const [prospectSaving, setProspectSaving] = useState(false);
+  const [prospectMessage, setProspectMessage] = useState<string | null>(null);
 
   const upcomingSessions = useMemo(() => {
     if (!selectedLearner) {
@@ -44,6 +97,12 @@ export function LearnersPage() {
   const upcomingPageItems = upcomingSessions.slice(upcomingPageStartIndex, upcomingPageStartIndex + upcomingPageSize);
 
   const visibleLearners = deferredQuery.trim().length < 2 ? [] : learners;
+
+  useEffect(() => {
+    if (routeLearnerId) {
+      setSelectedLearnerId(Number(routeLearnerId));
+    }
+  }, [routeLearnerId]);
 
   useEffect(() => {
     if (!token || deferredQuery.trim().length < 2) {
@@ -116,11 +175,140 @@ export function LearnersPage() {
     };
   }, [selectedLearnerId, token]);
 
+  useEffect(() => {
+    if (!token || !canManageAssignment) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadAssignmentOptions = async () => {
+      try {
+        const [tutorsPayload, companiesPayload] = await Promise.all([
+          apiRequest<TutorsIndexResponse>('/api/admin/tutors?pageSize=100', { token }),
+          apiRequest<{ companies: Company[] }>('/api/admin/companies?pageSize=100', { token }),
+        ]);
+
+        if (!cancelled) {
+          setTutors(tutorsPayload.tutors);
+          setCompanies(companiesPayload.companies);
+        }
+      } catch {
+        // Silencieux : la lecture du tuteur/entreprise déjà rattaché ne dépend pas de ces listes,
+        // seule l'édition du rattachement serait indisponible.
+      }
+    };
+
+    void loadAssignmentOptions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token, canManageAssignment]);
+
   const handleSelectLearner = (learnerId: number) => {
     setSelectedLearnerId(learnerId);
     setUpcomingPage(1);
     setShowSearchResults(false);
     setSearchQuery('');
+    setEditingAssignment(false);
+    setAssignmentMessage(null);
+    setEditingProspect(false);
+    setProspectMessage(null);
+    navigate(`/learners/${learnerId}`);
+  };
+
+  const handleOpenAssignmentEdit = () => {
+    if (!selectedLearner) {
+      return;
+    }
+
+    setAssignmentTutorId(selectedLearner.learner.tutor ? String(selectedLearner.learner.tutor.id) : '');
+    setAssignmentCompanyId(selectedLearner.learner.company ? String(selectedLearner.learner.company.id) : '');
+    setAssignmentMessage(null);
+    setEditingAssignment(true);
+  };
+
+  const handleTutorChange = (value: string) => {
+    setAssignmentTutorId(value);
+
+    const tutor = tutors.find((candidate) => String(candidate.id) === value);
+    setAssignmentCompanyId(tutor && tutor.companies.length === 1 ? String(tutor.companies[0].id) : '');
+  };
+
+  const handleSaveAssignment = async () => {
+    if (!token || !selectedLearner) {
+      return;
+    }
+
+    setAssignmentSaving(true);
+    setAssignmentMessage(null);
+
+    try {
+      const payload = await apiRequest<{ tutor: LearnerDetail['learner']['tutor']; company: LearnerDetail['learner']['company'] }>(
+        `/api/learners/${selectedLearner.learner.id}/assignment`,
+        {
+          method: 'PUT',
+          token,
+          body: {
+            tutorId: assignmentTutorId !== '' ? Number(assignmentTutorId) : null,
+            companyId: assignmentCompanyId !== '' ? Number(assignmentCompanyId) : null,
+          },
+        },
+      );
+
+      setSelectedLearner((current) =>
+        current ? { ...current, learner: { ...current.learner, tutor: payload.tutor, company: payload.company } } : current,
+      );
+      setEditingAssignment(false);
+    } catch (caught) {
+      setAssignmentMessage(caught instanceof ApiError ? caught.message : 'Mise à jour impossible.');
+    } finally {
+      setAssignmentSaving(false);
+    }
+  };
+
+  const handleOpenProspectEdit = () => {
+    if (!selectedLearner) {
+      return;
+    }
+
+    setProspectForm({
+      phoneMobile: selectedLearner.learner.prospect?.phoneMobile ?? '',
+      phoneFixe: selectedLearner.learner.prospect?.phoneFixe ?? '',
+      address: selectedLearner.learner.prospect?.address ?? '',
+      postalCode: selectedLearner.learner.prospect?.postalCode ?? '',
+      city: selectedLearner.learner.prospect?.city ?? '',
+      dateOfBirth: selectedLearner.learner.prospect?.dateOfBirth ?? '',
+      comment: selectedLearner.learner.prospect?.comment ?? '',
+    });
+    setProspectMessage(null);
+    setEditingProspect(true);
+  };
+
+  const handleSaveProspect = async () => {
+    if (!token || !selectedLearner) {
+      return;
+    }
+
+    setProspectSaving(true);
+    setProspectMessage(null);
+
+    try {
+      const payload = await apiRequest<{ prospect: LearnerDetail['learner']['prospect'] }>(
+        `/api/learners/${selectedLearner.learner.id}/prospect`,
+        { method: 'PUT', token, body: prospectForm },
+      );
+
+      setSelectedLearner((current) =>
+        current ? { ...current, learner: { ...current.learner, prospect: payload.prospect } } : current,
+      );
+      setEditingProspect(false);
+    } catch (caught) {
+      setProspectMessage(caught instanceof ApiError ? caught.message : 'Mise à jour impossible.');
+    } finally {
+      setProspectSaving(false);
+    }
   };
 
   const attendanceRate =
@@ -246,6 +434,235 @@ export function LearnersPage() {
                   </span>
                 )}
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="flex flex-col gap-4 p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="font-display text-lg font-bold tracking-tight">Tuteur &amp; entreprise</h3>
+                {canManageAssignment && !editingAssignment ? (
+                  <Button variant="outline" size="sm" onClick={handleOpenAssignmentEdit}>
+                    <Pencil size={14} />
+                    Modifier
+                  </Button>
+                ) : null}
+              </div>
+
+              {editingAssignment ? (
+                <div className="flex flex-col gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="flex flex-col gap-2">
+                      <span className="text-sm font-semibold">Tuteur</span>
+                      <SearchSelect
+                        options={tutors.map((tutor) => ({
+                          value: String(tutor.id),
+                          label: tutor.fullName,
+                          sublabel: tutor.email ?? undefined,
+                        }))}
+                        value={assignmentTutorId}
+                        onChange={handleTutorChange}
+                        placeholder="Choisir un tuteur"
+                        allLabel="Aucun tuteur"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <span className="text-sm font-semibold">Entreprise</span>
+                      <SearchSelect
+                        options={companies.map((company) => ({ value: String(company.id), label: company.name }))}
+                        value={assignmentCompanyId}
+                        onChange={setAssignmentCompanyId}
+                        placeholder="Choisir une entreprise"
+                        allLabel="Aucune entreprise"
+                      />
+                    </div>
+                  </div>
+
+                  {assignmentMessage ? <p className="text-sm text-destructive">{assignmentMessage}</p> : null}
+
+                  <div className="flex gap-3">
+                    <Button size="sm" disabled={assignmentSaving} onClick={() => void handleSaveAssignment()}>
+                      {assignmentSaving ? <Loader2 size={14} className="animate-spin" /> : null}
+                      Enregistrer
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setEditingAssignment(false)}>
+                      Annuler
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-6">
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                      <UserRound size={16} />
+                    </span>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Tuteur</p>
+                      <p className="text-sm font-semibold">{selectedLearner.learner.tutor?.fullName ?? 'Non rattaché'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                      <Building2 size={16} />
+                    </span>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Entreprise</p>
+                      <p className="text-sm font-semibold">{selectedLearner.learner.company?.name ?? 'Non rattachée'}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="flex flex-col gap-4 p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="font-display text-lg font-bold tracking-tight">Informations complémentaires</h3>
+                {canManageAssignment && !editingProspect ? (
+                  <Button variant="outline" size="sm" onClick={handleOpenProspectEdit}>
+                    <Pencil size={14} />
+                    Modifier
+                  </Button>
+                ) : null}
+              </div>
+
+              {editingProspect ? (
+                <div className="flex flex-col gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <label className="flex flex-col gap-2">
+                      <span className="text-sm font-semibold">Téléphone mobile</span>
+                      <Input
+                        value={prospectForm.phoneMobile}
+                        onChange={(event) => setProspectForm((current) => ({ ...current, phoneMobile: event.target.value }))}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-2">
+                      <span className="text-sm font-semibold">Téléphone fixe</span>
+                      <Input
+                        value={prospectForm.phoneFixe}
+                        onChange={(event) => setProspectForm((current) => ({ ...current, phoneFixe: event.target.value }))}
+                      />
+                    </label>
+                  </div>
+
+                  <label className="flex flex-col gap-2">
+                    <span className="text-sm font-semibold">Adresse</span>
+                    <Input
+                      value={prospectForm.address}
+                      onChange={(event) => setProspectForm((current) => ({ ...current, address: event.target.value }))}
+                    />
+                  </label>
+
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <label className="flex flex-col gap-2">
+                      <span className="text-sm font-semibold">Code postal</span>
+                      <Input
+                        value={prospectForm.postalCode}
+                        onChange={(event) => setProspectForm((current) => ({ ...current, postalCode: event.target.value }))}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-2">
+                      <span className="text-sm font-semibold">Ville</span>
+                      <Input
+                        value={prospectForm.city}
+                        onChange={(event) => setProspectForm((current) => ({ ...current, city: event.target.value }))}
+                      />
+                    </label>
+                  </div>
+
+                  <label className="flex flex-col gap-2">
+                    <span className="text-sm font-semibold">Date de naissance</span>
+                    <Input
+                      type="date"
+                      value={prospectForm.dateOfBirth}
+                      onChange={(event) => setProspectForm((current) => ({ ...current, dateOfBirth: event.target.value }))}
+                      className="max-w-[220px]"
+                    />
+                  </label>
+
+                  <label className="flex flex-col gap-2">
+                    <span className="text-sm font-semibold">Commentaire</span>
+                    <Textarea
+                      value={prospectForm.comment}
+                      onChange={(event) => setProspectForm((current) => ({ ...current, comment: event.target.value }))}
+                      rows={3}
+                    />
+                  </label>
+
+                  {prospectMessage ? <p className="text-sm text-destructive">{prospectMessage}</p> : null}
+
+                  <div className="flex gap-3">
+                    <Button size="sm" disabled={prospectSaving} onClick={() => void handleSaveProspect()}>
+                      {prospectSaving ? <Loader2 size={14} className="animate-spin" /> : null}
+                      Enregistrer
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setEditingProspect(false)}>
+                      Annuler
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-wrap gap-6">
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <Phone size={16} />
+                      </span>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Téléphone mobile</p>
+                        <p className="text-sm font-semibold">{selectedLearner.learner.prospect?.phoneMobile ?? 'Non renseigné'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <Phone size={16} />
+                      </span>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Téléphone fixe</p>
+                        <p className="text-sm font-semibold">{selectedLearner.learner.prospect?.phoneFixe ?? 'Non renseigné'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <MapPin size={16} />
+                      </span>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Adresse</p>
+                        <p className="text-sm font-semibold">
+                          {selectedLearner.learner.prospect?.address ||
+                          selectedLearner.learner.prospect?.postalCode ||
+                          selectedLearner.learner.prospect?.city
+                            ? [
+                                selectedLearner.learner.prospect?.address,
+                                [selectedLearner.learner.prospect?.postalCode, selectedLearner.learner.prospect?.city]
+                                  .filter(Boolean)
+                                  .join(' '),
+                              ]
+                                .filter(Boolean)
+                                .join(', ')
+                            : 'Non renseignée'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <Calendar size={16} />
+                      </span>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Date de naissance</p>
+                        <p className="text-sm font-semibold">{selectedLearner.learner.prospect?.dateOfBirth ?? 'Non renseignée'}</p>
+                      </div>
+                    </div>
+                  </div>
+                  {selectedLearner.learner.prospect?.comment ? (
+                    <div className="flex items-start gap-2.5 rounded-md border border-border bg-muted/30 p-3.5 text-sm">
+                      <MessageSquare size={15} className="mt-0.5 shrink-0 text-primary" />
+                      <span>{selectedLearner.learner.prospect.comment}</span>
+                    </div>
+                  ) : null}
+                </div>
+              )}
             </CardContent>
           </Card>
 

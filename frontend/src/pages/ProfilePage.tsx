@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { AlertCircle, CheckCircle2, KeyRound, Loader2 } from 'lucide-react';
+import { CheckCircle2, KeyRound, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/useAuth';
 import { apiRequest, ApiError } from '../lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { FormError } from '@/components/ui/form-error';
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -86,7 +87,7 @@ export function ProfilePage() {
               </p>
             </div>
 
-            <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
+            <form className="flex flex-col gap-5" noValidate onSubmit={handleSubmit}>
               <label className="flex flex-col gap-2">
                 <span className="text-sm font-semibold">Mot de passe actuel</span>
                 <Input
@@ -123,15 +124,7 @@ export function ProfilePage() {
                 />
               </label>
 
-              {error ? (
-                <div
-                  role="alert"
-                  className="flex items-start gap-2.5 rounded-xl border border-destructive/20 bg-destructive/10 p-3.5 text-sm font-medium text-destructive"
-                >
-                  <AlertCircle size={17} className="mt-0.5 shrink-0" />
-                  <span>{error}</span>
-                </div>
-              ) : null}
+              <FormError message={error} />
 
               {success ? (
                 <div className="flex items-start gap-2.5 rounded-xl border border-success/20 bg-success/10 p-3.5 text-sm font-medium text-success">

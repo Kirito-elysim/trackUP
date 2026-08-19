@@ -7,6 +7,8 @@ import { AuthProvider } from './contexts/AuthContext';
 import { LoginPage } from './pages/LoginPage';
 
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage').then((m) => ({ default: m.AnalyticsPage })));
+const CompaniesPage = lazy(() => import('./pages/CompaniesPage').then((m) => ({ default: m.CompaniesPage })));
+const CompanyDetailPage = lazy(() => import('./pages/CompanyDetailPage').then((m) => ({ default: m.CompanyDetailPage })));
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
 const ExportsPage = lazy(() => import('./pages/ExportsPage').then((m) => ({ default: m.ExportsPage })));
 const ForgotPasswordPage = lazy(() =>
@@ -29,6 +31,8 @@ const SyncManagementPage = lazy(() =>
   import('./pages/SyncManagementPage').then((m) => ({ default: m.SyncManagementPage })),
 );
 const TrainingsPage = lazy(() => import('./pages/TrainingsPage').then((m) => ({ default: m.TrainingsPage })));
+const TutorsPage = lazy(() => import('./pages/TutorsPage').then((m) => ({ default: m.TutorsPage })));
+const TutorDetailPage = lazy(() => import('./pages/TutorDetailPage').then((m) => ({ default: m.TutorDetailPage })));
 const UsersPage = lazy(() => import('./pages/UsersPage').then((m) => ({ default: m.UsersPage })));
 
 function App() {
@@ -105,10 +109,50 @@ function App() {
                 }
               />
               <Route
+                path="/learners/:id"
+                element={
+                  <FeatureGate feature="learners.view">
+                    <LearnersPage />
+                  </FeatureGate>
+                }
+              />
+              <Route
                 path="/courses"
                 element={
                   <FeatureGate feature="courses.view">
                     <TrainingsPage />
+                  </FeatureGate>
+                }
+              />
+              <Route
+                path="/companies"
+                element={
+                  <FeatureGate feature="companies.view">
+                    <CompaniesPage />
+                  </FeatureGate>
+                }
+              />
+              <Route
+                path="/companies/:id"
+                element={
+                  <FeatureGate feature="companies.view">
+                    <CompanyDetailPage />
+                  </FeatureGate>
+                }
+              />
+              <Route
+                path="/tutors"
+                element={
+                  <FeatureGate feature="companies.view">
+                    <TutorsPage />
+                  </FeatureGate>
+                }
+              />
+              <Route
+                path="/tutors/:id"
+                element={
+                  <FeatureGate feature="companies.view">
+                    <TutorDetailPage />
                   </FeatureGate>
                 }
               />

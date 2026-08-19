@@ -225,6 +225,17 @@ export type LearnerDetail = {
     groupId: number | null;
     groupName: string | null;
     groupTotalTime: number;
+    tutor: { id: number; fullName: string; email: string | null; phoneMobile: string | null; phoneFixe: string | null } | null;
+    company: { id: number; name: string } | null;
+    prospect: {
+      phoneMobile: string | null;
+      phoneFixe: string | null;
+      address: string | null;
+      postalCode: string | null;
+      city: string | null;
+      dateOfBirth: string | null;
+      comment: string | null;
+    } | null;
   };
   trainingRegistrations: Array<{
     id: number;
@@ -634,4 +645,96 @@ export type LearningPathDetail = {
     expectedElearningTime: number;
     averageProgress: number;
   }>;
+};
+
+export type Sector = {
+  id: number;
+  name: string;
+};
+
+export type Pagination = {
+  page: number;
+  pageSize: number;
+  totalRows: number;
+  totalPages: number;
+};
+
+export type Company = {
+  id: number;
+  name: string;
+  siret: string | null;
+  address: string | null;
+  postalCode: string | null;
+  city: string | null;
+  sector: Sector | null;
+  contactName: string | null;
+  contactEmail: string | null;
+  contactPhoneMobile: string | null;
+  contactPhoneFixe: string | null;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+  tutorCount: number;
+  learnerCount: number;
+};
+
+export type CompaniesIndexResponse = {
+  companies: Company[];
+  pagination: Pagination;
+  sectors: Sector[];
+};
+
+export type CompanySummary = {
+  id: number;
+  name: string;
+};
+
+export type TutorSummary = {
+  id: number;
+  fullName: string;
+  email: string | null;
+  phoneMobile: string | null;
+  phoneFixe: string | null;
+  learnerCount: number;
+};
+
+export type LearnerSummaryRef = {
+  id: number;
+  fullName: string;
+  email: string | null;
+};
+
+export type CompanyDetail = {
+  company: Company;
+  tutors: TutorSummary[];
+  learners: LearnerSummaryRef[];
+};
+
+export type Tutor = {
+  id: number;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  email: string | null;
+  phoneMobile: string | null;
+  phoneFixe: string | null;
+  address: string | null;
+  postalCode: string | null;
+  city: string | null;
+  dateOfBirth: string | null;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+  companies: CompanySummary[];
+  learnerCount: number;
+};
+
+export type TutorsIndexResponse = {
+  tutors: Tutor[];
+  pagination: Pagination;
+};
+
+export type TutorDetail = {
+  tutor: Tutor;
+  learners: LearnerSummaryRef[];
 };

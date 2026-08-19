@@ -4,6 +4,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import {
   BarChart3,
   BookOpen,
+  Building2,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -17,6 +18,7 @@ import {
   ShieldCheck,
   UserCog,
   Users,
+  UserRound,
   X,
 } from 'lucide-react';
 import { useAuth } from '../contexts/useAuth';
@@ -27,8 +29,10 @@ const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', feature: 'dashboard.view', group: 'Pilotage', icon: LayoutDashboard },
   { to: '/analytics', label: 'Analytics', feature: 'analytics.view', group: 'Pilotage', icon: BarChart3 },
   { to: '/learningpaths', label: 'Parcours', feature: 'learningpaths.view', group: 'Pilotage', icon: Route },
-  { to: '/learners', label: 'Apprenants', feature: 'learners.view', group: 'Pilotage', icon: Users },
   { to: '/courses', label: 'Formations', feature: 'courses.view', group: 'Pilotage', icon: BookOpen },
+  { to: '/learners', label: 'Apprenants', feature: 'learners.view', group: 'Alternance', icon: Users },
+  { to: '/companies', label: 'Entreprises', feature: 'companies.view', group: 'Alternance', icon: Building2 },
+  { to: '/tutors', label: 'Tuteurs', feature: 'companies.view', group: 'Alternance', icon: UserRound },
   { to: '/riseup-logs', label: 'Logs exacts', feature: 'exports.view', group: 'Conformité', icon: FileSearch },
   { to: '/exports', label: 'Exports', feature: 'exports.view', group: 'Conformité', icon: Download },
   { to: '/integrations', label: 'Intégrations', feature: 'integrations.view', group: 'Administration', icon: Plug },

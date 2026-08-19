@@ -3,10 +3,15 @@ declare(strict_types=1);
 
 namespace App\Controller\Api;
 
+use App\Entity\Company;
+use App\Entity\Learner;
+use App\Entity\Prospect;
+use App\Entity\Tutor;
 use App\Entity\User;
 use App\Service\TimeMetricsService;
 use App\Service\UserPermissionResolver;
 use App\Util\DurationUnit;
+use App\Validation\ContactInfoValidator;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\ParameterType;
 use Doctrine\ORM\EntityManagerInterface;
@@ -158,7 +163,22 @@ class LearnerController extends AbstractController
                     COALESCE(sig.signed_attendance_count, 0) AS signedAttendanceCount,
                     lss.last_activity_at AS lastActivityAt,
                     rg.id AS groupId,
-                    rg.name AS groupName
+                    rg.name AS groupName,
+                    tu.id AS tutorId,
+                    tu.first_name AS tutorFirstName,
+                    tu.last_name AS tutorLastName,
+                    tu.email AS tutorEmail,
+                    tu.phone_mobile AS tutorPhoneMobile,
+                    tu.phone_fixe AS tutorPhoneFixe,
+                    co.id AS companyId,
+                    co.name AS companyName,
+                    pr.phone_mobile AS prospectPhoneMobile,
+                    pr.phone_fixe AS prospectPhoneFixe,
+                    pr.address AS prospectAddress,
+                    pr.postal_code AS prospectPostalCode,
+                    pr.city AS prospectCity,
+                    pr.date_of_birth AS prospectDateOfBirth,
+                    pr.comment AS prospectComment
                 FROM learners l
                 LEFT JOIN (
                     SELECT
@@ -191,6 +211,9 @@ class LearnerController extends AbstractController
                 ) lss ON lss.learner_id = l.id
                 LEFT JOIN riseup_learner_groups rlg ON rlg.learner_id = l.id
                 LEFT JOIN riseup_groups rg ON rg.id = rlg.group_id
+                LEFT JOIN tutors tu ON tu.id = l.tutor_id AND tu.deleted_at IS NULL
+                LEFT JOIN companies co ON co.id = l.company_id AND co.deleted_at IS NULL
+                LEFT JOIN prospects pr ON pr.email = l.email AND pr.deleted_at IS NULL
                 WHERE l.id = :id
                 ORDER BY rlg.synced_at DESC
                 LIMIT 1
@@ -325,6 +348,34 @@ class LearnerController extends AbstractController
                 'groupId' => $groupId,
                 'groupName' => $learner['groupName'],
                 'groupTotalTime' => DurationUnit::secondsToMinutesInt($groupTotalTime),
+                'tutor' => $learner['tutorId'] !== null ? [
+                    'id' => (int) $learner['tutorId'],
+                    'fullName' => trim(sprintf('%s %s', (string) $learner['tutorFirstName'], (string) $learner['tutorLastName'])),
+                    'email' => $learner['tutorEmail'],
+                    'phoneMobile' => $learner['tutorPhoneMobile'],
+                    'phoneFixe' => $learner['tutorPhoneFixe'],
+                ] : null,
+                'company' => $learner['companyId'] !== null ? [
+                    'id' => (int) $learner['companyId'],
+                    'name' => $learner['companyName'],
+                ] : null,
+                'prospect' => (
+                    $learner['prospectPhoneMobile'] !== null
+                    || $learner['prospectPhoneFixe'] !== null
+                    || $learner['prospectAddress'] !== null
+                    || $learner['prospectPostalCode'] !== null
+                    || $learner['prospectCity'] !== null
+                    || $learner['prospectDateOfBirth'] !== null
+                    || $learner['prospectComment'] !== null
+                ) ? [
+                    'phoneMobile' => $learner['prospectPhoneMobile'],
+                    'phoneFixe' => $learner['prospectPhoneFixe'],
+                    'address' => $learner['prospectAddress'],
+                    'postalCode' => $learner['prospectPostalCode'],
+                    'city' => $learner['prospectCity'],
+                    'dateOfBirth' => $learner['prospectDateOfBirth'],
+                    'comment' => $learner['prospectComment'],
+                ] : null,
             ],
             'trainingRegistrations' => array_map(static fn (array $row): array => [
                 'id' => (int) $row['id'],
@@ -372,5 +423,143 @@ class LearnerController extends AbstractController
                 'trainingTitle' => $row['trainingTitle'],
             ], $recentActivities),
         ]);
+    }
+
+    #[Route('/{id}/assignment', name: 'api_learners_update_assignment', methods: ['PUT'], requirements: ['id' => '\d+'])]
+    public function updateAssignment(Request $request, int $id): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = $this->getUser();
+
+        if (!$this->permissionResolver->userHasFeature($user, 'companies.view')) {
+            return $this->json(['message' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        $learner = $this->entityManager->getRepository(Learner::class)->find($id);
+        if (!$learner instanceof Learner) {
+            return $this->json(['message' => 'Apprenant introuvable.'], JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        $data = $request->toArray();
+
+        $tutorId = isset($data['tutorId']) ? (int) $data['tutorId'] : null;
+        $tutor = $tutorId !== null ? $this->entityManager->getRepository(Tutor::class)->find($tutorId) : null;
+        if ($tutorId !== null && !$tutor instanceof Tutor) {
+            return $this->json(['message' => 'Tuteur introuvable.'], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $companyProvided = \array_key_exists('companyId', $data);
+        $companyId = $companyProvided && $data['companyId'] !== null ? (int) $data['companyId'] : null;
+        $company = $companyId !== null ? $this->entityManager->getRepository(Company::class)->find($companyId) : null;
+        if ($companyId !== null && !$company instanceof Company) {
+            return $this->json(['message' => 'Entreprise introuvable.'], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        // Si aucune entreprise n'est explicitement fournie mais qu'un tuteur l'est, déduire
+        // l'entreprise automatiquement seulement quand ce tuteur n'en a qu'une seule (sans
+        // ambiguïté) — sinon la sélection manuelle reste obligatoire.
+        if (!$companyProvided && $tutor instanceof Tutor && $tutor->getCompanies()->count() === 1) {
+            $company = $tutor->getCompanies()->first() ?: null;
+        }
+
+        $learner->setTutor($tutor);
+        $learner->setCompany($company);
+        $this->entityManager->flush();
+
+        return $this->json([
+            'tutor' => $tutor instanceof Tutor
+                ? [
+                    'id' => $tutor->getId(),
+                    'fullName' => $tutor->getFullName(),
+                    'email' => $tutor->getEmail(),
+                    'phoneMobile' => $tutor->getPhoneMobile(),
+                    'phoneFixe' => $tutor->getPhoneFixe(),
+                ]
+                : null,
+            'company' => $company instanceof Company ? ['id' => $company->getId(), 'name' => $company->getName()] : null,
+        ]);
+    }
+
+    #[Route('/{id}/prospect', name: 'api_learners_update_prospect', methods: ['PUT'], requirements: ['id' => '\d+'])]
+    public function updateProspect(Request $request, int $id): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = $this->getUser();
+
+        if (!$this->permissionResolver->userHasFeature($user, 'companies.view')) {
+            return $this->json(['message' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        $learner = $this->entityManager->getRepository(Learner::class)->find($id);
+        if (!$learner instanceof Learner || $learner->getEmail() === null) {
+            return $this->json(['message' => 'Apprenant introuvable.'], JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        $data = $request->toArray();
+
+        foreach (['phoneMobile', 'phoneFixe'] as $field) {
+            $value = $this->nullableString($data[$field] ?? null);
+            if ($value !== null && !ContactInfoValidator::isValidPhone($value)) {
+                return $this->json(['message' => 'Le numéro de téléphone n\'est pas valide.'], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+            }
+        }
+
+        $postalCode = $this->nullableString($data['postalCode'] ?? null);
+        if ($postalCode !== null && !ContactInfoValidator::isValidPostalCode($postalCode)) {
+            return $this->json(['message' => 'Le code postal doit contenir exactement 5 chiffres.'], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $email = strtolower(trim($learner->getEmail()));
+
+        $prospect = $this->entityManager->getRepository(Prospect::class)->findOneBy(['email' => $email]);
+        if (!$prospect instanceof Prospect) {
+            $prospect = (new Prospect())->setEmail($email);
+            $this->entityManager->persist($prospect);
+        }
+
+        $prospect
+            ->setPhoneMobile($this->nullableString($data['phoneMobile'] ?? null))
+            ->setPhoneFixe($this->nullableString($data['phoneFixe'] ?? null))
+            ->setAddress($this->nullableString($data['address'] ?? null))
+            ->setPostalCode($this->nullableString($data['postalCode'] ?? null))
+            ->setCity($this->nullableString($data['city'] ?? null))
+            ->setDateOfBirth($this->nullableDate($data['dateOfBirth'] ?? null))
+            ->setComment($this->nullableString($data['comment'] ?? null));
+
+        $this->entityManager->flush();
+
+        return $this->json([
+            'prospect' => [
+                'phoneMobile' => $prospect->getPhoneMobile(),
+                'phoneFixe' => $prospect->getPhoneFixe(),
+                'address' => $prospect->getAddress(),
+                'postalCode' => $prospect->getPostalCode(),
+                'city' => $prospect->getCity(),
+                'dateOfBirth' => $prospect->getDateOfBirth()?->format('Y-m-d'),
+                'comment' => $prospect->getComment(),
+            ],
+        ]);
+    }
+
+    private function nullableString(mixed $value): ?string
+    {
+        if (!is_scalar($value)) {
+            return null;
+        }
+
+        $normalized = trim((string) $value);
+
+        return $normalized !== '' ? $normalized : null;
+    }
+
+    private function nullableDate(mixed $value): ?\DateTimeImmutable
+    {
+        if (!is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        $date = \DateTimeImmutable::createFromFormat('Y-m-d', trim($value));
+
+        return $date instanceof \DateTimeImmutable ? $date->setTime(0, 0) : null;
     }
 }

@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { AlertCircle, Loader2, TimerReset } from 'lucide-react';
+import { Loader2, TimerReset } from 'lucide-react';
 import { useAuth } from '../contexts/useAuth';
 import { ApiError } from '../lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { FormError } from '@/components/ui/form-error';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -93,7 +94,7 @@ export function LoginPage() {
             </div>
           ) : null}
 
-          <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
+          <form className="flex flex-col gap-5" noValidate onSubmit={handleSubmit}>
             <label className="flex flex-col gap-2">
               <span className="text-sm font-semibold">Email</span>
               <Input
@@ -123,15 +124,7 @@ export function LoginPage() {
               />
             </label>
 
-            {error ? (
-              <div
-                role="alert"
-                className="flex items-start gap-2.5 rounded-xl border border-destructive/20 bg-destructive/10 p-3.5 text-sm font-medium text-destructive"
-              >
-                <AlertCircle size={17} className="mt-0.5 shrink-0" />
-                <span>{error}</span>
-              </div>
-            ) : null}
+            <FormError message={error} />
 
             <Button disabled={submitting} type="submit" size="lg">
               {submitting ? <Loader2 size={16} className="animate-spin" /> : null}

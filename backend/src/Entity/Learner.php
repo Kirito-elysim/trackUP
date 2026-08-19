@@ -65,6 +65,14 @@ class Learner
     #[ORM\Column]
     private \DateTimeImmutable $syncedAt;
 
+    #[ORM\ManyToOne(targetEntity: Tutor::class, inversedBy: 'learners')]
+    #[ORM\JoinColumn(name: 'tutor_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?Tutor $tutor = null;
+
+    #[ORM\ManyToOne(targetEntity: Company::class, inversedBy: 'learners')]
+    #[ORM\JoinColumn(name: 'company_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?Company $company = null;
+
     public function __construct()
     {
         $this->syncedAt = new \DateTimeImmutable();
@@ -275,6 +283,30 @@ class Learner
     public function setSyncedAt(\DateTimeImmutable $syncedAt): self
     {
         $this->syncedAt = $syncedAt;
+
+        return $this;
+    }
+
+    public function getTutor(): ?Tutor
+    {
+        return $this->tutor;
+    }
+
+    public function setTutor(?Tutor $tutor): self
+    {
+        $this->tutor = $tutor;
+
+        return $this;
+    }
+
+    public function getCompany(): ?Company
+    {
+        return $this->company;
+    }
+
+    public function setCompany(?Company $company): self
+    {
+        $this->company = $company;
 
         return $this;
     }
