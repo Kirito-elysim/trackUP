@@ -4,13 +4,17 @@ declare(strict_types=1);
 
 namespace App\Controller\Api;
 
+use App\Entity\SyncRun;
+use App\Entity\User;
 use App\Service\LearnerSyncService;
 use App\Service\LearnerStepStateSyncService;
 use App\Service\LearningPathSyncService;
 use App\Service\RiseUpGroupSyncService;
+use App\Service\SyncRunNormalizer;
 use App\Service\TrainingModuleStepSyncService;
 use App\Service\TrainingRegistrationSyncService;
 use App\Service\TrainingSyncService;
+use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -19,6 +23,7 @@ use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use App\Message\SyncRiseUpMessage;
 use App\Message\SyncRiseUpGroupMembershipsMessage;
+use App\Message\RunManualSyncAllMessage;
 
 #[Route('/api/sync', name: 'api_sync_')]
 #[IsGranted('ROLE_ADMIN')]
@@ -34,7 +39,43 @@ class SyncController extends AbstractController
         private readonly LearnerStepStateSyncService $learnerStepStateSyncService,
         private readonly MessageBusInterface $messageBus,
         private readonly LoggerInterface $logger,
+        private readonly EntityManagerInterface $entityManager,
+        private readonly SyncRunNormalizer $syncRunNormalizer,
     ) {
+    }
+
+    #[Route('/all', name: 'all', methods: ['POST'])]
+    public function syncAll(): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = $this->getUser();
+
+        if (!$user instanceof User) {
+            return $this->json(['message' => 'Non authentifié.'], JsonResponse::HTTP_UNAUTHORIZED);
+        }
+
+        try {
+            // Les 9 syncs dans l'ordre peuvent prendre plusieurs minutes (sessions notamment) :
+            // même stratégie que sessions/riseup-group-memberships, exécution en arrière-plan.
+            $this->messageBus->dispatch(new RunManualSyncAllMessage($user->getId()));
+
+            return $this->json([
+                'success' => true,
+                'message' => 'Synchronisation complète (9 jeux de données) lancée en arrière-plan.',
+            ], 202);
+        } catch (\Exception $e) {
+            return $this->errorResponse('all', $e);
+        }
+    }
+
+    #[Route('/runs/latest', name: 'runs_latest', methods: ['GET'])]
+    public function latestRun(): JsonResponse
+    {
+        $run = $this->entityManager->getRepository(SyncRun::class)->findOneBy([], ['startedAt' => 'DESC']);
+
+        return $this->json([
+            'run' => $run !== null ? $this->syncRunNormalizer->normalize($run) : null,
+        ]);
     }
 
     private function errorResponse(string $syncType, \Exception $e): JsonResponse

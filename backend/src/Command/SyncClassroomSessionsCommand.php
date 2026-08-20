@@ -45,7 +45,7 @@ class SyncClassroomSessionsCommand extends Command
         }
 
         $io->success('Session and masterclass sync completed.');
-        $io->definitionList(
+        $definitionListRows = [
             ['Sessions fetched' => (string) $result['sessions']['fetched']],
             ['Sessions created' => (string) $result['sessions']['created']],
             ['Sessions updated' => (string) $result['sessions']['updated']],
@@ -58,7 +58,13 @@ class SyncClassroomSessionsCommand extends Command
             ['Signatures created' => (string) $result['signatures']['created']],
             ['Signatures updated' => (string) $result['signatures']['updated']],
             ['Signatures removed' => (string) $result['signatures']['removed']],
-        );
+        ];
+
+        if (isset($result['signatures']['registrations_failed'])) {
+            $definitionListRows[] = ['Signature registrations failed (skipped, kept unchanged)' => (string) $result['signatures']['registrations_failed']];
+        }
+
+        $io->definitionList(...$definitionListRows);
 
         return Command::SUCCESS;
     }

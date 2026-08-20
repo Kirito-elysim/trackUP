@@ -12,14 +12,23 @@ use App\Entity\TrainingModule;
 use App\Entity\TrainingRegistration;
 use App\Integration\RiseUp\RiseUpApiClient;
 use Doctrine\ORM\EntityManagerInterface;
+use Psr\Log\LoggerInterface;
 
 class ClassroomSessionSyncService
 {
     use RiseUpCollectionSyncTrait;
 
+    // The signatures endpoint has no bulk/paginated alternative: syncing signatures means one
+    // GET per registration (~2000 in this app), fired back-to-back. Rise Up's rate limiter reacts
+    // to that burst well before retry_failed's reactive backoff can keep up, so pace requests
+    // proactively instead. 150ms keeps ~2000 registrations under ~5 minutes while staying under
+    // the limit in practice.
+    private const SIGNATURE_REQUEST_DELAY_MICROSECONDS = 150_000;
+
     public function __construct(
         private readonly RiseUpApiClient $riseUpApiClient,
         private readonly EntityManagerInterface $entityManager,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -152,7 +161,7 @@ class ClassroomSessionSyncService
     }
 
     /**
-     * @return array{registrations_processed:int,fetched:int,created:int,updated:int,removed:int,registrations_skipped?:int}
+     * @return array{registrations_processed:int,fetched:int,created:int,updated:int,removed:int,registrations_skipped?:int,registrations_failed?:int}
      */
     private function syncSignatures(int $flushEvery): array
     {
@@ -164,9 +173,26 @@ class ClassroomSessionSyncService
         $removed = 0;
         $processedRegistrations = 0;
         $skippedRegistrations = 0;
+        $failedRegistrations = 0;
 
         foreach ($registrations as $registration) {
-            $payload = $this->riseUpApiClient->get(sprintf('/v3/classroomsessionregistrations/%d/signatures', $registration->getExternalId()));
+            usleep(self::SIGNATURE_REQUEST_DELAY_MICROSECONDS);
+
+            try {
+                $payload = $this->riseUpApiClient->get(sprintf('/v3/classroomsessionregistrations/%d/signatures', $registration->getExternalId()));
+            } catch (\Throwable $throwable) {
+                // One registration failing (rate limit exhausted despite pacing, transient 5xx,
+                // etc.) must not sacrifice progress on the ~2000 others — log it, leave this
+                // registration's existing signatures untouched, and move on to the next one.
+                ++$failedRegistrations;
+                ++$processedRegistrations;
+                $this->logger->warning('Skipped signature sync for one classroom session registration after a request failure.', [
+                    'registrationExternalId' => $registration->getExternalId(),
+                    'exception' => $throwable,
+                ]);
+
+                continue;
+            }
 
             if (!array_is_list($payload)) {
                 // Some tenants respond with an error object (or a wrapped collection) for this endpoint.
@@ -256,6 +282,10 @@ class ClassroomSessionSyncService
 
         if ($skippedRegistrations > 0) {
             $result['registrations_skipped'] = $skippedRegistrations;
+        }
+
+        if ($failedRegistrations > 0) {
+            $result['registrations_failed'] = $failedRegistrations;
         }
 
         return $result;

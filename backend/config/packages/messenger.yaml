@@ -6,7 +6,9 @@ framework:
             async: '%env(MESSENGER_TRANSPORT_DSN)%'
             failed: 'doctrine://default?queue_name=failed'
             sync: 'sync://'
+            scheduler_default: 'schedule://default'
 
         routing:
             App\Message\SyncRiseUpMessage: async
             App\Message\SyncRiseUpGroupMembershipsMessage: async
+            App\Message\RunManualSyncAllMessage: async

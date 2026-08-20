@@ -1,11 +1,26 @@
 import { useEffect, useState } from 'react';
+import { CheckCircle2, Clock, Loader2, User, XCircle } from 'lucide-react';
 import { useAuth } from '../contexts/useAuth';
 import { apiRequest, ApiError } from '../lib/api';
 import { formatDateTime } from '../lib/format';
-import type { IntegrationsPayload } from '../types/trackup';
+import type { IntegrationsPayload, SyncRun } from '../types/trackup';
 import { Card, CardContent } from '@/components/ui/card';
 import { Chip } from '@/components/ui/chip';
 import { CountUp } from '@/components/ui/stat';
+
+const RUN_STATUS_LABEL: Record<SyncRun['status'], string> = {
+  running: 'En cours',
+  success: 'Succès',
+  partial: 'Partiel',
+  failed: 'Échec',
+};
+
+const RUN_STATUS_VARIANT: Record<SyncRun['status'], 'success' | 'destructive' | 'info' | 'neutral'> = {
+  running: 'neutral',
+  success: 'success',
+  partial: 'info',
+  failed: 'destructive',
+};
 
 export function IntegrationsPage() {
   const { token } = useAuth();
@@ -99,6 +114,73 @@ export function IntegrationsPage() {
             <StatCard label="Blocs synchronisés" value={payload.metrics.syncedDatasetsCount} hint="Sources avec données effectivement présentes" delay={80} />
             <StatCard label="Lignes locales" value={payload.metrics.totalRows} hint="Total cumulé des lignes actuellement stockées" delay={160} />
           </div>
+
+          <Card>
+            <CardContent className="flex flex-col gap-5 p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Cron quotidien 2h00</p>
+                  <h3 className="font-display text-lg font-bold tracking-tight">Dernière exécution groupée</h3>
+                </div>
+                {payload.lastRun ? (
+                  <Chip variant={RUN_STATUS_VARIANT[payload.lastRun.status]}>{RUN_STATUS_LABEL[payload.lastRun.status]}</Chip>
+                ) : null}
+              </div>
+
+              {!payload.lastRun ? (
+                <p className="text-sm text-muted-foreground">Aucune synchronisation groupée n&rsquo;a encore été exécutée.</p>
+              ) : (
+                <>
+                  <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+                    <span className="flex items-center gap-1.5">
+                      <Clock size={14} />
+                      {formatDateTime(payload.lastRun.startedAt)}
+                    </span>
+                    <span>
+                      {payload.lastRun.triggerType === 'scheduled' ? 'Déclenchée automatiquement (cron)' : 'Déclenchée manuellement'}
+                      {payload.lastRun.triggeredByName ? (
+                        <span className="ml-1 inline-flex items-center gap-1">
+                          <User size={13} className="inline" />
+                          {payload.lastRun.triggeredByName}
+                        </span>
+                      ) : null}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col divide-y divide-border">
+                    {payload.lastRun.steps.map((step) => (
+                      <div className="flex items-center justify-between gap-4 py-2.5 first:pt-0 last:pb-0" key={step.command}>
+                        <span className="flex items-center gap-2 text-sm">
+                          {step.status === 'success' ? (
+                            <CheckCircle2 size={15} className="shrink-0 text-success" />
+                          ) : (
+                            <XCircle size={15} className="shrink-0 text-destructive" />
+                          )}
+                          {step.label}
+                        </span>
+                        <span className="tabular text-xs text-muted-foreground">{(step.durationMs / 1000).toFixed(1)}s</span>
+                      </div>
+                    ))}
+                    {payload.lastRun.status === 'running' && payload.lastRun.currentStepLabel ? (
+                      <div className="flex items-center justify-between gap-4 py-2.5 last:pb-0">
+                        <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Loader2 size={15} className="shrink-0 animate-spin text-primary" />
+                          {payload.lastRun.currentStepLabel}
+                        </span>
+                        <span className="tabular text-xs text-muted-foreground">en cours...</span>
+                      </div>
+                    ) : null}
+                  </div>
+                  {payload.lastRun.status === 'running' ? (
+                    <p className="text-xs text-muted-foreground">
+                      Synchronisation en cours — rechargez la page pour suivre la progression, ou consultez la page
+                      Synchronisation pour un suivi en direct.
+                    </p>
+                  ) : null}
+                </>
+              )}
+            </CardContent>
+          </Card>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.2fr_0.8fr]">
             <Card>

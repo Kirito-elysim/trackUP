@@ -3,7 +3,9 @@ declare(strict_types=1);
 
 namespace App\Controller\Api;
 
+use App\Entity\SyncRun;
 use App\Entity\User;
+use App\Service\SyncRunNormalizer;
 use App\Service\UserPermissionResolver;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -17,6 +19,7 @@ class IntegrationController extends AbstractController
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly UserPermissionResolver $permissionResolver,
+        private readonly SyncRunNormalizer $syncRunNormalizer,
         #[Autowire(param: 'app.riseup.base_url')]
         private readonly string $riseUpBaseUrl,
     ) {
@@ -100,6 +103,8 @@ class IntegrationController extends AbstractController
             }
         }
 
+        $lastRun = $this->entityManager->getRepository(SyncRun::class)->findOneBy([], ['startedAt' => 'DESC']);
+
         return $this->json([
             'connection' => [
                 'provider' => 'Rise Up',
@@ -108,6 +113,7 @@ class IntegrationController extends AbstractController
                 'health' => 'ok',
                 'lastSyncAt' => $lastSyncAt,
             ],
+            'lastRun' => $lastRun !== null ? $this->syncRunNormalizer->normalize($lastRun) : null,
             'metrics' => [
                 'datasetsCount' => count($datasetStatuses),
                 'syncedDatasetsCount' => count(array_filter($datasetStatuses, static fn (array $status): bool => $status['status'] === 'synced')),

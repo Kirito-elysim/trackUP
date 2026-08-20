@@ -1,11 +1,32 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../contexts/useAuth';
 import { ApiError, apiRequest, apiUrl } from '../lib/api';
-import { RefreshCw, Upload, Database, Users, TrendingUp, BookOpen, CheckCircle, XCircle, Clock, FileText, Layers, ClipboardList, CheckSquare, Link2 } from 'lucide-react';
+import {
+  RefreshCw,
+  Upload,
+  Database,
+  Users,
+  TrendingUp,
+  BookOpen,
+  CheckCircle,
+  XCircle,
+  Clock,
+  FileText,
+  Layers,
+  ClipboardList,
+  CheckSquare,
+  Link2,
+  Zap,
+  Loader2,
+} from 'lucide-react';
+import type { SyncRun } from '../types/trackup';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { cn } from '@/lib/utils';
+
+const GROUP_SYNC_STEP_COUNT = 9;
+const GROUP_SYNC_POLL_INTERVAL_MS = 2000;
 
 interface SyncStatus {
   type: string;
@@ -21,11 +42,74 @@ export function SyncManagementPage() {
   const [uploadStatus, setUploadStatus] = useState<SyncStatus>({ type: 'upload', status: 'idle' });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
+  const [groupSyncPhase, setGroupSyncPhase] = useState<'idle' | 'starting' | 'running' | 'done'>('idle');
+  const [groupSyncRun, setGroupSyncRun] = useState<SyncRun | null>(null);
+  const [groupSyncError, setGroupSyncError] = useState<string | null>(null);
+  const pollTimeoutRef = useRef<number | null>(null);
+
+  useEffect(
+    () => () => {
+      if (pollTimeoutRef.current !== null) {
+        window.clearTimeout(pollTimeoutRef.current);
+      }
+    },
+    [],
+  );
+
   const updateSyncStatus = (type: string, status: Partial<SyncStatus>) => {
     setSyncStatuses(prev => ({
       ...prev,
       [type]: { ...prev[type], type, ...status }
     }));
+  };
+
+  const fetchLatestRun = async (): Promise<SyncRun | null> => {
+    if (!token) {
+      return null;
+    }
+    const payload = await apiRequest<{ run: SyncRun | null }>('/api/sync/runs/latest', { token });
+    return payload.run;
+  };
+
+  const handleSyncAll = async () => {
+    if (!token || groupSyncPhase === 'starting' || groupSyncPhase === 'running') {
+      return;
+    }
+
+    setGroupSyncPhase('starting');
+    setGroupSyncRun(null);
+    setGroupSyncError(null);
+
+    const previousRunId = (await fetchLatestRun().catch(() => null))?.id ?? null;
+
+    try {
+      await apiRequest('/api/sync/all', { method: 'POST', token });
+    } catch (error) {
+      setGroupSyncPhase('idle');
+      setGroupSyncError(error instanceof ApiError ? error.message : 'Impossible de lancer la synchronisation.');
+      return;
+    }
+
+    setGroupSyncPhase('running');
+
+    const poll = () => {
+      fetchLatestRun()
+        .then((run) => {
+          if (run && run.id !== previousRunId) {
+            setGroupSyncRun(run);
+            if (run.status !== 'running') {
+              setGroupSyncPhase('done');
+              return;
+            }
+          }
+          pollTimeoutRef.current = window.setTimeout(poll, GROUP_SYNC_POLL_INTERVAL_MS);
+        })
+        .catch(() => {
+          pollTimeoutRef.current = window.setTimeout(poll, GROUP_SYNC_POLL_INTERVAL_MS);
+        });
+    };
+
+    poll();
   };
 
   const triggerSync = async (syncType: string, endpoint: string, label: string) => {
@@ -188,8 +272,93 @@ export function SyncManagementPage() {
           <h3 className="font-display text-lg font-bold tracking-tight">Synchronisation depuis l&rsquo;API Rise Up</h3>
         </div>
         <p className="-mt-2 text-sm text-muted-foreground">
-          Cliquez sur un bouton pour lancer la synchronisation manuelle des données depuis l&rsquo;API Rise Up.
+          Cliquez sur un bouton pour lancer la synchronisation manuelle des données depuis l&rsquo;API Rise Up, ou
+          synchronisez les 9 jeux de données d&rsquo;un coup, dans l&rsquo;ordre.
         </p>
+
+        <Card className="border-0 bg-gradient-brand text-white">
+          <CardContent className="flex flex-col gap-4 p-6">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-white/15">
+                  <Zap size={20} />
+                </span>
+                <div>
+                  <h4 className="text-sm font-semibold">Tout synchroniser</h4>
+                  <p className="mt-0.5 text-xs text-white/70">
+                    Lance les 9 syncs dans l&rsquo;ordre (apprenants, formations, groupes, parcours, sessions...).
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="secondary"
+                onClick={() => void handleSyncAll()}
+                disabled={groupSyncPhase === 'starting' || groupSyncPhase === 'running'}
+              >
+                <RefreshCw size={15} className={groupSyncPhase === 'starting' || groupSyncPhase === 'running' ? 'animate-spin' : undefined} />
+                {groupSyncPhase === 'running' ? 'Synchronisation en cours...' : 'Tout synchroniser'}
+              </Button>
+            </div>
+
+            {groupSyncPhase === 'running' ? (
+              <div className="flex flex-col gap-2 rounded-md border border-white/15 bg-white/10 px-3.5 py-2.5 text-xs font-medium">
+                <div className="flex items-center gap-2.5">
+                  <Loader2 size={14} className="animate-spin shrink-0" />
+                  <span>
+                    {groupSyncRun?.currentStepLabel
+                      ? `${groupSyncRun.currentStepIndex}/${GROUP_SYNC_STEP_COUNT} — ${groupSyncRun.currentStepLabel} en cours...`
+                      : 'Démarrage de la synchronisation...'}
+                  </span>
+                </div>
+                {groupSyncRun && groupSyncRun.steps.length > 0 ? (
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 pl-6 text-white/75">
+                    {groupSyncRun.steps.map((step) => (
+                      <span key={step.command} className="flex items-center gap-1">
+                        {step.status === 'success' ? <CheckCircle size={11} /> : <XCircle size={11} />}
+                        {step.label}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {groupSyncPhase === 'done' && groupSyncRun ? (
+              <div
+                className={cn(
+                  'flex flex-col gap-2 rounded-md border px-3.5 py-3 text-xs font-medium',
+                  groupSyncRun.status === 'success' && 'border-success/40 bg-success/15 text-white',
+                  groupSyncRun.status === 'partial' && 'border-white/30 bg-white/10 text-white',
+                  groupSyncRun.status === 'failed' && 'border-destructive/40 bg-destructive/20 text-white',
+                )}
+              >
+                <span className="flex items-center gap-2">
+                  {groupSyncRun.status === 'success' ? <CheckCircle size={14} className="shrink-0" /> : <XCircle size={14} className="shrink-0" />}
+                  {groupSyncRun.status === 'success'
+                    ? 'Synchronisation complète réussie.'
+                    : groupSyncRun.status === 'partial'
+                      ? 'Synchronisation complète terminée avec des erreurs partielles.'
+                      : 'La synchronisation complète a échoué.'}
+                </span>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-white/80">
+                  {groupSyncRun.steps.map((step) => (
+                    <span key={step.command} className="flex items-center gap-1">
+                      {step.status === 'success' ? <CheckCircle size={12} /> : <XCircle size={12} />}
+                      {step.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {groupSyncError ? (
+              <div className="flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/20 px-3.5 py-2.5 text-xs font-medium text-white">
+                <XCircle size={14} className="shrink-0" />
+                {groupSyncError}
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
 
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {syncActions.map((action) => {

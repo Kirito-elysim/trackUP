@@ -505,6 +505,26 @@ export type RiseUpActivityLogsPayload = {
   lastImportAt: string | null;
 };
 
+export type SyncRunStep = {
+  command: string;
+  label: string;
+  status: 'success' | 'failed';
+  durationMs: number;
+  output: string;
+};
+
+export type SyncRun = {
+  id: number;
+  triggerType: 'scheduled' | 'manual';
+  status: 'running' | 'success' | 'partial' | 'failed';
+  startedAt: string;
+  finishedAt: string | null;
+  steps: SyncRunStep[];
+  currentStepIndex: number | null;
+  currentStepLabel: string | null;
+  triggeredByName: string | null;
+};
+
 export type IntegrationsPayload = {
   connection: {
     provider: string;
@@ -513,6 +533,7 @@ export type IntegrationsPayload = {
     health: string;
     lastSyncAt: string | null;
   };
+  lastRun: SyncRun | null;
   metrics: {
     datasetsCount: number;
     syncedDatasetsCount: number;

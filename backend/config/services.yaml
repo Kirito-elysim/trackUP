@@ -38,5 +38,9 @@ services:
             $frontendUrl: '%app.frontend_url%'
             $fromAddress: '%app.mailer_from_address%'
 
+    App\Service\SyncOrchestratorService:
+        arguments:
+            $fromAddress: '%app.mailer_from_address%'
+
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones

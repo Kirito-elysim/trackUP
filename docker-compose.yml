@@ -27,10 +27,33 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: trackup-worker
+    restart: unless-stopped
     working_dir: /app
     volumes:
       - ./backend:/app
     command: php bin/console messenger:consume async --time-limit=3600 --memory-limit=256M -vv
+    environment:
+      APP_ENV: dev
+      APP_SECRET: change-me-in-production
+      DATABASE_URL: mysql://trackup:trackup@mysql:3306/trackup?serverVersion=8.4.0&charset=utf8mb4
+      MESSENGER_TRANSPORT_DSN: redis://redis:6379/messages
+      JWT_PASSPHRASE: change-this-passphrase
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  scheduler:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: trackup-scheduler
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./backend:/app
+    command: php bin/console messenger:consume scheduler_default --time-limit=3600 --memory-limit=256M -vv
     environment:
       APP_ENV: dev
       APP_SECRET: change-me-in-production
