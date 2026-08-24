@@ -39,6 +39,77 @@
   --color-sidebar-accent: #f2effb;
   --color-sidebar-accent-foreground: #1e1b2e;
 
+  /* Palette du module Absences (reprise à l'identique de la maquette
+     /Users/mahdjoub/www/project_absence), préfixée "abs-" pour rester isolée
+     du thème global de TrackUp — n'affecte que les pages du module Absences. */
+  --color-abs-ink-50: #f6f7f9;
+  --color-abs-ink-100: #eceef2;
+  --color-abs-ink-200: #d5d9e2;
+  --color-abs-ink-300: #b1b8c8;
+  --color-abs-ink-400: #8690a8;
+  --color-abs-ink-500: #67718c;
+  --color-abs-ink-600: #525a72;
+  --color-abs-ink-700: #43495d;
+  --color-abs-ink-800: #3a3f4f;
+  --color-abs-ink-900: #1f2230;
+  --color-abs-ink-950: #13151e;
+
+  --color-abs-brand-50: #eef6ff;
+  --color-abs-brand-100: #d9ecff;
+  --color-abs-brand-200: #bcdcff;
+  --color-abs-brand-300: #8ec6ff;
+  --color-abs-brand-400: #59a6ff;
+  --color-abs-brand-500: #3385fc;
+  --color-abs-brand-600: #1d66f0;
+  --color-abs-brand-700: #1650dd;
+  --color-abs-brand-800: #1942b3;
+  --color-abs-brand-900: #1a3c8d;
+  --color-abs-brand-950: #152656;
+
+  --color-abs-accent-50: #fffaeb;
+  --color-abs-accent-100: #fff0c6;
+  --color-abs-accent-200: #ffdf88;
+  --color-abs-accent-300: #ffc74b;
+  --color-abs-accent-400: #ffab1f;
+  --color-abs-accent-500: #f9860b;
+  --color-abs-accent-600: #dd6402;
+  --color-abs-accent-700: #b74606;
+  --color-abs-accent-800: #94370c;
+  --color-abs-accent-900: #7a2f0d;
+
+  --color-abs-success-50: #ecfdf5;
+  --color-abs-success-100: #d1fae5;
+  --color-abs-success-200: #a7f3d0;
+  --color-abs-success-300: #6ee7b7;
+  --color-abs-success-400: #34d399;
+  --color-abs-success-500: #10b981;
+  --color-abs-success-600: #059669;
+  --color-abs-success-700: #047857;
+  --color-abs-success-800: #065f46;
+  --color-abs-success-900: #064e3b;
+
+  --color-abs-warning-50: #fff8eb;
+  --color-abs-warning-100: #feecc7;
+  --color-abs-warning-200: #fdd98a;
+  --color-abs-warning-300: #fcbf4d;
+  --color-abs-warning-400: #faa515;
+  --color-abs-warning-500: #f48306;
+  --color-abs-warning-600: #d96102;
+  --color-abs-warning-700: #b44506;
+  --color-abs-warning-800: #92360c;
+  --color-abs-warning-900: #782e0e;
+
+  --color-abs-danger-50: #fef2f2;
+  --color-abs-danger-100: #fee2e2;
+  --color-abs-danger-200: #fecaca;
+  --color-abs-danger-300: #fca5a5;
+  --color-abs-danger-400: #f87171;
+  --color-abs-danger-500: #ef4444;
+  --color-abs-danger-600: #dc2626;
+  --color-abs-danger-700: #b91c1c;
+  --color-abs-danger-800: #991b1b;
+  --color-abs-danger-900: #7f1d1d;
+
   --radius: 0.625rem;
   --radius-sm: 8px;
   --radius-md: 10px;
@@ -79,6 +150,24 @@
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+  }
+
+  .bg-gradient-abs-hero {
+    background-image: linear-gradient(
+      135deg,
+      var(--color-abs-ink-950),
+      var(--color-abs-ink-900) 55%,
+      var(--color-abs-brand-950)
+    );
+  }
+
+  .bg-gradient-abs-alert {
+    background-image: linear-gradient(
+      135deg,
+      var(--color-abs-danger-700),
+      var(--color-abs-danger-600) 55%,
+      var(--color-abs-accent-700)
+    );
   }
 
   .shadow-soft {

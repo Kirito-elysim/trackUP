@@ -16,6 +16,7 @@ import {
   Plug,
   RefreshCw,
   Route,
+  ShieldAlert,
   ShieldCheck,
   UserCog,
   Users,
@@ -35,8 +36,11 @@ const NAV_ITEMS = [
   { to: '/companies', label: 'Entreprises', feature: 'companies.view', group: 'Alternance', icon: Building2 },
   { to: '/tutors', label: 'Tuteurs', feature: 'companies.view', group: 'Alternance', icon: UserRound },
   { to: '/riseup-logs', label: 'Logs exacts', feature: 'exports.view', group: 'Conformité', icon: FileSearch },
-  { to: '/absences', label: 'Absences', feature: 'absences.view', group: 'Conformité', icon: AlertTriangle },
   { to: '/exports', label: 'Exports', feature: 'exports.view', group: 'Conformité', icon: Download },
+  { to: '/absences/dashboard', label: 'Tableau de bord', feature: 'absences.view', group: 'Absences', icon: LayoutDashboard },
+  { to: '/absences', label: 'Absences', feature: 'absences.view', group: 'Absences', icon: AlertTriangle },
+  { to: '/absences/alertes', label: 'Alertes', feature: 'absences.view', group: 'Absences', icon: ShieldAlert },
+  { to: '/absences/apprenants', label: 'Apprenants', feature: 'absences.view', group: 'Absences', icon: UserRound },
   { to: '/integrations', label: 'Intégrations', feature: 'integrations.view', group: 'Administration', icon: Plug },
   { to: '/sync', label: 'Synchronisation', feature: 'settings.users', group: 'Administration', icon: RefreshCw },
   { to: '/roles', label: 'Rôles', feature: 'settings.roles', group: 'Administration', icon: ShieldCheck },
@@ -139,6 +143,7 @@ export function AppLayout() {
                       <NavLink
                         key={item.to}
                         to={item.to}
+                        end={item.to === '/absences'}
                         onClick={() => setSidebarOpen(false)}
                         className={({ isActive }) =>
                           clsx(

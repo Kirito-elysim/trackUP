@@ -33,28 +33,15 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
 import { Chip } from '@/components/ui/chip';
 import { Progress } from '@/components/ui/progress';
 import { Avatar } from '@/components/ui/avatar';
 import { CountUp } from '@/components/ui/stat';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SearchSelect } from '@/components/ui/search-select';
+import { AbsStatusChip } from '@/components/absences/badges';
 import { cn, learnerStateChipClass, stateChipVariant } from '@/lib/utils';
 
-const ABSENCE_STATUS_LABEL: Record<LearnerDetail['absences'][number]['status'], string> = {
-  en_attente: 'En attente',
-  justifiee: 'Justifiée',
-  non_justifiee: 'Non justifiée',
-  autre: 'Autre',
-};
-
-const ABSENCE_STATUS_VARIANT: Record<LearnerDetail['absences'][number]['status'], 'neutral' | 'success' | 'destructive' | 'info'> = {
-  en_attente: 'neutral',
-  justifiee: 'success',
-  non_justifiee: 'destructive',
-  autre: 'info',
-};
 
 export function LearnersPage() {
   const { token, canAccess } = useAuth();
@@ -469,10 +456,10 @@ export function LearnersPage() {
                 <div className="mt-1.5 flex flex-wrap items-center gap-2">
                   <Chip variant="primary">{selectedLearner.learner.state}</Chip>
                   {selectedLearner.learner.consecutiveUnjustifiedMasterclassAbsences >= 3 && (
-                    <Badge variant="destructive" className="gap-1">
+                    <span className="inline-flex animate-pulse items-center gap-1.5 rounded-full bg-abs-danger-100 px-2.5 py-1 text-xs font-semibold text-abs-danger-800 ring-1 ring-abs-danger-200">
                       <AlertTriangle size={12} />
                       {selectedLearner.learner.consecutiveUnjustifiedMasterclassAbsences} absences masterclass consécutives non justifiées
-                    </Badge>
+                    </span>
                   )}
                   {canManageAbsences && selectedLearner.learner.consecutiveUnjustifiedMasterclassAbsences > 0 && (
                     <Button
@@ -975,9 +962,7 @@ export function LearnersPage() {
                               {absence.type === 'masterclass' ? 'Masterclass' : 'Session présentiel'}
                             </p>
                           </div>
-                          <Chip variant={ABSENCE_STATUS_VARIANT[absence.status]}>
-                            {ABSENCE_STATUS_LABEL[absence.status]}
-                          </Chip>
+                          <AbsStatusChip status={absence.status} />
                         </div>
                         <div className="mt-3 flex flex-wrap gap-4 border-t border-border pt-3">
                           <span className="flex items-center gap-1.5 text-xs text-muted-foreground">

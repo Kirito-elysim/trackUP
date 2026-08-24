@@ -321,6 +321,73 @@ export type AbsencesPayload = {
   filters: { availableGroups: Array<{ externalId: number; name: string }> };
 };
 
+export type AbsenceDetail = {
+  id: number;
+  type: AbsenceType;
+  status: AbsenceStatus;
+  detectedAt: string;
+  notificationSentAt: string | null;
+  justificationSubmittedAt: string | null;
+  justificationFileOriginalName: string | null;
+  confirmationSentAt: string | null;
+  validatedAt: string | null;
+  adminNote: string | null;
+  learner: {
+    id: number;
+    fullName: string;
+    email: string | null;
+    consecutiveUnjustifiedMasterclassAbsences: number;
+    alertTriggered: boolean;
+  };
+  session: { id: number; title: string; startAt: string | null; endAt: string | null };
+  validatedByName: string | null;
+};
+
+export type AbsencesDashboardPayload = {
+  stats: { total: number; byStatus: Record<AbsenceStatus, number> };
+  byGroup: Array<{ name: string; count: number }>;
+  recent: Array<{
+    id: number;
+    type: AbsenceType;
+    status: AbsenceStatus;
+    detectedAt: string;
+    learnerFullName: string;
+    alertTriggered: boolean;
+    sessionTitle: string;
+    sessionStartAt: string | null;
+  }>;
+  activeAlertsCount: number;
+  activeAlertsPreview: Array<{ learnerId: number; fullName: string; group: string | null; consecutiveCount: number }>;
+};
+
+export type AbsenceAlertsPayload = {
+  alerted: Array<{
+    learnerId: number;
+    fullName: string;
+    email: string | null;
+    group: string | null;
+    consecutiveCount: number;
+    recentAbsences: Array<{ id: number; status: AbsenceStatus; sessionTitle: string; sessionStartAt: string | null }>;
+  }>;
+  atRisk: Array<{ learnerId: number; fullName: string; group: string | null; consecutiveCount: number }>;
+};
+
+export type AbsenceLearnersPayload = {
+  learners: Array<{
+    id: number;
+    fullName: string;
+    email: string | null;
+    group: string | null;
+    totalAbsences: number;
+    justified: number;
+    unjustified: number;
+    pending: number;
+    consecutiveUnjustifiedMasterclassAbsences: number;
+    alertActive: boolean;
+  }>;
+  filters: { availableGroups: Array<{ externalId: number; name: string }> };
+};
+
 export type TrainingSummary = {
   id: number;
   externalId: number;

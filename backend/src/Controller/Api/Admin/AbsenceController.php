@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controller\Api\Admin;
 
 use App\Entity\Absence;
+use App\Entity\Learner;
 use App\Entity\User;
 use App\Service\AbsenceNotificationService;
 use App\Service\AbsenceStreakService;
@@ -77,10 +78,7 @@ class AbsenceController extends AbstractController
         }
 
         $status = trim((string) $request->query->get('status', ''));
-        if ($status !== '' && in_array($status, self::SETTABLE_STATUSES, true)) {
-            $conditions[] = 'a.status = :status';
-            $params['status'] = $status;
-        }
+        $hasStatusFilter = $status !== '' && in_array($status, self::SETTABLE_STATUSES, true);
 
         $type = trim((string) $request->query->get('type', ''));
         if ($type !== '' && in_array($type, [Absence::TYPE_MASTERCLASS, Absence::TYPE_PRESENTIEL], true)) {
@@ -100,6 +98,17 @@ class AbsenceController extends AbstractController
             $params['dateTo'] = $dateTo . ' 23:59:59';
         }
 
+        // Les compteurs par statut (onglets "Toutes / En attente / ...") doivent rester stables quel
+        // que soit l'onglet sélectionné : ils respectent les autres filtres (apprenant, groupe, type,
+        // période) mais jamais le filtre de statut lui-même, sinon les onglets non sélectionnés
+        // retomberaient tous à 0.
+        $statsWhereSql = $conditions === [] ? '' : ('WHERE ' . implode(' AND ', $conditions));
+
+        if ($hasStatusFilter) {
+            $conditions[] = 'a.status = :status';
+            $params['status'] = $status;
+        }
+
         $whereSql = $conditions === [] ? '' : ('WHERE ' . implode(' AND ', $conditions));
         $offset = ($page - 1) * $pageSize;
 
@@ -116,7 +125,7 @@ class AbsenceController extends AbstractController
         $totalRows = (int) $connection->fetchOne("SELECT COUNT(*) {$fromSql} {$whereSql}", $params, $types);
 
         $statsRows = $connection->fetchAllAssociative(
-            "SELECT a.status, COUNT(*) AS total {$fromSql} {$whereSql} GROUP BY a.status",
+            "SELECT a.status, COUNT(*) AS total {$fromSql} {$statsWhereSql} GROUP BY a.status",
             $params,
             $types
         );
@@ -124,6 +133,7 @@ class AbsenceController extends AbstractController
         foreach ($statsRows as $row) {
             $statsByStatus[$row['status']] = (int) $row['total'];
         }
+        $statsTotal = array_sum($statsByStatus);
 
         $rows = $connection->fetchAllAssociative(
             <<<SQL
@@ -182,7 +192,7 @@ class AbsenceController extends AbstractController
                     : null,
             ], $rows),
             'stats' => [
-                'total' => $totalRows,
+                'total' => $statsTotal,
                 'byStatus' => $statsByStatus,
             ],
             'pagination' => [
@@ -198,6 +208,387 @@ class AbsenceController extends AbstractController
                 ], $availableGroups),
             ],
         ]);
+    }
+
+    // Détail complet d'une absence (sous-section Absences : page /absences/:id).
+    #[Route('/{id}', name: 'api_admin_absences_show', methods: ['GET'], requirements: ['id' => '\d+'])]
+    public function show(int $id): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = $this->getUser();
+
+        if (!$this->permissionResolver->userHasFeature($user, 'absences.view')) {
+            return $this->json(['message' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        $connection = $this->entityManager->getConnection();
+
+        $row = $connection->fetchAssociative(
+            <<<SQL
+                SELECT
+                    a.id, a.type, a.status, a.detected_at AS detectedAt,
+                    a.notification_sent_at AS notificationSentAt,
+                    a.justification_submitted_at AS justificationSubmittedAt,
+                    a.justification_file_original_name AS justificationFileOriginalName,
+                    a.confirmation_sent_at AS confirmationSentAt,
+                    a.validated_at AS validatedAt, a.admin_note AS adminNote,
+                    l.id AS learnerId, l.first_name AS learnerFirstName, l.last_name AS learnerLastName, l.email AS learnerEmail,
+                    l.consecutive_unjustified_masterclass_absences AS consecutiveCount,
+                    l.disciplinary_alert_sent_at AS disciplinaryAlertSentAt,
+                    cs.id AS sessionId, cs.start_at AS sessionStartAt, cs.end_at AS sessionEndAt,
+                    COALESCE(t.title, tm.title, 'Session') AS sessionTitle,
+                    u.first_name AS validatedByFirstName, u.last_name AS validatedByLastName
+                FROM absences a
+                INNER JOIN classroom_session_registrations csr ON csr.id = a.registration_id
+                INNER JOIN learners l ON l.id = csr.learner_id
+                INNER JOIN classroom_sessions cs ON cs.id = csr.session_id
+                LEFT JOIN trainings t ON t.id = cs.training_id
+                LEFT JOIN training_modules tm ON tm.id = cs.module_id
+                LEFT JOIN users u ON u.id = a.validated_by_id
+                WHERE a.id = :id
+            SQL,
+            ['id' => $id],
+            ['id' => ParameterType::INTEGER]
+        );
+
+        if ($row === false) {
+            return $this->json(['message' => 'Absence introuvable.'], JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        return $this->json([
+            'id' => (int) $row['id'],
+            'type' => $row['type'],
+            'status' => $row['status'],
+            'detectedAt' => $row['detectedAt'],
+            'notificationSentAt' => $row['notificationSentAt'],
+            'justificationSubmittedAt' => $row['justificationSubmittedAt'],
+            'justificationFileOriginalName' => $row['justificationFileOriginalName'],
+            'confirmationSentAt' => $row['confirmationSentAt'],
+            'validatedAt' => $row['validatedAt'],
+            'adminNote' => $row['adminNote'],
+            'learner' => [
+                'id' => (int) $row['learnerId'],
+                'fullName' => trim(sprintf('%s %s', (string) $row['learnerFirstName'], (string) $row['learnerLastName'])),
+                'email' => $row['learnerEmail'],
+                'consecutiveUnjustifiedMasterclassAbsences' => (int) $row['consecutiveCount'],
+                'alertTriggered' => $row['disciplinaryAlertSentAt'] !== null,
+            ],
+            'session' => [
+                'id' => (int) $row['sessionId'],
+                'title' => $row['sessionTitle'],
+                'startAt' => $row['sessionStartAt'],
+                'endAt' => $row['sessionEndAt'],
+            ],
+            'validatedByName' => $row['validatedByFirstName'] !== null
+                ? trim(sprintf('%s %s', (string) $row['validatedByFirstName'], (string) $row['validatedByLastName']))
+                : null,
+        ]);
+    }
+
+    // Sous-section Absences : agrégats pour la page /absences/dashboard.
+    #[Route('/dashboard', name: 'api_admin_absences_dashboard', methods: ['GET'])]
+    public function dashboard(): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = $this->getUser();
+
+        if (!$this->permissionResolver->userHasFeature($user, 'absences.view')) {
+            return $this->json(['message' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        $connection = $this->entityManager->getConnection();
+
+        $total = (int) $connection->fetchOne('SELECT COUNT(*) FROM absences');
+
+        $statsRows = $connection->fetchAllAssociative('SELECT status, COUNT(*) AS total FROM absences GROUP BY status');
+        $statsByStatus = array_fill_keys(self::SETTABLE_STATUSES, 0);
+        foreach ($statsRows as $row) {
+            $statsByStatus[$row['status']] = (int) $row['total'];
+        }
+
+        $byGroupRows = $connection->fetchAllAssociative(
+            <<<SQL
+                SELECT rg.name, COUNT(*) AS total
+                FROM absences a
+                INNER JOIN classroom_session_registrations csr ON csr.id = a.registration_id
+                INNER JOIN riseup_learner_groups lg ON lg.learner_id = csr.learner_id
+                INNER JOIN riseup_groups rg ON rg.id = lg.group_id
+                GROUP BY rg.id, rg.name
+                ORDER BY total DESC
+                LIMIT 8
+            SQL
+        );
+
+        $recentRows = $connection->fetchAllAssociative(
+            <<<SQL
+                SELECT
+                    a.id, a.type, a.status, a.detected_at AS detectedAt,
+                    l.first_name AS learnerFirstName, l.last_name AS learnerLastName,
+                    l.disciplinary_alert_sent_at AS disciplinaryAlertSentAt,
+                    cs.start_at AS sessionStartAt,
+                    COALESCE(t.title, tm.title, 'Session') AS sessionTitle
+                FROM absences a
+                INNER JOIN classroom_session_registrations csr ON csr.id = a.registration_id
+                INNER JOIN learners l ON l.id = csr.learner_id
+                INNER JOIN classroom_sessions cs ON cs.id = csr.session_id
+                LEFT JOIN trainings t ON t.id = cs.training_id
+                LEFT JOIN training_modules tm ON tm.id = cs.module_id
+                ORDER BY a.detected_at DESC, a.id DESC
+                LIMIT 6
+            SQL
+        );
+
+        $alertsPreviewRows = $connection->fetchAllAssociative(
+            <<<SQL
+                SELECT
+                    l.id, l.first_name AS firstName, l.last_name AS lastName,
+                    l.consecutive_unjustified_masterclass_absences AS consecutiveCount,
+                    (SELECT rg.name FROM riseup_learner_groups lg
+                        INNER JOIN riseup_groups rg ON rg.id = lg.group_id
+                        WHERE lg.learner_id = l.id ORDER BY lg.synced_at DESC LIMIT 1) AS groupName
+                FROM learners l
+                WHERE l.disciplinary_alert_sent_at IS NOT NULL
+                ORDER BY l.consecutive_unjustified_masterclass_absences DESC
+                LIMIT 5
+            SQL
+        );
+
+        $activeAlertsCount = (int) $connection->fetchOne(
+            'SELECT COUNT(*) FROM learners WHERE disciplinary_alert_sent_at IS NOT NULL'
+        );
+
+        return $this->json([
+            'stats' => ['total' => $total, 'byStatus' => $statsByStatus],
+            'byGroup' => array_map(static fn (array $row): array => [
+                'name' => $row['name'],
+                'count' => (int) $row['total'],
+            ], $byGroupRows),
+            'recent' => array_map(static fn (array $row): array => [
+                'id' => (int) $row['id'],
+                'type' => $row['type'],
+                'status' => $row['status'],
+                'detectedAt' => $row['detectedAt'],
+                'learnerFullName' => trim(sprintf('%s %s', (string) $row['learnerFirstName'], (string) $row['learnerLastName'])),
+                'alertTriggered' => $row['disciplinaryAlertSentAt'] !== null,
+                'sessionTitle' => $row['sessionTitle'],
+                'sessionStartAt' => $row['sessionStartAt'],
+            ], $recentRows),
+            'activeAlertsCount' => $activeAlertsCount,
+            'activeAlertsPreview' => array_map(static fn (array $row): array => [
+                'learnerId' => (int) $row['id'],
+                'fullName' => trim(sprintf('%s %s', (string) $row['firstName'], (string) $row['lastName'])),
+                'group' => $row['groupName'],
+                'consecutiveCount' => (int) $row['consecutiveCount'],
+            ], $alertsPreviewRows),
+        ]);
+    }
+
+    // Sous-section Absences : page /absences/alertes — apprenants en alerte active et "à surveiller".
+    #[Route('/alerts', name: 'api_admin_absences_alerts', methods: ['GET'])]
+    public function alerts(): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = $this->getUser();
+
+        if (!$this->permissionResolver->userHasFeature($user, 'absences.view')) {
+            return $this->json(['message' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        $connection = $this->entityManager->getConnection();
+
+        $alertedLearners = $connection->fetchAllAssociative(
+            <<<SQL
+                SELECT
+                    l.id, l.first_name AS firstName, l.last_name AS lastName, l.email,
+                    l.consecutive_unjustified_masterclass_absences AS consecutiveCount,
+                    (SELECT rg.name FROM riseup_learner_groups lg
+                        INNER JOIN riseup_groups rg ON rg.id = lg.group_id
+                        WHERE lg.learner_id = l.id ORDER BY lg.synced_at DESC LIMIT 1) AS groupName
+                FROM learners l
+                WHERE l.disciplinary_alert_sent_at IS NOT NULL
+                ORDER BY l.consecutive_unjustified_masterclass_absences DESC
+            SQL
+        );
+
+        $alerted = [];
+        foreach ($alertedLearners as $learnerRow) {
+            $recentAbsences = $connection->fetchAllAssociative(
+                <<<SQL
+                    SELECT a.id, a.status, cs.start_at AS sessionStartAt, COALESCE(t.title, tm.title, 'Session') AS sessionTitle
+                    FROM absences a
+                    INNER JOIN classroom_session_registrations csr ON csr.id = a.registration_id
+                    INNER JOIN classroom_sessions cs ON cs.id = csr.session_id
+                    LEFT JOIN trainings t ON t.id = cs.training_id
+                    LEFT JOIN training_modules tm ON tm.id = cs.module_id
+                    WHERE csr.learner_id = :learnerId AND a.type = 'masterclass'
+                        AND a.status IN ('en_attente', 'non_justifiee')
+                    ORDER BY cs.start_at DESC
+                    LIMIT 4
+                SQL,
+                ['learnerId' => (int) $learnerRow['id']],
+                ['learnerId' => ParameterType::INTEGER]
+            );
+
+            $alerted[] = [
+                'learnerId' => (int) $learnerRow['id'],
+                'fullName' => trim(sprintf('%s %s', (string) $learnerRow['firstName'], (string) $learnerRow['lastName'])),
+                'email' => $learnerRow['email'],
+                'group' => $learnerRow['groupName'],
+                'consecutiveCount' => (int) $learnerRow['consecutiveCount'],
+                'recentAbsences' => array_map(static fn (array $row): array => [
+                    'id' => (int) $row['id'],
+                    'status' => $row['status'],
+                    'sessionTitle' => $row['sessionTitle'],
+                    'sessionStartAt' => $row['sessionStartAt'],
+                ], $recentAbsences),
+            ];
+        }
+
+        $atRiskRows = $connection->fetchAllAssociative(
+            <<<SQL
+                SELECT
+                    l.id, l.first_name AS firstName, l.last_name AS lastName,
+                    l.consecutive_unjustified_masterclass_absences AS consecutiveCount,
+                    (SELECT rg.name FROM riseup_learner_groups lg
+                        INNER JOIN riseup_groups rg ON rg.id = lg.group_id
+                        WHERE lg.learner_id = l.id ORDER BY lg.synced_at DESC LIMIT 1) AS groupName
+                FROM learners l
+                WHERE l.disciplinary_alert_sent_at IS NULL AND l.consecutive_unjustified_masterclass_absences > 0
+                ORDER BY l.consecutive_unjustified_masterclass_absences DESC
+            SQL
+        );
+
+        return $this->json([
+            'alerted' => $alerted,
+            'atRisk' => array_map(static fn (array $row): array => [
+                'learnerId' => (int) $row['id'],
+                'fullName' => trim(sprintf('%s %s', (string) $row['firstName'], (string) $row['lastName'])),
+                'group' => $row['groupName'],
+                'consecutiveCount' => (int) $row['consecutiveCount'],
+            ], $atRiskRows),
+        ]);
+    }
+
+    // Sous-section Absences : page /absences/apprenants — annuaire agrégé par apprenant.
+    #[Route('/learners', name: 'api_admin_absences_learners', methods: ['GET'])]
+    public function learners(Request $request): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = $this->getUser();
+
+        if (!$this->permissionResolver->userHasFeature($user, 'absences.view')) {
+            return $this->json(['message' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        $connection = $this->entityManager->getConnection();
+
+        $conditions = [
+            'EXISTS (SELECT 1 FROM absences a INNER JOIN classroom_session_registrations csr '
+            . 'ON csr.id = a.registration_id WHERE csr.learner_id = l.id)',
+        ];
+        $params = [];
+        $types = [];
+
+        $search = trim((string) $request->query->get('search', ''));
+        if ($search !== '') {
+            $conditions[] = '(l.first_name LIKE :search OR l.last_name LIKE :search OR l.email LIKE :search)';
+            $params['search'] = '%' . $search . '%';
+        }
+
+        $groupExternalId = (int) $request->query->get('groupExternalId', 0);
+        if ($groupExternalId > 0) {
+            $conditions[] = 'EXISTS (
+                SELECT 1 FROM riseup_learner_groups lg
+                INNER JOIN riseup_groups rg ON rg.id = lg.group_id
+                WHERE lg.learner_id = l.id AND rg.external_id = :groupExternalId
+            )';
+            $params['groupExternalId'] = $groupExternalId;
+            $types['groupExternalId'] = ParameterType::INTEGER;
+        }
+
+        $whereSql = 'WHERE ' . implode(' AND ', $conditions);
+
+        $rows = $connection->fetchAllAssociative(
+            <<<SQL
+                SELECT
+                    l.id, l.first_name AS firstName, l.last_name AS lastName, l.email,
+                    l.consecutive_unjustified_masterclass_absences AS consecutiveCount,
+                    l.disciplinary_alert_sent_at AS disciplinaryAlertSentAt,
+                    (SELECT rg.name FROM riseup_learner_groups lg
+                        INNER JOIN riseup_groups rg ON rg.id = lg.group_id
+                        WHERE lg.learner_id = l.id ORDER BY lg.synced_at DESC LIMIT 1) AS groupName,
+                    (SELECT COUNT(*) FROM absences a INNER JOIN classroom_session_registrations csr
+                        ON csr.id = a.registration_id WHERE csr.learner_id = l.id) AS totalAbsences,
+                    (SELECT COUNT(*) FROM absences a INNER JOIN classroom_session_registrations csr
+                        ON csr.id = a.registration_id WHERE csr.learner_id = l.id AND a.status = 'justifiee') AS justifiedCount,
+                    (SELECT COUNT(*) FROM absences a INNER JOIN classroom_session_registrations csr
+                        ON csr.id = a.registration_id WHERE csr.learner_id = l.id AND a.status = 'non_justifiee') AS unjustifiedCount,
+                    (SELECT COUNT(*) FROM absences a INNER JOIN classroom_session_registrations csr
+                        ON csr.id = a.registration_id WHERE csr.learner_id = l.id AND a.status = 'en_attente') AS pendingCount
+                FROM learners l
+                {$whereSql}
+                ORDER BY l.last_name ASC, l.first_name ASC
+            SQL,
+            $params,
+            $types
+        );
+
+        $availableGroups = $connection->fetchAllAssociative(
+            <<<SQL
+                SELECT DISTINCT rg.external_id AS externalId, rg.name
+                FROM riseup_groups rg
+                INNER JOIN riseup_learner_groups lg ON lg.group_id = rg.id
+                INNER JOIN classroom_session_registrations csr ON csr.learner_id = lg.learner_id
+                INNER JOIN absences a ON a.registration_id = csr.id
+                ORDER BY rg.name ASC
+            SQL
+        );
+
+        return $this->json([
+            'learners' => array_map(static fn (array $row): array => [
+                'id' => (int) $row['id'],
+                'fullName' => trim(sprintf('%s %s', (string) $row['firstName'], (string) $row['lastName'])),
+                'email' => $row['email'],
+                'group' => $row['groupName'],
+                'totalAbsences' => (int) $row['totalAbsences'],
+                'justified' => (int) $row['justifiedCount'],
+                'unjustified' => (int) $row['unjustifiedCount'],
+                'pending' => (int) $row['pendingCount'],
+                'consecutiveUnjustifiedMasterclassAbsences' => (int) $row['consecutiveCount'],
+                'alertActive' => $row['disciplinaryAlertSentAt'] !== null,
+            ], $rows),
+            'filters' => [
+                'availableGroups' => array_map(static fn (array $row): array => [
+                    'externalId' => (int) $row['externalId'],
+                    'name' => $row['name'],
+                ], $availableGroups),
+            ],
+        ]);
+    }
+
+    // Sous-section Absences : renvoie manuellement l'email d'alerte disciplinaire (page /absences/alertes).
+    #[Route('/alerts/{learnerId}/resend', name: 'api_admin_absences_alerts_resend', methods: ['POST'], requirements: ['learnerId' => '\d+'])]
+    public function resendAlert(int $learnerId): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = $this->getUser();
+
+        if (!$this->permissionResolver->userHasFeature($user, 'absences.manage')) {
+            return $this->json(['message' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        $learner = $this->entityManager->getRepository(Learner::class)->find($learnerId);
+
+        if (!$learner instanceof Learner) {
+            return $this->json(['message' => 'Apprenant introuvable.'], JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        $this->absenceNotificationService->sendDisciplinaryAlert(
+            $learner,
+            $learner->getConsecutiveUnjustifiedMasterclassAbsences()
+        );
+
+        return $this->json(['message' => "Email d'alerte renvoyé."]);
     }
 
     // Valide, rejette, remet en attente ou reclasse une absence, et/ou met à jour la note interne

@@ -10,6 +10,18 @@ const AbsenceJustificationPage = lazy(() =>
   import('./pages/AbsenceJustificationPage').then((m) => ({ default: m.AbsenceJustificationPage })),
 );
 const AbsencesPage = lazy(() => import('./pages/AbsencesPage').then((m) => ({ default: m.AbsencesPage })));
+const AbsencesDashboardPage = lazy(() =>
+  import('./pages/AbsencesDashboardPage').then((m) => ({ default: m.AbsencesDashboardPage })),
+);
+const AbsenceDetailPage = lazy(() =>
+  import('./pages/AbsenceDetailPage').then((m) => ({ default: m.AbsenceDetailPage })),
+);
+const AbsenceAlertsPage = lazy(() =>
+  import('./pages/AbsenceAlertsPage').then((m) => ({ default: m.AbsenceAlertsPage })),
+);
+const AbsenceLearnersPage = lazy(() =>
+  import('./pages/AbsenceLearnersPage').then((m) => ({ default: m.AbsenceLearnersPage })),
+);
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage').then((m) => ({ default: m.AnalyticsPage })));
 const CompaniesPage = lazy(() => import('./pages/CompaniesPage').then((m) => ({ default: m.CompaniesPage })));
 const CompanyDetailPage = lazy(() => import('./pages/CompanyDetailPage').then((m) => ({ default: m.CompanyDetailPage })));
@@ -178,10 +190,42 @@ function App() {
                 }
               />
               <Route
+                path="/absences/dashboard"
+                element={
+                  <FeatureGate feature="absences.view">
+                    <AbsencesDashboardPage />
+                  </FeatureGate>
+                }
+              />
+              <Route
                 path="/absences"
                 element={
                   <FeatureGate feature="absences.view">
                     <AbsencesPage />
+                  </FeatureGate>
+                }
+              />
+              <Route
+                path="/absences/alertes"
+                element={
+                  <FeatureGate feature="absences.view">
+                    <AbsenceAlertsPage />
+                  </FeatureGate>
+                }
+              />
+              <Route
+                path="/absences/apprenants"
+                element={
+                  <FeatureGate feature="absences.view">
+                    <AbsenceLearnersPage />
+                  </FeatureGate>
+                }
+              />
+              <Route
+                path="/absences/:id"
+                element={
+                  <FeatureGate feature="absences.view">
+                    <AbsenceDetailPage />
                   </FeatureGate>
                 }
               />
