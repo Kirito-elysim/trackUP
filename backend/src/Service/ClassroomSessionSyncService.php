@@ -19,11 +19,11 @@ class ClassroomSessionSyncService
     use RiseUpCollectionSyncTrait;
 
     // The signatures endpoint has no bulk/paginated alternative: syncing signatures means one
-    // GET per registration (~2000 in this app), fired back-to-back. Rise Up's rate limiter reacts
-    // to that burst well before retry_failed's reactive backoff can keep up, so pace requests
-    // proactively instead. 150ms keeps ~2000 registrations under ~5 minutes while staying under
-    // the limit in practice.
-    private const SIGNATURE_REQUEST_DELAY_MICROSECONDS = 150_000;
+    // GET per registration (~2000 in this app), fired back-to-back. Rise Up's documented quota
+    // (https://docs.api.riseup.ai/ → "Quota") is a hard 300 calls/minute ("this limit cannot be
+    // extended"), i.e. one call every 200ms minimum — 220ms leaves headroom for the pagination
+    // calls syncSessions()/syncRegistrations() already made earlier in the same rolling minute.
+    private const SIGNATURE_REQUEST_DELAY_MICROSECONDS = 220_000;
 
     public function __construct(
         private readonly RiseUpApiClient $riseUpApiClient,

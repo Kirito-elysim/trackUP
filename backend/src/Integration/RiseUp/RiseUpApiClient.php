@@ -7,6 +7,14 @@ use Psr\Log\LoggerInterface;
 use Symfony\Contracts\HttpClient\Exception\ExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
+// Rise Up's documented quota (https://docs.api.riseup.ai/ → "Quota" section) is a hard 300 calls
+// per minute, calculated on a moving 60s window, and explicitly "cannot be extended" — going over
+// returns 429. There is no bulk endpoint for per-connection login/logout logs (checked the full
+// resource list in their docs: Certificates, ClassroomSessions*, Companies, Courses*, Groups,
+// LearningPaths*, Modules, Steps, TrainingSessions*, Users, UserStepStates, Webhooks, etc. — no
+// "connection logs"/"activity logs" resource). Any loop that fires one request per row (e.g.
+// ClassroomSessionSyncService's per-registration signature fetch) must pace itself well under
+// 300/min instead of relying on retry_failed's reactive backoff alone.
 class RiseUpApiClient
 {
     private const MAX_PAGE_SIZE = 500;
