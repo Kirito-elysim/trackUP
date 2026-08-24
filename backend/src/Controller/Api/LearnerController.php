@@ -8,6 +8,7 @@ use App\Entity\Learner;
 use App\Entity\Prospect;
 use App\Entity\Tutor;
 use App\Entity\User;
+use App\Service\AbsenceStreakService;
 use App\Service\TimeMetricsService;
 use App\Service\UserPermissionResolver;
 use App\Util\DurationUnit;
@@ -27,6 +28,7 @@ class LearnerController extends AbstractController
         private readonly EntityManagerInterface $entityManager,
         private readonly UserPermissionResolver $permissionResolver,
         private readonly TimeMetricsService $timeMetricsService,
+        private readonly AbsenceStreakService $absenceStreakService,
     ) {
     }
 
@@ -156,6 +158,8 @@ class LearnerController extends AbstractController
                     l.rise_up_created_at AS riseUpCreatedAt,
                     l.rise_up_updated_at AS riseUpUpdatedAt,
                     l.synced_at AS syncedAt,
+                    l.consecutive_unjustified_masterclass_absences AS consecutiveUnjustifiedMasterclassAbsences,
+                    l.disciplinary_alert_sent_at AS disciplinaryAlertSentAt,
                     COALESCE(trs.training_count, 0) AS trainingCount,
                     COALESCE(trs.total_time, 0) AS totalTime,
                     ROUND(COALESCE(trs.average_progress, 0), 2) AS averageProgress,
@@ -290,6 +294,26 @@ class LearnerController extends AbstractController
             ['learnerId' => ParameterType::INTEGER]
         );
 
+        $absences = $connection->fetchAllAssociative(
+            <<<SQL
+                SELECT
+                    a.id, a.type, a.status, a.detected_at AS detectedAt,
+                    a.justification_submitted_at AS justificationSubmittedAt,
+                    a.admin_note AS adminNote,
+                    cs.start_at AS sessionStartAt, cs.end_at AS sessionEndAt,
+                    COALESCE(t.title, tm.title, 'Session') AS sessionTitle
+                FROM absences a
+                INNER JOIN classroom_session_registrations csr ON csr.id = a.registration_id
+                INNER JOIN classroom_sessions cs ON cs.id = csr.session_id
+                LEFT JOIN trainings t ON t.id = cs.training_id
+                LEFT JOIN training_modules tm ON tm.id = cs.module_id
+                WHERE csr.learner_id = :learnerId
+                ORDER BY cs.start_at DESC, a.id DESC
+            SQL,
+            ['learnerId' => $id],
+            ['learnerId' => ParameterType::INTEGER]
+        );
+
         $recentActivities = $connection->fetchAllAssociative(
             <<<SQL
                 SELECT
@@ -340,6 +364,8 @@ class LearnerController extends AbstractController
                 'riseUpCreatedAt' => $learner['riseUpCreatedAt'],
                 'riseUpUpdatedAt' => $learner['riseUpUpdatedAt'],
                 'syncedAt' => $learner['syncedAt'],
+                'consecutiveUnjustifiedMasterclassAbsences' => (int) $learner['consecutiveUnjustifiedMasterclassAbsences'],
+                'disciplinaryAlertSentAt' => $learner['disciplinaryAlertSentAt'],
                 'trainingCount' => (int) $learner['trainingCount'],
                 'totalTime' => DurationUnit::secondsToMinutesInt($learner['totalTime']),
                 'averageProgress' => (float) $learner['averageProgress'],
@@ -407,6 +433,17 @@ class LearnerController extends AbstractController
                 'trainingTitle' => $row['trainingTitle'],
                 'signedCount' => (int) $row['signedCount'],
             ], $sessionRegistrations),
+            'absences' => array_map(static fn (array $row): array => [
+                'id' => (int) $row['id'],
+                'type' => $row['type'],
+                'status' => $row['status'],
+                'detectedAt' => $row['detectedAt'],
+                'justificationSubmittedAt' => $row['justificationSubmittedAt'],
+                'adminNote' => $row['adminNote'],
+                'sessionStartAt' => $row['sessionStartAt'],
+                'sessionEndAt' => $row['sessionEndAt'],
+                'sessionTitle' => $row['sessionTitle'],
+            ], $absences),
             'recentActivities' => array_map(static fn (array $row): array => [
                 'id' => (int) $row['id'],
                 'externalId' => (int) $row['externalId'],
@@ -422,6 +459,31 @@ class LearnerController extends AbstractController
                 'moduleTitle' => $row['moduleTitle'],
                 'trainingTitle' => $row['trainingTitle'],
             ], $recentActivities),
+        ]);
+    }
+
+    // Roadmap 3.4 : réinitialisation manuelle du compteur d'absences masterclass non justifiées
+    // consécutives par un admin (ex. après avoir déclenché la procédure disciplinaire).
+    #[Route('/{id}/absence-counter/reset', name: 'api_learners_reset_absence_counter', methods: ['POST'], requirements: ['id' => '\d+'])]
+    public function resetAbsenceCounter(int $id): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = $this->getUser();
+
+        if (!$this->permissionResolver->userHasFeature($user, 'absences.manage')) {
+            return $this->json(['message' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        $learner = $this->entityManager->getRepository(Learner::class)->find($id);
+        if (!$learner instanceof Learner) {
+            return $this->json(['message' => 'Apprenant introuvable.'], JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        $this->absenceStreakService->resetCounter($learner);
+        $this->entityManager->flush();
+
+        return $this->json([
+            'consecutiveUnjustifiedMasterclassAbsences' => $learner->getConsecutiveUnjustifiedMasterclassAbsences(),
         ]);
     }
 

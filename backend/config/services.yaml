@@ -11,6 +11,8 @@ parameters:
     app.timezone: '%env(APP_TIMEZONE)%'
     app.frontend_url: '%env(FRONTEND_URL)%'
     app.mailer_from_address: '%env(MAILER_FROM_ADDRESS)%'
+    app.absences_upload_dir: '%kernel.project_dir%/var/uploads/absences'
+    app.absences_disciplinary_alert_email: '%env(ABSENCES_DISCIPLINARY_ALERT_EMAIL)%'
 
 services:
     # default configuration for services in *this* file
@@ -41,6 +43,16 @@ services:
     App\Service\SyncOrchestratorService:
         arguments:
             $fromAddress: '%app.mailer_from_address%'
+
+    App\Service\AbsenceNotificationService:
+        arguments:
+            $frontendUrl: '%app.frontend_url%'
+            $fromAddress: '%app.mailer_from_address%'
+            $disciplinaryAlertEmail: '%app.absences_disciplinary_alert_email%'
+
+    App\Controller\Api\AbsenceJustificationController:
+        arguments:
+            $uploadDir: '%app.absences_upload_dir%'
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones

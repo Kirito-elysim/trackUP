@@ -108,6 +108,16 @@ services:
     ports:
       - "6379:6379"
 
+  # Pas de container_name explicite : un conteneur "mailer" tournait déjà sur cette machine (créé
+  # manuellement avant l'ajout de ce service au compose file) ; le laisser sur le nommage par défaut
+  # évite que `docker compose up` tente de créer un doublon en conflit de port avec lui.
+  mailer:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "8025:8025" # interface web pour consulter les emails (http://localhost:8025)
+      - "1025:1025" # serveur SMTP factice (MAILER_DSN=smtp://mailer:1025), ne délivre jamais réellement
+
   phpmyadmin:
     image: phpmyadmin:5-apache
     container_name: trackup-phpmyadmin

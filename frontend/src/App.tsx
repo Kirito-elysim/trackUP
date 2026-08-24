@@ -6,6 +6,10 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { AuthProvider } from './contexts/AuthContext';
 import { LoginPage } from './pages/LoginPage';
 
+const AbsenceJustificationPage = lazy(() =>
+  import('./pages/AbsenceJustificationPage').then((m) => ({ default: m.AbsenceJustificationPage })),
+);
+const AbsencesPage = lazy(() => import('./pages/AbsencesPage').then((m) => ({ default: m.AbsencesPage })));
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage').then((m) => ({ default: m.AnalyticsPage })));
 const CompaniesPage = lazy(() => import('./pages/CompaniesPage').then((m) => ({ default: m.CompaniesPage })));
 const CompanyDetailPage = lazy(() => import('./pages/CompanyDetailPage').then((m) => ({ default: m.CompanyDetailPage })));
@@ -53,6 +57,7 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/absences/justificatif" element={<AbsenceJustificationPage />} />
           <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>
               <Route path="/" element={<Navigate replace to="/dashboard" />} />
@@ -169,6 +174,14 @@ function App() {
                 element={
                   <FeatureGate feature="exports.view">
                     <RiseUpLogsPage />
+                  </FeatureGate>
+                }
+              />
+              <Route
+                path="/absences"
+                element={
+                  <FeatureGate feature="absences.view">
+                    <AbsencesPage />
                   </FeatureGate>
                 }
               />

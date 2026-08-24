@@ -65,6 +65,17 @@ class Learner
     #[ORM\Column]
     private \DateTimeImmutable $syncedAt;
 
+    // Roadmap 3.4 : nombre d'absences masterclass non justifiées consécutives depuis
+    // absenceCounterResetAt (ou depuis toujours si null) — voir AbsenceStreakService.
+    #[ORM\Column]
+    private int $consecutiveUnjustifiedMasterclassAbsences = 0;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $disciplinaryAlertSentAt = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $absenceCounterResetAt = null;
+
     #[ORM\ManyToOne(targetEntity: Tutor::class, inversedBy: 'learners')]
     #[ORM\JoinColumn(name: 'tutor_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
     private ?Tutor $tutor = null;
@@ -283,6 +294,42 @@ class Learner
     public function setSyncedAt(\DateTimeImmutable $syncedAt): self
     {
         $this->syncedAt = $syncedAt;
+
+        return $this;
+    }
+
+    public function getConsecutiveUnjustifiedMasterclassAbsences(): int
+    {
+        return $this->consecutiveUnjustifiedMasterclassAbsences;
+    }
+
+    public function setConsecutiveUnjustifiedMasterclassAbsences(int $count): self
+    {
+        $this->consecutiveUnjustifiedMasterclassAbsences = $count;
+
+        return $this;
+    }
+
+    public function getDisciplinaryAlertSentAt(): ?\DateTimeImmutable
+    {
+        return $this->disciplinaryAlertSentAt;
+    }
+
+    public function setDisciplinaryAlertSentAt(?\DateTimeImmutable $disciplinaryAlertSentAt): self
+    {
+        $this->disciplinaryAlertSentAt = $disciplinaryAlertSentAt;
+
+        return $this;
+    }
+
+    public function getAbsenceCounterResetAt(): ?\DateTimeImmutable
+    {
+        return $this->absenceCounterResetAt;
+    }
+
+    public function setAbsenceCounterResetAt(?\DateTimeImmutable $absenceCounterResetAt): self
+    {
+        $this->absenceCounterResetAt = $absenceCounterResetAt;
 
         return $this;
     }

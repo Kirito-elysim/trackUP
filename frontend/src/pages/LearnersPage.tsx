@@ -13,6 +13,7 @@ import {
   CheckCircle,
   XCircle,
   Activity,
+  AlertTriangle,
   X,
   Award,
   Target,
@@ -32,6 +33,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
 import { Chip } from '@/components/ui/chip';
 import { Progress } from '@/components/ui/progress';
 import { Avatar } from '@/components/ui/avatar';
@@ -40,9 +42,24 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SearchSelect } from '@/components/ui/search-select';
 import { cn, learnerStateChipClass, stateChipVariant } from '@/lib/utils';
 
+const ABSENCE_STATUS_LABEL: Record<LearnerDetail['absences'][number]['status'], string> = {
+  en_attente: 'En attente',
+  justifiee: 'Justifiée',
+  non_justifiee: 'Non justifiée',
+  autre: 'Autre',
+};
+
+const ABSENCE_STATUS_VARIANT: Record<LearnerDetail['absences'][number]['status'], 'neutral' | 'success' | 'destructive' | 'info'> = {
+  en_attente: 'neutral',
+  justifiee: 'success',
+  non_justifiee: 'destructive',
+  autre: 'info',
+};
+
 export function LearnersPage() {
   const { token, canAccess } = useAuth();
   const canManageAssignment = canAccess('companies.view');
+  const canManageAbsences = canAccess('absences.manage');
   const navigate = useNavigate();
   const { id: routeLearnerId } = useParams<{ id?: string }>();
   const [searchQuery, setSearchQuery] = useState('');
@@ -55,7 +72,8 @@ export function LearnersPage() {
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'formations' | 'sessions' | 'activity'>('formations');
+  const [activeTab, setActiveTab] = useState<'formations' | 'sessions' | 'activity' | 'absences'>('formations');
+  const [resettingAbsenceCounter, setResettingAbsenceCounter] = useState(false);
   const [upcomingPage, setUpcomingPage] = useState(1);
   const upcomingPageSize = 4;
 
@@ -268,6 +286,37 @@ export function LearnersPage() {
     }
   };
 
+  const handleResetAbsenceCounter = async () => {
+    if (!token || !selectedLearner) {
+      return;
+    }
+
+    setResettingAbsenceCounter(true);
+    try {
+      const payload = await apiRequest<{ consecutiveUnjustifiedMasterclassAbsences: number }>(
+        `/api/learners/${selectedLearner.learner.id}/absence-counter/reset`,
+        { method: 'POST', token },
+      );
+
+      setSelectedLearner((current) =>
+        current
+          ? {
+              ...current,
+              learner: {
+                ...current.learner,
+                consecutiveUnjustifiedMasterclassAbsences: payload.consecutiveUnjustifiedMasterclassAbsences,
+                disciplinaryAlertSentAt: null,
+              },
+            }
+          : current,
+      );
+    } catch {
+      // Silencieux : un échec de reset laisse simplement le compteur affiché inchangé.
+    } finally {
+      setResettingAbsenceCounter(false);
+    }
+  };
+
   const handleOpenProspectEdit = () => {
     if (!selectedLearner) {
       return;
@@ -417,7 +466,25 @@ export function LearnersPage() {
               <Avatar name={selectedLearner.learner.fullName} className="h-16 w-16 text-lg" />
               <div className="min-w-0 flex-1">
                 <h2 className="font-display text-xl font-bold tracking-tight">{selectedLearner.learner.fullName}</h2>
-                <Chip variant="primary" className="mt-1.5">{selectedLearner.learner.state}</Chip>
+                <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                  <Chip variant="primary">{selectedLearner.learner.state}</Chip>
+                  {selectedLearner.learner.consecutiveUnjustifiedMasterclassAbsences >= 3 && (
+                    <Badge variant="destructive" className="gap-1">
+                      <AlertTriangle size={12} />
+                      {selectedLearner.learner.consecutiveUnjustifiedMasterclassAbsences} absences masterclass consécutives non justifiées
+                    </Badge>
+                  )}
+                  {canManageAbsences && selectedLearner.learner.consecutiveUnjustifiedMasterclassAbsences > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={resettingAbsenceCounter}
+                      onClick={() => void handleResetAbsenceCounter()}
+                    >
+                      Réinitialiser le compteur
+                    </Button>
+                  )}
+                </div>
                 <p className="mt-1.5 text-sm text-muted-foreground">{selectedLearner.learner.email}</p>
               </div>
               <div className="ml-auto flex flex-col gap-2">
@@ -772,6 +839,10 @@ export function LearnersPage() {
                     <Activity size={15} />
                     Activité récente ({selectedLearner.recentActivities.length})
                   </TabsTrigger>
+                  <TabsTrigger value="absences">
+                    <AlertTriangle size={15} />
+                    Absences ({selectedLearner.absences.length})
+                  </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="formations">
@@ -889,6 +960,44 @@ export function LearnersPage() {
                     ))}
                     {selectedLearner.recentActivities.length === 0 && (
                       <p className="py-8 text-center text-sm text-muted-foreground">Aucune activité récente</p>
+                    )}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="absences">
+                  <div className="flex flex-col gap-3">
+                    {selectedLearner.absences.map((absence) => (
+                      <div key={absence.id} className="rounded-md border border-border p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <h4 className="text-sm font-semibold">{absence.sessionTitle}</h4>
+                            <p className="text-xs text-muted-foreground">
+                              {absence.type === 'masterclass' ? 'Masterclass' : 'Session présentiel'}
+                            </p>
+                          </div>
+                          <Chip variant={ABSENCE_STATUS_VARIANT[absence.status]}>
+                            {ABSENCE_STATUS_LABEL[absence.status]}
+                          </Chip>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-4 border-t border-border pt-3">
+                          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Calendar size={13} className="text-[#ff6b9d]" />
+                            {formatDateTime(absence.sessionStartAt)}
+                          </span>
+                          {absence.justificationSubmittedAt && (
+                            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <CheckCircle size={13} />
+                              Justificatif déposé le {formatDateTime(absence.justificationSubmittedAt)}
+                            </span>
+                          )}
+                          {absence.adminNote && (
+                            <span className="text-xs text-muted-foreground">Note : {absence.adminNote}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {selectedLearner.absences.length === 0 && (
+                      <p className="py-8 text-center text-sm text-muted-foreground">Aucune absence enregistrée</p>
                     )}
                   </div>
                 </TabsContent>

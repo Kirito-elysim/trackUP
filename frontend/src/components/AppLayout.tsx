@@ -2,6 +2,7 @@ import { clsx } from 'clsx';
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import {
+  AlertTriangle,
   BarChart3,
   BookOpen,
   Building2,
@@ -34,6 +35,7 @@ const NAV_ITEMS = [
   { to: '/companies', label: 'Entreprises', feature: 'companies.view', group: 'Alternance', icon: Building2 },
   { to: '/tutors', label: 'Tuteurs', feature: 'companies.view', group: 'Alternance', icon: UserRound },
   { to: '/riseup-logs', label: 'Logs exacts', feature: 'exports.view', group: 'Conformité', icon: FileSearch },
+  { to: '/absences', label: 'Absences', feature: 'absences.view', group: 'Conformité', icon: AlertTriangle },
   { to: '/exports', label: 'Exports', feature: 'exports.view', group: 'Conformité', icon: Download },
   { to: '/integrations', label: 'Intégrations', feature: 'integrations.view', group: 'Administration', icon: Plug },
   { to: '/sync', label: 'Synchronisation', feature: 'settings.users', group: 'Administration', icon: RefreshCw },

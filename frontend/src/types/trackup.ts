@@ -217,6 +217,8 @@ export type LearnerDetail = {
     riseUpCreatedAt: string | null;
     riseUpUpdatedAt: string | null;
     syncedAt: string;
+    consecutiveUnjustifiedMasterclassAbsences: number;
+    disciplinaryAlertSentAt: string | null;
     trainingCount: number;
     totalTime: number;
     averageProgress: number;
@@ -282,6 +284,41 @@ export type LearnerDetail = {
     moduleTitle: string;
     trainingTitle: string;
   }>;
+  absences: Array<{
+    id: number;
+    type: AbsenceType;
+    status: AbsenceStatus;
+    detectedAt: string;
+    justificationSubmittedAt: string | null;
+    adminNote: string | null;
+    sessionStartAt: string | null;
+    sessionEndAt: string | null;
+    sessionTitle: string;
+  }>;
+};
+
+export type AbsenceType = 'masterclass' | 'presentiel';
+export type AbsenceStatus = 'en_attente' | 'justifiee' | 'non_justifiee' | 'autre';
+
+export type Absence = {
+  id: number;
+  type: AbsenceType;
+  status: AbsenceStatus;
+  detectedAt: string;
+  adminNote: string | null;
+  justificationSubmittedAt: string | null;
+  justificationFileOriginalName: string | null;
+  validatedAt: string | null;
+  validatedByName: string | null;
+  learner: { id: number; fullName: string; email: string | null };
+  session: { id: number; title: string; startAt: string | null; endAt: string | null };
+};
+
+export type AbsencesPayload = {
+  absences: Absence[];
+  stats: { total: number; byStatus: Record<AbsenceStatus, number> };
+  pagination: { page: number; pageSize: number; totalRows: number; totalPages: number };
+  filters: { availableGroups: Array<{ externalId: number; name: string }> };
 };
 
 export type TrainingSummary = {
