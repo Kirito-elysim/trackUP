@@ -58,9 +58,22 @@ class DashboardController extends AbstractController
             [$yearStart, $yearEnd]
         );
 
+        // "Apprenants actifs" du Dashboard (roadmap 1.3) : basé sur le journal de connexions importé
+        // manuellement (riseup_activity_logs), pas sur le champ Rise Up "last_login_at" — décision
+        // explicite pour rester fidèle au mot "logs" du ticket, même si ce journal n'est alimenté que
+        // par des imports manuels ponctuels et peut donc afficher 0 entre deux imports.
+        $activeLearnersLast7Days = (int) $connection->fetchOne(
+            "SELECT COUNT(DISTINCT COALESCE(learner_external_id, learner_email))
+             FROM riseup_activity_logs
+             WHERE login_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)"
+        );
+
         return [
             'learnersCount' => (int) $connection->fetchOne('SELECT COUNT(*) FROM learners'),
             'activeLearnersCount' => (int) $connection->fetchOne("SELECT COUNT(*) FROM learners WHERE state = 'active'"),
+            'activeLearnersLast7Days' => $activeLearnersLast7Days,
+            'companiesCount' => (int) $connection->fetchOne('SELECT COUNT(*) FROM companies WHERE deleted_at IS NULL'),
+            'tutorsCount' => (int) $connection->fetchOne('SELECT COUNT(*) FROM tutors WHERE deleted_at IS NULL'),
             'learningPathsCount' => (int) $connection->fetchOne('SELECT COUNT(*) FROM learning_paths'),
             'trainingsCount' => (int) $connection->fetchOne('SELECT COUNT(*) FROM trainings'),
             'trainingRegistrationsCount' => (int) $connection->fetchOne('SELECT COUNT(*) FROM training_registrations'),

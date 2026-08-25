@@ -1,6 +1,9 @@
 export type DashboardMetrics = {
   learnersCount: number;
   activeLearnersCount: number;
+  activeLearnersLast7Days: number;
+  companiesCount: number;
+  tutorsCount: number;
   learningPathsCount: number;
   trainingsCount: number;
   trainingRegistrationsCount: number;

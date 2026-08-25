@@ -27,9 +27,14 @@ import { useAuth } from '../contexts/useAuth';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
+// Roadmap 1.3 : lien Analytics masqué du menu à la demande du client (Dashboard recentré sur le
+// pilotage par promotion) — la page/route reste entièrement fonctionnelle, seule l'entrée de nav est
+// retirée. Repasser à `true` pour la faire réapparaître.
+const ANALYTICS_NAV_ENABLED = false;
+
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', feature: 'dashboard.view', group: 'Pilotage', icon: LayoutDashboard },
-  { to: '/analytics', label: 'Analytics', feature: 'analytics.view', group: 'Pilotage', icon: BarChart3 },
+  { to: '/analytics', label: 'Analytics', feature: 'analytics.view', group: 'Pilotage', icon: BarChart3, hidden: !ANALYTICS_NAV_ENABLED },
   { to: '/learningpaths', label: 'Parcours', feature: 'learningpaths.view', group: 'Pilotage', icon: Route },
   { to: '/courses', label: 'Formations', feature: 'courses.view', group: 'Pilotage', icon: BookOpen },
   { to: '/learners', label: 'Apprenants', feature: 'learners.view', group: 'Alternance', icon: Users },
@@ -51,7 +56,7 @@ export function AppLayout() {
   const { user, logout, canAccess } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const visibleItems = NAV_ITEMS.filter((item) => canAccess(item.feature));
+  const visibleItems = NAV_ITEMS.filter((item) => !item.hidden && canAccess(item.feature));
   const navGroups = Array.from(new Set(visibleItems.map((item) => item.group)));
 
   useEffect(() => {
