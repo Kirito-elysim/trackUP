@@ -27,6 +27,10 @@ import {
   Phone,
   MapPin,
   MessageSquare,
+  Mail,
+  RotateCcw,
+  ShieldAlert,
+  CalendarX2,
 } from 'lucide-react';
 import type { Company, LearnerDetail, LearnerSummary, Tutor, TutorsIndexResponse } from '../types/trackup';
 import { Card, CardContent } from '@/components/ui/card';
@@ -35,12 +39,11 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Chip } from '@/components/ui/chip';
 import { Progress } from '@/components/ui/progress';
-import { Avatar } from '@/components/ui/avatar';
 import { CountUp } from '@/components/ui/stat';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SearchSelect } from '@/components/ui/search-select';
-import { AbsStatusChip } from '@/components/absences/badges';
-import { cn, learnerStateChipClass, stateChipVariant } from '@/lib/utils';
+import { AbsAvatar, AbsAlertBadge, AbsStatusChip } from '@/components/absences/badges';
+import { cn, stateChipVariant } from '@/lib/utils';
 
 
 export function LearnersPage() {
@@ -86,6 +89,21 @@ export function LearnersPage() {
   });
   const [prospectSaving, setProspectSaving] = useState(false);
   const [prospectMessage, setProspectMessage] = useState<string | null>(null);
+
+  // Fiche apprenant reprise du prototype /Users/mahdjoub/www/project-2
+  // (pages/LearnerPage.tsx) : statistiques et suivi des absences consécutives
+  // recalculés depuis la liste d'absences déjà chargée avec le détail apprenant.
+  const absenceStats = useMemo(() => {
+    const absences = selectedLearner?.absences ?? [];
+    return {
+      total: absences.length,
+      pending: absences.filter((a) => a.status === 'en_attente').length,
+      justified: absences.filter((a) => a.status === 'justifiee').length,
+      unjustified: absences.filter((a) => a.status === 'non_justifiee').length,
+    };
+  }, [selectedLearner]);
+  const consecutiveCount = selectedLearner?.learner.consecutiveUnjustifiedMasterclassAbsences ?? 0;
+  const consecutiveAlertActive = consecutiveCount >= 3;
 
   const upcomingSessions = useMemo(() => {
     if (!selectedLearner) {
@@ -358,14 +376,14 @@ export function LearnersPage() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h2 className="font-display text-3xl font-extrabold tracking-tight">Apprenants</h2>
-        <p className="mt-1.5 text-sm text-muted-foreground">Recherchez et consultez les détails de vos apprenants</p>
+        <h2 className="font-display text-3xl font-extrabold tracking-tight text-abs-ink-900">Apprenants</h2>
+        <p className="mt-1.5 text-sm text-abs-ink-400">Recherchez et consultez les détails de vos apprenants</p>
       </div>
 
       <div className="relative mx-auto w-full max-w-2xl">
-        <Card className="p-1">
+        <Card className="border-abs-ink-100 p-1">
           <div className="relative flex items-center">
-            <Search size={18} className="pointer-events-none absolute left-4 text-primary" />
+            <Search size={18} className="pointer-events-none absolute left-4 text-abs-brand-600" />
             <input
               type="text"
               placeholder="Rechercher un apprenant par nom ou email..."
@@ -384,7 +402,7 @@ export function LearnersPage() {
                   setShowSearchResults(false);
                 }}
                 type="button"
-                className="absolute right-3 flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                className="absolute right-3 flex h-7 w-7 items-center justify-center rounded-full text-abs-ink-400 transition-colors hover:bg-abs-ink-50 hover:text-abs-ink-900"
               >
                 <X size={15} />
               </button>
@@ -393,7 +411,7 @@ export function LearnersPage() {
         </Card>
 
         {showSearchResults && (
-          <div className="absolute top-full z-20 mt-2 w-full overflow-hidden rounded-md border border-border bg-card shadow-lg">
+          <div className="absolute top-full z-20 mt-2 w-full overflow-hidden rounded-md border border-abs-ink-100 bg-card shadow-lg">
             {visibleLearners.length > 0 ? (
               <div className="max-h-96 overflow-y-auto p-2">
                 {visibleLearners.map((learner) => (
@@ -401,21 +419,21 @@ export function LearnersPage() {
                     key={learner.id}
                     onClick={() => handleSelectLearner(learner.id)}
                     type="button"
-                    className="flex w-full items-center gap-3 rounded-md p-3 text-left transition hover:bg-muted"
+                    className="flex w-full items-center gap-3 rounded-md p-3 text-left transition hover:bg-abs-ink-50"
                   >
-                    <Avatar name={learner.fullName} className="h-10 w-10 text-sm" />
+                    <AbsAvatar name={learner.fullName} className="h-10 w-10 text-sm" />
                     <div className="min-w-0 flex-1">
-                      <strong className="block truncate text-sm font-semibold">{learner.fullName}</strong>
-                      <span className="block truncate text-xs text-muted-foreground">{learner.email}</span>
+                      <strong className="block truncate text-sm font-semibold text-abs-ink-900">{learner.fullName}</strong>
+                      <span className="block truncate text-xs text-abs-ink-400">{learner.email}</span>
                     </div>
-                    <Chip variant="neutral" className={cn('capitalize', learnerStateChipClass(learner.state))}>
+                    <Chip variant="neutral" className={cn('capitalize', absLearnerStateChipClass(learner.state))}>
                       {learner.state}
                     </Chip>
                   </button>
                 ))}
               </div>
             ) : (
-              <div className="flex flex-col items-center gap-3 p-10 text-center text-muted-foreground">
+              <div className="flex flex-col items-center gap-3 p-10 text-center text-abs-ink-400">
                 <User size={26} className="opacity-40" />
                 <p className="text-sm">{searchQuery.length < 2 ? 'Tapez au moins 2 caractères pour rechercher' : 'Aucun apprenant trouvé'}</p>
               </div>
@@ -425,65 +443,58 @@ export function LearnersPage() {
       </div>
 
       {error && (
-        <Card className="border-destructive/30 bg-destructive/5">
-          <CardContent className="p-5 text-sm text-destructive">{error}</CardContent>
+        <Card className="border-abs-danger-200 bg-abs-danger-50">
+          <CardContent className="p-5 text-sm text-abs-danger-700">{error}</CardContent>
         </Card>
       )}
 
       {!selectedLearner && !detailLoading && (
-        <Card className="border-dashed">
+        <Card className="border-abs-ink-200 border-dashed">
           <CardContent className="flex flex-col items-center gap-3 p-16 text-center">
-            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-abs-brand-50 text-abs-brand-600">
               <User size={30} />
             </span>
-            <h3 className="font-display text-lg font-bold tracking-tight">Sélectionnez un apprenant</h3>
-            <p className="max-w-sm text-sm text-muted-foreground">
+            <h3 className="font-display text-lg font-bold tracking-tight text-abs-ink-900">Sélectionnez un apprenant</h3>
+            <p className="max-w-sm text-sm text-abs-ink-400">
               Utilisez la barre de recherche ci-dessus pour trouver et afficher les détails d&rsquo;un apprenant
             </p>
           </CardContent>
         </Card>
       )}
 
-      {detailLoading && <p className="py-12 text-center text-sm text-muted-foreground">Chargement des détails...</p>}
+      {detailLoading && <p className="py-12 text-center text-sm text-abs-ink-400">Chargement des détails...</p>}
 
       {selectedLearner && (
         <div className="flex flex-col gap-8">
-          <Card>
+          <Card className="border-abs-ink-100">
             <CardContent className="flex flex-wrap items-start gap-5 p-6">
-              <Avatar name={selectedLearner.learner.fullName} className="h-16 w-16 text-lg" />
+              <AbsAvatar name={selectedLearner.learner.fullName} size="lg" className="h-16 w-16 text-lg" />
               <div className="min-w-0 flex-1">
-                <h2 className="font-display text-xl font-bold tracking-tight">{selectedLearner.learner.fullName}</h2>
+                <h2 className="font-display text-xl font-bold tracking-tight text-abs-ink-900">
+                  {selectedLearner.learner.fullName}
+                </h2>
                 <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                  <Chip variant="primary">{selectedLearner.learner.state}</Chip>
+                  <Chip variant="neutral" className="bg-abs-brand-100 capitalize text-abs-brand-700">
+                    {selectedLearner.learner.state}
+                  </Chip>
                   {selectedLearner.learner.consecutiveUnjustifiedMasterclassAbsences >= 3 && (
-                    <span className="inline-flex animate-pulse items-center gap-1.5 rounded-full bg-abs-danger-100 px-2.5 py-1 text-xs font-semibold text-abs-danger-800 ring-1 ring-abs-danger-200">
-                      <AlertTriangle size={12} />
-                      {selectedLearner.learner.consecutiveUnjustifiedMasterclassAbsences} absences masterclass consécutives non justifiées
-                    </span>
-                  )}
-                  {canManageAbsences && selectedLearner.learner.consecutiveUnjustifiedMasterclassAbsences > 0 && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={resettingAbsenceCounter}
-                      onClick={() => void handleResetAbsenceCounter()}
-                    >
-                      Réinitialiser le compteur
-                    </Button>
+                    <AbsAlertBadge count={selectedLearner.learner.consecutiveUnjustifiedMasterclassAbsences} />
                   )}
                 </div>
-                <p className="mt-1.5 text-sm text-muted-foreground">{selectedLearner.learner.email}</p>
+                <p className="mt-1.5 flex items-center gap-1.5 text-sm text-abs-ink-500">
+                  <Mail size={14} /> {selectedLearner.learner.email}
+                </p>
               </div>
               <div className="ml-auto flex flex-col gap-2">
                 {selectedLearner.learner.lastActivityAt && (
-                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Activity size={13} className="text-primary" />
+                  <span className="flex items-center gap-1.5 text-xs text-abs-ink-400">
+                    <Activity size={13} className="text-abs-brand-600" />
                     Dernière activité : {formatDateTime(selectedLearner.learner.lastActivityAt)}
                   </span>
                 )}
                 {selectedLearner.learner.activatedAt && (
-                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <CheckCircle size={13} className="text-primary" />
+                  <span className="flex items-center gap-1.5 text-xs text-abs-ink-400">
+                    <CheckCircle size={13} className="text-abs-brand-600" />
                     Activé le : {formatDateTime(selectedLearner.learner.activatedAt)}
                   </span>
                 )}
@@ -491,10 +502,13 @@ export function LearnersPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-abs-ink-100">
             <CardContent className="flex flex-col gap-4 p-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <h3 className="font-display text-lg font-bold tracking-tight">Tuteur &amp; entreprise</h3>
+                <div>
+                  <h3 className="font-display text-lg font-bold tracking-tight text-abs-ink-900">Tuteur &amp; entreprise</h3>
+                  <p className="mt-0.5 text-sm text-abs-ink-500">Rattachement pour les envois automatiques mensuels</p>
+                </div>
                 {canManageAssignment && !editingAssignment ? (
                   <Button variant="outline" size="sm" onClick={handleOpenAssignmentEdit}>
                     <Pencil size={14} />
@@ -545,34 +559,105 @@ export function LearnersPage() {
                   </div>
                 </div>
               ) : (
-                <div className="flex flex-wrap gap-6">
-                  <div className="flex items-center gap-2.5">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                      <UserRound size={16} />
-                    </span>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Tuteur</p>
-                      <p className="text-sm font-semibold">{selectedLearner.learner.tutor?.fullName ?? 'Non rattaché'}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2.5">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                      <Building2 size={16} />
-                    </span>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Entreprise</p>
-                      <p className="text-sm font-semibold">{selectedLearner.learner.company?.name ?? 'Non rattachée'}</p>
-                    </div>
-                  </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <AlternanceTile
+                    icon={Building2}
+                    iconClassName="bg-abs-brand-50 text-abs-brand-600"
+                    label="Entreprise"
+                    value={selectedLearner.learner.company?.name}
+                    empty="Aucune entreprise rattachée."
+                    onClick={
+                      canManageAssignment && selectedLearner.learner.company
+                        ? () => navigate(`/companies/${selectedLearner.learner.company!.id}`)
+                        : undefined
+                    }
+                  />
+                  <AlternanceTile
+                    icon={UserRound}
+                    iconClassName="bg-abs-ink-900 text-white"
+                    label="Tuteur"
+                    value={selectedLearner.learner.tutor?.fullName}
+                    detail={
+                      selectedLearner.learner.tutor
+                        ? [selectedLearner.learner.tutor.email, selectedLearner.learner.tutor.phoneMobile ?? selectedLearner.learner.tutor.phoneFixe]
+                            .filter(Boolean)
+                            .join(' · ')
+                        : undefined
+                    }
+                    empty="Aucun tuteur assigné."
+                    onClick={
+                      canManageAssignment && selectedLearner.learner.tutor
+                        ? () => navigate(`/tutors/${selectedLearner.learner.tutor!.id}`)
+                        : undefined
+                    }
+                  />
                 </div>
               )}
             </CardContent>
           </Card>
 
-          <Card>
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+            <div className="grid grid-cols-2 gap-4 lg:col-span-2 lg:grid-cols-4">
+              <AbsenceStatTile label="Total absences" value={absenceStats.total} icon={CalendarX2} tone="ink" />
+              <AbsenceStatTile label="En attente" value={absenceStats.pending} icon={Clock} tone="warning" />
+              <AbsenceStatTile label="Justifiées" value={absenceStats.justified} icon={CheckCircle} tone="success" />
+              <AbsenceStatTile
+                label="Non justifiées"
+                value={absenceStats.unjustified}
+                icon={XCircle}
+                tone={consecutiveAlertActive ? 'danger' : 'ink'}
+                hint={consecutiveAlertActive ? `${consecutiveCount} consécutives` : undefined}
+              />
+            </div>
+
+            <Card className="border-abs-ink-100">
+              <CardContent className="flex flex-col gap-3 p-5">
+                <div>
+                  <h3 className="font-display text-base font-semibold text-abs-ink-900">Absences consécutives</h3>
+                  <p className="mt-0.5 text-sm text-abs-ink-500">Masterclass uniquement</p>
+                </div>
+                <div className="flex items-end gap-2">
+                  <span className="font-display text-4xl font-bold text-abs-ink-900">{consecutiveCount}</span>
+                  <span className="mb-1.5 text-sm text-abs-ink-400">/ 3 déclencheur</span>
+                </div>
+                <div className="flex gap-1.5">
+                  {[1, 2, 3].map((n) => (
+                    <div
+                      key={n}
+                      className={cn('h-2 flex-1 rounded-full', consecutiveCount >= n ? 'bg-abs-danger-500' : 'bg-abs-ink-100')}
+                    />
+                  ))}
+                  {consecutiveCount > 3 && <div className="h-2 flex-1 animate-pulse rounded-full bg-abs-danger-700" />}
+                </div>
+                {consecutiveAlertActive ? (
+                  <div className="flex items-start gap-2 rounded-xl border border-abs-danger-200 bg-abs-danger-50 p-3 text-sm text-abs-danger-700">
+                    <ShieldAlert size={16} className="mt-0.5 shrink-0" />
+                    <span>Seuil d&rsquo;alerte atteint. Procédure disciplinaire déclenchée.</span>
+                  </div>
+                ) : (
+                  <p className="flex items-center gap-1.5 text-xs text-abs-ink-400">
+                    <TrendingUp size={13} /> Aucun seuil atteint pour l&rsquo;instant.
+                  </p>
+                )}
+                {canManageAbsences && consecutiveCount > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={resettingAbsenceCounter}
+                    onClick={() => void handleResetAbsenceCounter()}
+                    className="w-full border-abs-ink-200 text-abs-ink-700 hover:border-abs-brand-300 hover:bg-abs-brand-50"
+                  >
+                    <RotateCcw size={14} /> Réinitialiser le compteur
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card className="border-abs-ink-100">
             <CardContent className="flex flex-col gap-4 p-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <h3 className="font-display text-lg font-bold tracking-tight">Informations complémentaires</h3>
+                <h3 className="font-display text-lg font-bold tracking-tight text-abs-ink-900">Informations complémentaires</h3>
                 {canManageAssignment && !editingProspect ? (
                   <Button variant="outline" size="sm" onClick={handleOpenProspectEdit}>
                     <Pencil size={14} />
@@ -660,30 +745,30 @@ export function LearnersPage() {
                 <div className="flex flex-col gap-4">
                   <div className="flex flex-wrap gap-6">
                     <div className="flex items-center gap-2.5">
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-abs-brand-50 text-abs-brand-600">
                         <Phone size={16} />
                       </span>
                       <div>
-                        <p className="text-xs text-muted-foreground">Téléphone mobile</p>
-                        <p className="text-sm font-semibold">{selectedLearner.learner.prospect?.phoneMobile ?? 'Non renseigné'}</p>
+                        <p className="text-xs text-abs-ink-400">Téléphone mobile</p>
+                        <p className="text-sm font-semibold text-abs-ink-900">{selectedLearner.learner.prospect?.phoneMobile ?? 'Non renseigné'}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2.5">
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-abs-brand-50 text-abs-brand-600">
                         <Phone size={16} />
                       </span>
                       <div>
-                        <p className="text-xs text-muted-foreground">Téléphone fixe</p>
-                        <p className="text-sm font-semibold">{selectedLearner.learner.prospect?.phoneFixe ?? 'Non renseigné'}</p>
+                        <p className="text-xs text-abs-ink-400">Téléphone fixe</p>
+                        <p className="text-sm font-semibold text-abs-ink-900">{selectedLearner.learner.prospect?.phoneFixe ?? 'Non renseigné'}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2.5">
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-abs-brand-50 text-abs-brand-600">
                         <MapPin size={16} />
                       </span>
                       <div>
-                        <p className="text-xs text-muted-foreground">Adresse</p>
-                        <p className="text-sm font-semibold">
+                        <p className="text-xs text-abs-ink-400">Adresse</p>
+                        <p className="text-sm font-semibold text-abs-ink-900">
                           {selectedLearner.learner.prospect?.address ||
                           selectedLearner.learner.prospect?.postalCode ||
                           selectedLearner.learner.prospect?.city
@@ -700,18 +785,18 @@ export function LearnersPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2.5">
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-abs-brand-50 text-abs-brand-600">
                         <Calendar size={16} />
                       </span>
                       <div>
-                        <p className="text-xs text-muted-foreground">Date de naissance</p>
-                        <p className="text-sm font-semibold">{selectedLearner.learner.prospect?.dateOfBirth ?? 'Non renseignée'}</p>
+                        <p className="text-xs text-abs-ink-400">Date de naissance</p>
+                        <p className="text-sm font-semibold text-abs-ink-900">{selectedLearner.learner.prospect?.dateOfBirth ?? 'Non renseignée'}</p>
                       </div>
                     </div>
                   </div>
                   {selectedLearner.learner.prospect?.comment ? (
-                    <div className="flex items-start gap-2.5 rounded-md border border-border bg-muted/30 p-3.5 text-sm">
-                      <MessageSquare size={15} className="mt-0.5 shrink-0 text-primary" />
+                    <div className="flex items-start gap-2.5 rounded-md border border-abs-ink-100 bg-abs-ink-50 p-3.5 text-sm text-abs-ink-700">
+                      <MessageSquare size={15} className="mt-0.5 shrink-0 text-abs-brand-600" />
                       <span>{selectedLearner.learner.prospect.comment}</span>
                     </div>
                   ) : null}
@@ -756,11 +841,11 @@ export function LearnersPage() {
           </div>
 
           {upcomingSessions.length > 0 && (
-            <Card>
+            <Card className="border-abs-ink-100">
               <CardContent className="flex flex-col gap-5 p-6">
                 <div className="flex flex-wrap items-center gap-3">
-                  <Zap size={17} className="text-primary" />
-                  <h3 className="font-display text-lg font-bold tracking-tight">Sessions à venir</h3>
+                  <Zap size={17} className="text-abs-brand-600" />
+                  <h3 className="font-display text-lg font-bold tracking-tight text-abs-ink-900">Sessions à venir</h3>
                   <Chip variant="neutral">{upcomingSessions.length}</Chip>
                   {upcomingTotalPages > 1 && (
                     <div className="ml-auto flex items-center gap-2">
@@ -774,7 +859,7 @@ export function LearnersPage() {
                       >
                         <ChevronLeft size={15} />
                       </Button>
-                      <span className="tabular w-14 text-center text-sm font-semibold text-muted-foreground">
+                      <span className="tabular w-14 text-center text-sm font-semibold text-abs-ink-400">
                         {upcomingPage} / {upcomingTotalPages}
                       </span>
                       <Button
@@ -792,13 +877,13 @@ export function LearnersPage() {
                 </div>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   {upcomingPageItems.map((session) => (
-                    <div key={session.id} className="rounded-md border border-primary/20 bg-primary/5 p-4">
+                    <div key={session.id} className="rounded-md border border-abs-brand-200 bg-abs-brand-50/60 p-4">
                       <span className="mb-2 inline-flex items-center gap-1.5 rounded-md bg-card px-2.5 py-1 text-xs font-semibold">
-                        <Calendar size={13} className="text-primary" />
+                        <Calendar size={13} className="text-abs-brand-600" />
                         {new Date(session.startAt!).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
                       </span>
                       <h4 className="text-sm font-semibold leading-tight">{session.trainingTitle || 'Session'}</h4>
-                      <p className="tabular mt-1.5 text-xs text-muted-foreground">
+                      <p className="tabular mt-1.5 text-xs text-abs-ink-400">
                         {new Date(session.startAt!).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                         {session.endAt && ` - ${new Date(session.endAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`}
                       </p>
@@ -810,23 +895,23 @@ export function LearnersPage() {
             </Card>
           )}
 
-          <Card>
+          <Card className="border-abs-ink-100">
             <CardContent className="p-6">
               <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)}>
-                <TabsList>
-                  <TabsTrigger value="formations">
+                <TabsList className="bg-abs-ink-50">
+                  <TabsTrigger value="formations" className="data-[state=active]:bg-abs-brand-100 data-[state=active]:text-abs-brand-700">
                     <BookOpen size={15} />
                     Formations ({selectedLearner.trainingRegistrations.length})
                   </TabsTrigger>
-                  <TabsTrigger value="sessions">
+                  <TabsTrigger value="sessions" className="data-[state=active]:bg-abs-brand-100 data-[state=active]:text-abs-brand-700">
                     <Calendar size={15} />
                     Sessions ({selectedLearner.sessionRegistrations.length})
                   </TabsTrigger>
-                  <TabsTrigger value="activity">
+                  <TabsTrigger value="activity" className="data-[state=active]:bg-abs-brand-100 data-[state=active]:text-abs-brand-700">
                     <Activity size={15} />
                     Activité récente ({selectedLearner.recentActivities.length})
                   </TabsTrigger>
-                  <TabsTrigger value="absences">
+                  <TabsTrigger value="absences" className="data-[state=active]:bg-abs-brand-100 data-[state=active]:text-abs-brand-700">
                     <AlertTriangle size={15} />
                     Absences ({selectedLearner.absences.length})
                   </TabsTrigger>
@@ -835,8 +920,8 @@ export function LearnersPage() {
                 <TabsContent value="formations">
                   <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                     {selectedLearner.trainingRegistrations.map((registration) => (
-                      <div key={registration.id} className="overflow-hidden rounded-xl border border-border">
-                        <div className="relative flex h-24 items-center justify-center bg-gradient-brand">
+                      <div key={registration.id} className="overflow-hidden rounded-xl border border-abs-ink-100">
+                        <div className="relative flex h-24 items-center justify-center bg-gradient-to-br from-abs-brand-500 to-abs-brand-700">
                           <BookOpen size={26} className="text-white" />
                           <span className="absolute right-2.5 top-2.5 rounded-md bg-black/40 px-2 py-1 text-xs font-bold text-white">
                             {formatPercentage(registration.progress ?? 0)}
@@ -844,7 +929,7 @@ export function LearnersPage() {
                         </div>
                         <div className="flex flex-col gap-2.5 p-4">
                           <h4 className="text-sm font-semibold leading-tight">{registration.trainingTitle}</h4>
-                          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1.5 text-xs text-abs-ink-400">
                             <Clock size={12} />
                             {formatDuration(registration.totalTime)}
                           </span>
@@ -852,11 +937,11 @@ export function LearnersPage() {
                             {registration.state}
                           </Chip>
                           <div className="flex items-center gap-2.5">
-                            <Progress value={registration.progress ?? 0} className="flex-1" />
-                            <span className="tabular text-xs font-semibold text-primary">{formatPercentage(registration.progress ?? 0)}</span>
+                            <Progress value={registration.progress ?? 0} className="flex-1" barClassName="bg-abs-brand-500" />
+                            <span className="tabular text-xs font-semibold text-abs-brand-600">{formatPercentage(registration.progress ?? 0)}</span>
                           </div>
                           {registration.score !== null && (
-                            <p className="text-xs text-muted-foreground">Score: {registration.score}%</p>
+                            <p className="text-xs text-abs-ink-400">Score: {registration.score}%</p>
                           )}
                         </div>
                       </div>
@@ -867,11 +952,11 @@ export function LearnersPage() {
                 <TabsContent value="sessions">
                   <div className="flex flex-col gap-3">
                     {selectedLearner.sessionRegistrations.map((session) => (
-                      <div key={session.id} className="rounded-md border border-border p-4">
+                      <div key={session.id} className="rounded-md border border-abs-ink-100 p-4">
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div>
                             <h4 className="text-sm font-semibold">{session.trainingTitle || 'Session sans formation'}</h4>
-                            <p className="text-xs text-muted-foreground">{session.sessionType || 'Session'}</p>
+                            <p className="text-xs text-abs-ink-400">{session.sessionType || 'Session'}</p>
                           </div>
                           {session.signedCount > 0 ? (
                             <Chip variant="success">
@@ -885,14 +970,14 @@ export function LearnersPage() {
                             </Chip>
                           )}
                         </div>
-                        <div className="mt-3 flex flex-wrap gap-4 border-t border-border pt-3">
-                          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <div className="mt-3 flex flex-wrap gap-4 border-t border-abs-ink-100 pt-3">
+                          <span className="flex items-center gap-1.5 text-xs text-abs-ink-400">
                             <Calendar size={13} className="text-[#ff6b9d]" />
                             {session.startAt ? formatDateTime(session.startAt) : 'Date non définie'}
                             {session.endAt && ` - ${formatDateTime(session.endAt)}`}
                           </span>
                           {session.eduDuration && (
-                            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1.5 text-xs text-abs-ink-400">
                               <Clock size={13} className="text-[#ff6b9d]" />
                               Durée: {formatDuration(session.eduDuration)}
                             </span>
@@ -909,7 +994,7 @@ export function LearnersPage() {
                       </div>
                     ))}
                     {selectedLearner.sessionRegistrations.length === 0 && (
-                      <p className="py-8 text-center text-sm text-muted-foreground">Aucune session enregistrée</p>
+                      <p className="py-8 text-center text-sm text-abs-ink-400">Aucune session enregistrée</p>
                     )}
                   </div>
                 </TabsContent>
@@ -917,23 +1002,23 @@ export function LearnersPage() {
                 <TabsContent value="activity">
                   <div className="flex flex-col gap-3">
                     {selectedLearner.recentActivities.map((activity) => (
-                      <div key={activity.id} className="flex gap-3.5 rounded-md border border-border p-4">
-                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                      <div key={activity.id} className="flex gap-3.5 rounded-md border border-abs-ink-100 p-4">
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-abs-brand-50 text-abs-brand-600">
                           <Activity size={17} />
                         </span>
                         <div className="min-w-0 flex-1">
                           <h4 className="text-sm font-semibold">{activity.stepTitle}</h4>
-                          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                          <p className="mt-0.5 truncate text-xs text-abs-ink-400">
                             {activity.trainingTitle} › {activity.moduleTitle}
                           </p>
                           <div className="mt-2 flex flex-wrap items-center gap-3">
                             <Chip variant="info" className="capitalize">
                               {activity.stepType || 'Step'}
                             </Chip>
-                            <span className="tabular text-xs font-semibold text-primary">
+                            <span className="tabular text-xs font-semibold text-abs-brand-600">
                               {formatDuration(activity.totalTime ?? activity.timeSpent ?? 0)}
                             </span>
-                            <span className="text-xs text-muted-foreground">{formatDateTime(activity.activityAt || '')}</span>
+                            <span className="text-xs text-abs-ink-400">{formatDateTime(activity.activityAt || '')}</span>
                           </div>
                           {activity.score !== null && (
                             <p className="mt-1.5 text-xs font-semibold text-success">Score: {activity.score}%</p>
@@ -946,7 +1031,7 @@ export function LearnersPage() {
                       </div>
                     ))}
                     {selectedLearner.recentActivities.length === 0 && (
-                      <p className="py-8 text-center text-sm text-muted-foreground">Aucune activité récente</p>
+                      <p className="py-8 text-center text-sm text-abs-ink-400">Aucune activité récente</p>
                     )}
                   </div>
                 </TabsContent>
@@ -954,35 +1039,35 @@ export function LearnersPage() {
                 <TabsContent value="absences">
                   <div className="flex flex-col gap-3">
                     {selectedLearner.absences.map((absence) => (
-                      <div key={absence.id} className="rounded-md border border-border p-4">
+                      <div key={absence.id} className="rounded-md border border-abs-ink-100 p-4">
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div>
                             <h4 className="text-sm font-semibold">{absence.sessionTitle}</h4>
-                            <p className="text-xs text-muted-foreground">
+                            <p className="text-xs text-abs-ink-400">
                               {absence.type === 'masterclass' ? 'Masterclass' : 'Session présentiel'}
                             </p>
                           </div>
                           <AbsStatusChip status={absence.status} />
                         </div>
-                        <div className="mt-3 flex flex-wrap gap-4 border-t border-border pt-3">
-                          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <div className="mt-3 flex flex-wrap gap-4 border-t border-abs-ink-100 pt-3">
+                          <span className="flex items-center gap-1.5 text-xs text-abs-ink-400">
                             <Calendar size={13} className="text-[#ff6b9d]" />
                             {formatDateTime(absence.sessionStartAt)}
                           </span>
                           {absence.justificationSubmittedAt && (
-                            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1.5 text-xs text-abs-ink-400">
                               <CheckCircle size={13} />
                               Justificatif déposé le {formatDateTime(absence.justificationSubmittedAt)}
                             </span>
                           )}
                           {absence.adminNote && (
-                            <span className="text-xs text-muted-foreground">Note : {absence.adminNote}</span>
+                            <span className="text-xs text-abs-ink-400">Note : {absence.adminNote}</span>
                           )}
                         </div>
                       </div>
                     ))}
                     {selectedLearner.absences.length === 0 && (
-                      <p className="py-8 text-center text-sm text-muted-foreground">Aucune absence enregistrée</p>
+                      <p className="py-8 text-center text-sm text-abs-ink-400">Aucune absence enregistrée</p>
                     )}
                   </div>
                 </TabsContent>
@@ -1009,20 +1094,135 @@ function KpiCard({
   hint: string;
 }) {
   return (
-    <Card>
-      <CardContent className="flex flex-col gap-3 p-5">
-        <div className="flex items-center gap-2.5">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-gradient-brand text-white">
-            <Icon size={17} />
-          </span>
-          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</span>
+    <Card className="border-abs-ink-100">
+      <CardContent className="flex items-start justify-between gap-3 p-5">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-abs-ink-500">{label}</p>
+          <CountUp value={value} className="mt-1 text-2xl text-abs-ink-900" />
+          <Progress value={progress} className="mt-3" barClassName="bg-abs-brand-500" />
+          <span className="mt-1.5 block text-xs text-abs-ink-400">{hint}</span>
         </div>
-        <CountUp value={value} className="text-2xl" />
-        <Progress value={progress} />
-        <span className="text-xs text-muted-foreground">{hint}</span>
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-abs-brand-50 text-abs-brand-600 ring-1 ring-abs-brand-100">
+          <Icon size={20} strokeWidth={2.2} />
+        </span>
       </CardContent>
     </Card>
   );
+}
+
+// Fiche apprenant reprise à l'identique de /Users/mahdjoub/www/project-2
+// (components/Cards.tsx, StatCard) — carte de statistique compacte utilisée
+// pour le récapitulatif des absences en haut de la fiche apprenant.
+function AbsenceStatTile({
+  label,
+  value,
+  icon: Icon,
+  tone = 'brand',
+  hint,
+}: {
+  label: string;
+  value: number;
+  icon: typeof Clock;
+  tone?: 'brand' | 'success' | 'warning' | 'danger' | 'ink';
+  hint?: string;
+}) {
+  const tones: Record<string, string> = {
+    brand: 'bg-abs-brand-50 text-abs-brand-600 ring-abs-brand-100',
+    success: 'bg-abs-success-50 text-abs-success-600 ring-abs-success-100',
+    warning: 'bg-abs-warning-50 text-abs-warning-600 ring-abs-warning-100',
+    danger: 'bg-abs-danger-50 text-abs-danger-600 ring-abs-danger-100',
+    ink: 'bg-abs-ink-100 text-abs-ink-600 ring-abs-ink-200',
+  };
+
+  return (
+    <Card className="border-abs-ink-100">
+      <CardContent className="flex items-start justify-between gap-3 p-4">
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-abs-ink-500">{label}</p>
+          <p className="mt-1 font-display text-2xl font-bold tracking-tight text-abs-ink-900">{value}</p>
+          {hint && <p className="mt-1 text-[11px] text-abs-ink-400">{hint}</p>}
+        </div>
+        <span className={cn('grid h-9 w-9 shrink-0 place-items-center rounded-xl ring-1', tones[tone])}>
+          <Icon size={17} strokeWidth={2.2} />
+        </span>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Fiche apprenant reprise à l'identique de /Users/mahdjoub/www/project-2
+// (pages/LearnerPage.tsx, AlternanceBlock) — tuile cliquable Entreprise/Tuteur
+// avec navigation vers la fiche entreprise ou tuteur quand elle est rattachée.
+function AlternanceTile({
+  icon: Icon,
+  iconClassName,
+  label,
+  value,
+  detail,
+  empty,
+  onClick,
+}: {
+  icon: typeof Building2;
+  iconClassName: string;
+  label: string;
+  value?: string | null;
+  detail?: string;
+  empty: string;
+  onClick?: () => void;
+}) {
+  const hasValue = Boolean(value);
+
+  return (
+    <div
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={
+        onClick
+          ? (event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
+      className={cn(
+        'flex items-start gap-3 rounded-xl border p-4 text-left transition',
+        hasValue
+          ? cn('border-abs-ink-100', onClick && 'cursor-pointer hover:border-abs-brand-200 hover:bg-abs-brand-50/40')
+          : 'border-dashed border-abs-ink-200',
+      )}
+    >
+      <span className={cn('grid h-10 w-10 shrink-0 place-items-center rounded-xl', iconClassName)}>
+        <Icon size={20} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs uppercase tracking-wide text-abs-ink-400">{label}</p>
+        {hasValue ? (
+          <>
+            <p className={cn('truncate font-semibold text-abs-ink-900', onClick && 'hover:text-abs-brand-600')}>{value}</p>
+            {detail ? <p className="mt-0.5 truncate text-xs text-abs-ink-500">{detail}</p> : null}
+          </>
+        ) : (
+          <p className="mt-1 text-sm text-abs-ink-400">{empty}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Palette abs-* reprise du prototype pour le statut d'un apprenant dans la
+// liste de recherche (voir components/absences/meta.ts pour le même principe).
+function absLearnerStateChipClass(state: string): string {
+  switch (state.toLowerCase()) {
+    case 'active':
+      return 'bg-abs-success-100 text-abs-success-800';
+    case 'suspended':
+      return 'bg-abs-danger-100 text-abs-danger-800';
+    default:
+      return 'bg-abs-ink-100 text-abs-ink-700';
+  }
 }
 
 function activityStateMeta(state: string): { label: string; variant: 'success' | 'accent' | 'neutral' } {
