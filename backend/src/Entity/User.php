@@ -46,6 +46,12 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
     private ?\DateTimeImmutable $resetTokenExpiresAt = null;
 
+    // Personnalisation du Dashboard propre à ce compte (thème + KPI affichés + raccourcis) — voir
+    // DashboardPreferencesController pour la validation de la forme attendue. Null = aucune
+    // personnalisation, le frontend applique alors ses valeurs par défaut.
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $dashboardPreferences = null;
+
     /**
      * @var Collection<int, Role>
      */
@@ -149,6 +155,24 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     {
         $this->resetToken = $token;
         $this->resetTokenExpiresAt = $expiresAt;
+
+        return $this;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function getDashboardPreferences(): ?array
+    {
+        return $this->dashboardPreferences;
+    }
+
+    /**
+     * @param array<string, mixed>|null $dashboardPreferences
+     */
+    public function setDashboardPreferences(?array $dashboardPreferences): self
+    {
+        $this->dashboardPreferences = $dashboardPreferences;
 
         return $this;
     }

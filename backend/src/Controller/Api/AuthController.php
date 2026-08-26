@@ -59,6 +59,7 @@ class AuthController extends AbstractController
             'isAdmin' => \in_array('ROLE_ADMIN', $user->getRoles(), true),
             'roles' => $roles,
             'features' => $this->permissionResolver->resolveFeatureCodes($user),
+            'dashboardPreferences' => $user->getDashboardPreferences(),
         ]);
     }
 

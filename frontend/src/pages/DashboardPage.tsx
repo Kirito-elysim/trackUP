@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, CalendarRange, ChevronDown, ChevronRight, GraduationCap, UserCheck, Users } from 'lucide-react';
+import { ChevronDown, ChevronRight, ExternalLink, GraduationCap, Settings2, Users } from 'lucide-react';
 import { useAuth } from '../contexts/useAuth';
 import { apiRequest, ApiError } from '../lib/api';
 import { clampPercentage, formatDuration, formatPercentage } from '../lib/format';
 import { groupByPromotion, NO_PROMOTION_LABEL } from '../lib/promotion';
+import { DASHBOARD_KPIS, DEFAULT_DASHBOARD_KPIS } from '../lib/dashboardKpis';
+import { NAV_ITEMS } from '../lib/navItems';
+import { DashboardCustomizePanel } from '../components/DashboardCustomizePanel';
 import type { DashboardPayload, GroupSummary } from '../types/trackup';
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CountUp } from '@/components/ui/stat';
 import { Progress } from '@/components/ui/progress';
@@ -23,12 +27,13 @@ function comparePromotions(a: string, b: string): number {
 }
 
 export function DashboardPage() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const navigate = useNavigate();
   const [dashboard, setDashboard] = useState<DashboardPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [openPromotion, setOpenPromotion] = useState<string | null>(null);
+  const [customizeOpen, setCustomizeOpen] = useState(false);
 
   useEffect(() => {
     if (!token) {
@@ -78,13 +83,23 @@ export function DashboardPage() {
     }
   }, [openPromotion, promotions]);
 
+  const promotionsCount = promotions.filter(([label]) => label !== NO_PROMOTION_LABEL).length;
+  const preferences = user?.dashboardPreferences ?? null;
+  const activeKpiKeys = preferences?.kpis ?? DEFAULT_DASHBOARD_KPIS;
+  const shortcuts = preferences?.shortcuts ?? [];
+
   return (
-    <section className="flex flex-col gap-8">
-      <div>
-        <p className="mb-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-          Tableau de bord &middot; {new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
-        </p>
-        <h2 className="font-display text-3xl font-extrabold tracking-tight">Bonjour, voici votre tableau de bord !</h2>
+    <section className="flex flex-col gap-8" data-dashboard-theme={preferences?.theme ?? 'brand'}>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+            Tableau de bord &middot; {new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
+          </p>
+          <h2 className="font-display text-3xl font-extrabold tracking-tight">Bonjour, voici votre tableau de bord !</h2>
+        </div>
+        <Button variant="outline" onClick={() => setCustomizeOpen(true)}>
+          <Settings2 size={15} /> Personnaliser
+        </Button>
       </div>
 
       {loading ? (
@@ -106,34 +121,44 @@ export function DashboardPage() {
 
       {dashboard ? (
         <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard
-              icon={UserCheck}
-              label="Apprenants actifs"
-              value={dashboard.metrics.activeLearnersLast7Days}
-              hint="Logs des 7 derniers jours"
-              delay={0}
-            />
-            <StatCard
-              icon={GraduationCap}
-              label="Parcours / diplômes"
-              value={dashboard.metrics.learningPathsCount}
-              delay={80}
-            />
-            <StatCard
-              icon={CalendarRange}
-              label="Promotions"
-              value={promotions.filter(([label]) => label !== NO_PROMOTION_LABEL).length}
-              delay={160}
-            />
-            <StatCard
-              icon={Building2}
-              label="Entreprises / Tuteurs"
-              value={dashboard.metrics.companiesCount}
-              hint={`${dashboard.metrics.tutorsCount} tuteur${dashboard.metrics.tutorsCount > 1 ? 's' : ''}`}
-              delay={240}
-            />
-          </div>
+          {activeKpiKeys.length > 0 ? (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {activeKpiKeys.map((key, index) => {
+                const kpi = DASHBOARD_KPIS.find((item) => item.key === key);
+                if (!kpi) return null;
+                const value = kpi.getValue({ metrics: dashboard.metrics, promotionsCount });
+                const hint =
+                  key === 'companiesTutors'
+                    ? `${dashboard.metrics.tutorsCount} tuteur${dashboard.metrics.tutorsCount > 1 ? 's' : ''}`
+                    : kpi.hint;
+                return <StatCard key={key} icon={kpi.icon} label={kpi.label} value={value} hint={hint} delay={index * 80} />;
+              })}
+            </div>
+          ) : null}
+
+          {shortcuts.length > 0 ? (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {shortcuts.map((shortcut) => {
+                const target = NAV_ITEMS.find((item) => item.to === shortcut.to);
+                const Icon = target?.icon ?? ExternalLink;
+                return (
+                  <Card
+                    key={shortcut.to}
+                    className="cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-soft-hover"
+                    onClick={() => navigate(shortcut.to)}
+                  >
+                    <CardContent className="flex items-center gap-3 p-4">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-brand text-white">
+                        <Icon size={16} />
+                      </span>
+                      <span className="flex-1 text-sm font-semibold">{shortcut.label ?? target?.label ?? shortcut.to}</span>
+                      <ChevronRight size={15} className="shrink-0 text-muted-foreground" />
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          ) : null}
 
           <div className="flex flex-col gap-4">
             <div className="flex items-baseline justify-between">
@@ -181,6 +206,8 @@ export function DashboardPage() {
           </div>
         </>
       ) : null}
+
+      <DashboardCustomizePanel open={customizeOpen} onOpenChange={setCustomizeOpen} preferences={preferences} />
     </section>
   );
 }

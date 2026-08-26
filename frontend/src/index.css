@@ -136,6 +136,23 @@
   }
 }
 
+/* Préréglages de thème du Dashboard personnalisable — scopés au conteneur portant l'attribut
+   [data-dashboard-theme], n'affectent jamais les tokens globaux utilisés ailleurs dans l'app. Le
+   préréglage "brand" n'a pas besoin d'entrée : il correspond aux tokens --color-primary/--color-accent
+   déjà définis plus haut. */
+[data-dashboard-theme='blue'] {
+  --color-primary: #2563eb;
+  --color-accent: #06b6d4;
+}
+[data-dashboard-theme='green'] {
+  --color-primary: #16a34a;
+  --color-accent: #84cc16;
+}
+[data-dashboard-theme='violet'] {
+  --color-primary: #7c3aed;
+  --color-accent: #ec4899;
+}
+
 @layer utilities {
   .tabular {
     font-variant-numeric: tabular-nums;

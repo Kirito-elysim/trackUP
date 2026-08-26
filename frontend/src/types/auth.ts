@@ -28,6 +28,14 @@ export type UserSummary = {
   }>;
 };
 
+export type DashboardTheme = 'brand' | 'blue' | 'green' | 'violet';
+
+export type DashboardPreferences = {
+  theme: DashboardTheme;
+  kpis: string[];
+  shortcuts: Array<{ to: string; label: string | null }>;
+};
+
 export type AuthenticatedUser = {
   id: number;
   email: string;
@@ -41,4 +49,5 @@ export type AuthenticatedUser = {
     name: string;
   }>;
   features: string[];
+  dashboardPreferences: DashboardPreferences | null;
 };

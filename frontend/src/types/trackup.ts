@@ -4,6 +4,9 @@ export type DashboardMetrics = {
   activeLearnersLast7Days: number;
   companiesCount: number;
   tutorsCount: number;
+  absencesCount: number;
+  absencesPendingCount: number;
+  absencesActiveAlertsCount: number;
   learningPathsCount: number;
   trainingsCount: number;
   trainingRegistrationsCount: number;
