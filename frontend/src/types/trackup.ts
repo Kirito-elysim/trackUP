@@ -441,8 +441,10 @@ export type TrainingSummary = {
   language: string | null;
   syncedAt: string;
   learnersCount: number;
+  cancelledCount: number;
   totalTime: number;
   averageProgress: number;
+  averageScore: number;
   moduleCount: number;
   stepCount: number;
   sessionCount: number;
@@ -466,6 +468,7 @@ export type TrainingDetail = {
     riseUpUpdatedAt: string | null;
     syncedAt: string;
     learnersCount: number;
+    cancelledCount: number;
     totalTime: number;
     averageProgress: number;
     averageScore: number;
@@ -495,6 +498,7 @@ export type TrainingDetail = {
     room: string | null;
     meetingUrl: string | null;
     eduDuration: number | null;
+    seats: number | null;
     registrationCount: number;
     attendedCount: number;
   }>;
@@ -777,6 +781,8 @@ export type LearningPathDetail = {
     learnerCount: number;
     totalTime: number;
     averageProgress: number;
+    averageMasterclassCompletion: number;
+    averageElearningCompletion: number;
   };
   trainings: Array<{
     id: number;

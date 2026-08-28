@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Clock, Users, TrendingUp } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
+import DOMPurify from 'dompurify';
 import { useAuth } from '../contexts/useAuth';
 import { apiRequest, ApiError } from '../lib/api';
-import { formatDuration, formatPercentage } from '../lib/format';
 import { SessionsModal } from '../components/SessionsModal';
 import { LearnerTable, type LearnerTableData } from '../components/LearnerTable';
+import { MemberCompletionStats } from '../components/MemberCompletionStats';
 import type { LearningPathDetail } from '../types/trackup';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CountUp } from '@/components/ui/stat';
 
 export function LearningPathDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -79,7 +79,15 @@ export function LearningPathDetailPage() {
         {data ? (
           <>
             <h2 className="font-display text-3xl font-extrabold tracking-tight">{data.learningPath.title}</h2>
-            {data.learningPath.description ? <p className="mt-1.5 text-sm text-muted-foreground">{data.learningPath.description}</p> : null}
+            {data.learningPath.description ? (
+              // Rise Up renvoie la description au format HTML riche (paragraphes, sauts de ligne) —
+              // rendue via dangerouslySetInnerHTML après nettoyage DOMPurify (jamais de balises brutes
+              // affichées à l'apprenant, jamais de script/attribut exécutable injecté).
+              <div
+                className="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted-foreground [&_p]:mb-2 [&_p:last-child]:mb-0"
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(data.learningPath.description) }}
+              />
+            ) : null}
           </>
         ) : null}
       </div>
@@ -89,11 +97,12 @@ export function LearningPathDetailPage() {
 
       {data ? (
         <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <OverviewStat icon={Users} label="Apprenants inscrits" value={data.learningPath.learnerCount} delay={0} />
-            <OverviewStat icon={Clock} label="Temps total" value={formatDuration(data.learningPath.totalTime)} delay={80} />
-            <OverviewStat icon={TrendingUp} label="Progression moyenne" value={formatPercentage(data.learningPath.averageProgress)} delay={160} />
-          </div>
+          <MemberCompletionStats
+            memberLabel="Apprenants inscrits"
+            memberCount={data.learningPath.learnerCount}
+            averageMasterclassCompletion={data.learningPath.averageMasterclassCompletion}
+            averageElearningCompletion={data.learningPath.averageElearningCompletion}
+          />
 
           <LearnerTable
             data={learnerTableData}
@@ -115,31 +124,5 @@ export function LearningPathDetailPage() {
         />
       ) : null}
     </section>
-  );
-}
-
-function OverviewStat({
-  icon: Icon,
-  label,
-  value,
-  delay,
-}: {
-  icon: typeof Users;
-  label: string;
-  value: string | number;
-  delay: number;
-}) {
-  return (
-    <Card className="animate-rise-in hover:-translate-y-1 hover:shadow-soft-hover" style={{ animationDelay: `${delay}ms` }}>
-      <CardContent className="flex items-center gap-4 p-5">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-brand text-white">
-          <Icon size={20} />
-        </span>
-        <div>
-          <p className="text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
-          <CountUp value={value} className="text-xl" />
-        </div>
-      </CardContent>
-    </Card>
   );
 }

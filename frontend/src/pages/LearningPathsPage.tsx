@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/useAuth';
 import { apiRequest, ApiError } from '../lib/api';
 import { clampPercentage, formatDuration, formatPercentage } from '../lib/format';
-import { Clock, Users, BookOpen, Search, TrendingUp, Eye } from 'lucide-react';
+import { Clock, Users, BookOpen, Search, TrendingUp, Eye, Video, Laptop } from 'lucide-react';
 import type { LearningPathSummary, LearningPathDetail } from '../types/trackup';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -208,8 +208,8 @@ export function LearningPathsPage() {
               <div className="mt-2 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
                 <MiniStatChip icon={Users} label="Apprenants" value={selectedPathDetail.learningPath.learnerCount} />
                 <MiniStatChip icon={BookOpen} label="Formations" value={selectedPathDetail.learningPath.trainingCount} />
-                <MiniStatChip icon={Clock} label="Temps total" value={formatDuration(selectedPathDetail.learningPath.totalTime)} />
-                <MiniStatChip icon={TrendingUp} label="Progression" value={formatPercentage(selectedPathDetail.learningPath.averageProgress)} />
+                <MiniStatChip icon={Video} label="Completion masterclass" value={formatPercentage(selectedPathDetail.learningPath.averageMasterclassCompletion)} />
+                <MiniStatChip icon={Laptop} label="Completion e-learning" value={formatPercentage(selectedPathDetail.learningPath.averageElearningCompletion)} />
               </div>
             </DialogHeader>
 
@@ -230,7 +230,6 @@ export function LearningPathsPage() {
                           </span>
                           <div className="min-w-0 flex-1">
                             <h4 className="text-sm font-semibold">{training.title}</h4>
-                            {training.type && <p className="mt-0.5 text-xs text-muted-foreground">{training.type}</p>}
                             <div className="mt-2.5 grid grid-cols-3 gap-3">
                               <StatMini icon={Users} label="Apprenants" value={training.learnerCount} small />
                               <StatMini icon={Clock} label="Temps prévu" value={training.eduDuration ? formatDuration(training.eduDuration) : '-'} small />

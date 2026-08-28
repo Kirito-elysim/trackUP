@@ -64,9 +64,7 @@ class LearningPathController extends AbstractController
                     lp.synced_at AS syncedAt,
                     COALESCE(lpt.training_count, 0) AS trainingCount,
                     COALESCE(lpr.learner_count, 0) AS learnerCount,
-                    COALESCE(stats.module_time, 0) AS moduleTime,
-                    COALESCE(stats.masterclass_time, 0) AS masterclassTime,
-                    ROUND(COALESCE(stats.average_progress, 0), 2) AS averageProgress
+                    ROUND(COALESCE(progress.average_progress, 0), 2) AS averageProgress
                 FROM learning_paths lp
                 LEFT JOIN (
                     SELECT learning_path_id, COUNT(*) AS training_count
@@ -79,36 +77,10 @@ class LearningPathController extends AbstractController
                     GROUP BY learning_path_id
                 ) lpr ON lpr.learning_path_id = lp.id
                 LEFT JOIN (
-                    SELECT
-                        lpr.learning_path_id,
-                        COALESCE(SUM(COALESCE(module_logs.module_time, 0)), 0) AS module_time,
-                        COALESCE(SUM(COALESCE(session_logs.masterclass_time, 0)), 0) AS masterclass_time,
-                        COALESCE(AVG(lpr.progress), 0) AS average_progress
-                    FROM learning_path_registrations lpr
-                    LEFT JOIN (
-                        SELECT
-                            lpt.learning_path_id,
-                            lss.learner_id,
-                            COALESCE(SUM(COALESCE(NULLIF(lss.time_spent, 0), lss.total_time, 0)), 0) AS module_time
-                        FROM learner_step_states lss
-                        INNER JOIN training_steps ts ON ts.id = lss.step_id
-                        INNER JOIN training_modules tm ON tm.id = ts.module_id
-                        INNER JOIN learning_path_trainings lpt ON lpt.training_id = tm.training_id
-                        GROUP BY lpt.learning_path_id, lss.learner_id
-                    ) module_logs ON module_logs.learning_path_id = lpr.learning_path_id AND module_logs.learner_id = lpr.learner_id
-                    LEFT JOIN (
-                        SELECT
-                            lpt.learning_path_id,
-                            csr.learner_id,
-                            COALESCE(SUM(CASE WHEN css.has_signed = 1 THEN cs.edu_duration ELSE 0 END), 0) AS masterclass_time
-                        FROM classroom_session_registrations csr
-                        INNER JOIN classroom_sessions cs ON cs.id = csr.session_id
-                        INNER JOIN learning_path_trainings lpt ON lpt.training_id = cs.training_id
-                        LEFT JOIN classroom_session_signatures css ON css.registration_id = csr.id
-                        GROUP BY lpt.learning_path_id, csr.learner_id
-                    ) session_logs ON session_logs.learning_path_id = lpr.learning_path_id AND session_logs.learner_id = lpr.learner_id
-                    GROUP BY lpr.learning_path_id
-                ) stats ON stats.learning_path_id = lp.id
+                    SELECT learning_path_id, AVG(progress) AS average_progress
+                    FROM learning_path_registrations
+                    GROUP BY learning_path_id
+                ) progress ON progress.learning_path_id = lp.id
                 {$whereSql}
                 ORDER BY learnerCount DESC, trainingCount DESC, lp.title ASC
                 LIMIT :limit
@@ -116,6 +88,12 @@ class LearningPathController extends AbstractController
             $params,
             $types,
         );
+
+        // Même source que la fiche parcours (TimeMetricsService, basé sur riseup_activity_logs) : la
+        // liste calculait auparavant son propre "temps total" via learner_step_states, une source
+        // différente qui produisait un chiffre légèrement différent de celui affiché sur la fiche
+        // détail du même parcours. Un seul calcul bulk ici, pas une requête par parcours affiché.
+        $totalTimesByPath = $this->timeMetricsService->getTotalTimeForMultipleLearningPaths();
 
         return $this->json(array_map(fn (array $row): array => [
             'id' => (int) $row['id'],
@@ -130,7 +108,7 @@ class LearningPathController extends AbstractController
             'syncedAt' => $row['syncedAt'],
             'trainingCount' => (int) $row['trainingCount'],
             'learnerCount' => (int) $row['learnerCount'],
-            'totalTime' => $this->totalMinutes($row['moduleTime'] ?? 0, $row['masterclassTime'] ?? 0),
+            'totalTime' => DurationUnit::secondsToMinutesInt($totalTimesByPath[(int) $row['id']] ?? 0),
             'averageProgress' => (float) $row['averageProgress'],
         ], $rows));
     }
@@ -239,6 +217,29 @@ class LearningPathController extends AbstractController
             ['learningPathId' => ParameterType::INTEGER],
         );
 
+        // Complétion masterclass/e-learning moyennes (mêmes conventions que GroupController::show()) :
+        // moyenne, sur tous les apprenants inscrits, du ratio temps réel / temps prévu déjà affiché
+        // par apprenant dans le tableau — pas de nouvelle requête, $timeMetrics est déjà chargé.
+        $masterclassCompletions = [];
+        $elearningCompletions = [];
+        foreach ($learners as $learnerRow) {
+            $metrics = $timeMetrics[(int) $learnerRow['learnerId']] ?? null;
+            $sessionSeconds = $metrics['session_time_seconds'] ?? 0;
+            $expectedSeconds = $metrics['expected_time_seconds'] ?? 0;
+            $elearningSeconds = $metrics['module_time_seconds'] ?? 0;
+            $expectedElearningSeconds = $metrics['expected_elearning_time_seconds'] ?? 0;
+
+            $masterclassCompletions[] = $expectedSeconds > 0 ? ($sessionSeconds / $expectedSeconds) * 100 : 0.0;
+            $elearningCompletions[] = $expectedElearningSeconds > 0 ? ($elearningSeconds / $expectedElearningSeconds) * 100 : 0.0;
+        }
+
+        $averageMasterclassCompletion = $masterclassCompletions === []
+            ? 0.0
+            : array_sum($masterclassCompletions) / count($masterclassCompletions);
+        $averageElearningCompletion = $elearningCompletions === []
+            ? 0.0
+            : array_sum($elearningCompletions) / count($elearningCompletions);
+
         return $this->json([
             'learningPath' => [
                 'id' => (int) $learningPath['id'],
@@ -256,6 +257,8 @@ class LearningPathController extends AbstractController
                 'learnerCount' => (int) $learningPath['learnerCount'],
                 'totalTime' => DurationUnit::secondsToMinutesInt($totalTimeSeconds),
                 'averageProgress' => (float) $learningPath['averageProgress'],
+                'averageMasterclassCompletion' => round($averageMasterclassCompletion, 2),
+                'averageElearningCompletion' => round($averageElearningCompletion, 2),
             ],
             'trainings' => array_map(fn (array $row): array => [
                 'id' => (int) $row['id'],
@@ -362,10 +365,5 @@ class LearningPathController extends AbstractController
                 'isFuture' => (bool) $row['isFuture'],
             ], $sessions),
         ]);
-    }
-
-    private function totalMinutes(mixed $moduleSeconds, mixed $masterclassMinutes): int
-    {
-        return DurationUnit::secondsToMinutesInt($moduleSeconds) + DurationUnit::minutesToInt($masterclassMinutes);
     }
 }

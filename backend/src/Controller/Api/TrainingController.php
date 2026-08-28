@@ -66,8 +66,10 @@ class TrainingController extends AbstractController
                     t.language,
                     t.synced_at AS syncedAt,
                     COALESCE(stats.learners_count, 0) AS learnersCount,
+                    COALESCE(stats.cancelled_count, 0) AS cancelledCount,
                     COALESCE(stats.total_time, 0) AS totalTime,
                     ROUND(COALESCE(stats.average_progress, 0), 2) AS averageProgress,
+                    ROUND(COALESCE(stats.average_score, 0), 2) AS averageScore,
                     COALESCE(mods.module_count, 0) AS moduleCount,
                     COALESCE(steps.step_count, 0) AS stepCount,
                     COALESCE(sess.session_count, 0) AS sessionCount
@@ -75,9 +77,11 @@ class TrainingController extends AbstractController
                 LEFT JOIN (
                     SELECT
                         training_id,
-                        COUNT(*) AS learners_count,
-                        COALESCE(SUM(total_time), 0) AS total_time,
-                        COALESCE(AVG(progress), 0) AS average_progress
+                        SUM(state != 'cancelled') AS learners_count,
+                        SUM(state = 'cancelled') AS cancelled_count,
+                        COALESCE(SUM(CASE WHEN state != 'cancelled' THEN total_time END), 0) AS total_time,
+                        COALESCE(AVG(CASE WHEN state != 'cancelled' THEN progress END), 0) AS average_progress,
+                        COALESCE(AVG(CASE WHEN state != 'cancelled' THEN score END), 0) AS average_score
                     FROM training_registrations
                     GROUP BY training_id
                 ) stats ON stats.training_id = t.id
@@ -116,8 +120,10 @@ class TrainingController extends AbstractController
             'language' => $row['language'],
             'syncedAt' => $row['syncedAt'],
             'learnersCount' => (int) $row['learnersCount'],
+            'cancelledCount' => (int) $row['cancelledCount'],
             'totalTime' => DurationUnit::secondsToMinutesInt($row['totalTime']),
             'averageProgress' => (float) $row['averageProgress'],
+            'averageScore' => (float) $row['averageScore'],
             'moduleCount' => (int) $row['moduleCount'],
             'stepCount' => (int) $row['stepCount'],
             'sessionCount' => (int) $row['sessionCount'],
@@ -155,6 +161,7 @@ class TrainingController extends AbstractController
                     t.rise_up_updated_at AS riseUpUpdatedAt,
                     t.synced_at AS syncedAt,
                     COALESCE(stats.learners_count, 0) AS learnersCount,
+                    COALESCE(stats.cancelled_count, 0) AS cancelledCount,
                     COALESCE(stats.total_time, 0) AS totalTime,
                     ROUND(COALESCE(stats.average_progress, 0), 2) AS averageProgress,
                     COALESCE(stats.average_score, 0) AS averageScore,
@@ -163,10 +170,11 @@ class TrainingController extends AbstractController
                 LEFT JOIN (
                     SELECT
                         training_id,
-                        COUNT(*) AS learners_count,
-                        COALESCE(SUM(total_time), 0) AS total_time,
-                        COALESCE(AVG(progress), 0) AS average_progress,
-                        COALESCE(AVG(score), 0) AS average_score
+                        SUM(state != 'cancelled') AS learners_count,
+                        SUM(state = 'cancelled') AS cancelled_count,
+                        COALESCE(SUM(CASE WHEN state != 'cancelled' THEN total_time END), 0) AS total_time,
+                        COALESCE(AVG(CASE WHEN state != 'cancelled' THEN progress END), 0) AS average_progress,
+                        COALESCE(AVG(CASE WHEN state != 'cancelled' THEN score END), 0) AS average_score
                     FROM training_registrations
                     GROUP BY training_id
                 ) stats ON stats.training_id = t.id
@@ -225,6 +233,7 @@ class TrainingController extends AbstractController
                     cs.room,
                     cs.meeting_url AS meetingUrl,
                     cs.edu_duration AS eduDuration,
+                    cs.seats,
                     COALESCE(regs.registration_count, 0) AS registrationCount,
                     COALESCE(regs.attended_count, 0) AS attendedCount
                 FROM classroom_sessions cs
@@ -257,7 +266,7 @@ class TrainingController extends AbstractController
                     tr.score
                 FROM training_registrations tr
                 INNER JOIN learners l ON l.id = tr.learner_id
-                WHERE tr.training_id = :trainingId
+                WHERE tr.training_id = :trainingId AND tr.state != 'cancelled'
                 ORDER BY tr.total_time DESC, tr.progress DESC, tr.id DESC
                 LIMIT 10
             SQL,
@@ -283,6 +292,7 @@ class TrainingController extends AbstractController
                 'riseUpUpdatedAt' => $training['riseUpUpdatedAt'],
                 'syncedAt' => $training['syncedAt'],
                 'learnersCount' => (int) $training['learnersCount'],
+                'cancelledCount' => (int) $training['cancelledCount'],
                 'totalTime' => DurationUnit::secondsToMinutesInt($training['totalTime']),
                 'averageProgress' => (float) $training['averageProgress'],
                 'averageScore' => (float) $training['averageScore'],
@@ -312,6 +322,7 @@ class TrainingController extends AbstractController
                 'room' => $row['room'],
                 'meetingUrl' => $row['meetingUrl'],
                 'eduDuration' => $row['eduDuration'] !== null ? (int) $row['eduDuration'] : null,
+                'seats' => $row['seats'] !== null ? (int) $row['seats'] : null,
                 'registrationCount' => (int) $row['registrationCount'],
                 'attendedCount' => (int) $row['attendedCount'],
             ], $sessions),

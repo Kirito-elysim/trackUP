@@ -1,15 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Users, BookOpen, Video, Laptop } from 'lucide-react';
+import { ArrowLeft, BookOpen } from 'lucide-react';
 import { useAuth } from '../contexts/useAuth';
 import { apiRequest, ApiError } from '../lib/api';
-import { formatPercentage } from '../lib/format';
 import { LearnerTable, type LearnerTableData } from '../components/LearnerTable';
+import { MemberCompletionStats } from '../components/MemberCompletionStats';
 import { SessionsModal } from '../components/SessionsModal';
 import type { GroupDetail } from '../types/trackup';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CountUp } from '@/components/ui/stat';
 
 export function GroupDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -101,11 +100,12 @@ export function GroupDetailPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <OverviewStat icon={Users} label="Membres" value={data.group.memberCount} delay={0} />
-        <OverviewStat icon={Video} label="Completion masterclass moyenne" value={formatPercentage(data.group.averageMasterclassCompletion)} delay={80} />
-        <OverviewStat icon={Laptop} label="Completion e-learning moyenne" value={formatPercentage(data.group.averageElearningCompletion)} delay={160} />
-      </div>
+      <MemberCompletionStats
+        memberLabel="Membres"
+        memberCount={data.group.memberCount}
+        averageMasterclassCompletion={data.group.averageMasterclassCompletion}
+        averageElearningCompletion={data.group.averageElearningCompletion}
+      />
 
       {data.learningPaths.length > 0 && (
         <Card>
@@ -138,7 +138,6 @@ export function GroupDetailPage() {
         data={memberTableData}
         title="Membres"
         showProgress={false}
-        enableActions
         onRowClick={(member) => setSelectedMember({ id: member.learnerId, name: member.fullName })}
       />
 
@@ -153,31 +152,5 @@ export function GroupDetailPage() {
         />
       ) : null}
     </div>
-  );
-}
-
-function OverviewStat({
-  icon: Icon,
-  label,
-  value,
-  delay,
-}: {
-  icon: typeof Users;
-  label: string;
-  value: string | number;
-  delay: number;
-}) {
-  return (
-    <Card className="animate-rise-in hover:-translate-y-1 hover:shadow-soft-hover" style={{ animationDelay: `${delay}ms` }}>
-      <CardContent className="flex items-center gap-4 p-5">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-brand text-white">
-          <Icon size={20} />
-        </span>
-        <div>
-          <p className="text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
-          <CountUp value={value} className="text-xl" />
-        </div>
-      </CardContent>
-    </Card>
   );
 }
