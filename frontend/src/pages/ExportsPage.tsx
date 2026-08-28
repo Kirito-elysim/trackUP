@@ -11,6 +11,8 @@ import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
 import { CountUp } from '@/components/ui/stat';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableShell } from '@/components/ui/table';
+import { PaginationBar } from '@/components/ui/pagination-bar';
+import { useClientPagination } from '../lib/useClientPagination';
 import { cn } from '@/lib/utils';
 
 export function ExportsPage() {
@@ -99,6 +101,9 @@ export function ExportsPage() {
   };
 
   const selectedLearner = payload?.selectedLearner ?? null;
+  const pathsTable = useClientPagination(selectedLearner?.learningPaths ?? []);
+  const trainingsTable = useClientPagination(selectedLearner?.trainings ?? []);
+  const logsTable = useClientPagination(selectedLearner?.logs ?? []);
   const learner = selectedLearner?.learner ?? null;
   const logCounts = useMemo(() => {
     const logs = payload?.selectedLearner?.logs ?? [];
@@ -193,7 +198,7 @@ export function ExportsPage() {
               </Card>
 
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.3fr_0.7fr]">
-                <Card>
+                <Card className="overflow-hidden">
                   <CardContent className="flex flex-col gap-5 p-6">
                     <div>
                       <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Parcours</p>
@@ -214,7 +219,7 @@ export function ExportsPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {(selectedLearner?.learningPaths ?? []).map((path) => (
+                          {pathsTable.pageRows.map((path) => (
                             <TableRow key={path.learningPathId}>
                               <TableCell>
                                 <strong className="block text-sm font-semibold">{path.title}</strong>
@@ -231,6 +236,17 @@ export function ExportsPage() {
                         </TableBody>
                       </Table>
                     </TableShell>
+
+                    {pathsTable.pagination.totalRows > 0 ? (
+                      <PaginationBar
+                        pagination={pathsTable.pagination}
+                        page={pathsTable.page}
+                        pageSize={pathsTable.pageSize}
+                        onPageChange={pathsTable.setPage}
+                        onPageSizeChange={pathsTable.setPageSize}
+                        className="-mx-6 -mb-6 mt-1"
+                      />
+                    ) : null}
                   </CardContent>
                 </Card>
 
@@ -251,7 +267,7 @@ export function ExportsPage() {
                 </Card>
               </div>
 
-              <Card>
+              <Card className="overflow-hidden">
                 <CardContent className="flex flex-col gap-5 p-6">
                   <div>
                     <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Formations</p>
@@ -272,7 +288,7 @@ export function ExportsPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {(selectedLearner?.trainings ?? []).map((training) => (
+                        {trainingsTable.pageRows.map((training) => (
                           <TableRow key={training.trainingId}>
                             <TableCell>
                               <strong className="block text-sm font-semibold">{training.title}</strong>
@@ -289,10 +305,21 @@ export function ExportsPage() {
                       </TableBody>
                     </Table>
                   </TableShell>
+
+                  {trainingsTable.pagination.totalRows > 0 ? (
+                    <PaginationBar
+                      pagination={trainingsTable.pagination}
+                      page={trainingsTable.page}
+                      pageSize={trainingsTable.pageSize}
+                      onPageChange={trainingsTable.setPage}
+                      onPageSizeChange={trainingsTable.setPageSize}
+                      className="-mx-6 -mb-6 mt-1"
+                    />
+                  ) : null}
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="overflow-hidden">
                 <CardContent className="flex flex-col gap-5 p-6">
                   <div>
                     <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Journal</p>
@@ -315,7 +342,7 @@ export function ExportsPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {(selectedLearner?.logs ?? []).map((log, index) => (
+                        {logsTable.pageRows.map((log, index) => (
                           <TableRow key={`${log.sourceType}-${log.occurredAt}-${index}`}>
                             <TableCell className="whitespace-nowrap text-sm text-muted-foreground">{formatDateTime(log.occurredAt)}</TableCell>
                             <TableCell><Chip variant="neutral">{renderSourceType(log.sourceType)}</Chip></TableCell>
@@ -336,6 +363,17 @@ export function ExportsPage() {
                       </TableBody>
                     </Table>
                   </TableShell>
+
+                  {logsTable.pagination.totalRows > 0 ? (
+                    <PaginationBar
+                      pagination={logsTable.pagination}
+                      page={logsTable.page}
+                      pageSize={logsTable.pageSize}
+                      onPageChange={logsTable.setPage}
+                      onPageSizeChange={logsTable.setPageSize}
+                      className="-mx-6 -mb-6 mt-1"
+                    />
+                  ) : null}
                 </CardContent>
               </Card>
             </>

@@ -33,6 +33,8 @@ import { CountUp } from '@/components/ui/stat';
 import { Avatar } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SortableHead, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableShell } from '@/components/ui/table';
+import { PaginationBar } from '@/components/ui/pagination-bar';
+import { useClientPagination } from '../lib/useClientPagination';
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
@@ -191,6 +193,15 @@ export function TrainingsPage() {
     return rows;
   }, [sortDirection, sortKey, trainings, type]);
 
+  const {
+    page: trainingsPage,
+    pageSize: trainingsPageSize,
+    pagination: trainingsPagination,
+    pageRows: paginatedTrainings,
+    setPage: setTrainingsPage,
+    setPageSize: setTrainingsPageSize,
+  } = useClientPagination(visibleTrainings);
+
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
       setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'));
@@ -277,7 +288,7 @@ export function TrainingsPage() {
         </Card>
       ) : null}
 
-      <Card>
+      <Card className="overflow-hidden">
         <CardContent className="p-0">
           {listLoading ? (
             <div className="flex flex-col gap-3 p-6">
@@ -322,7 +333,7 @@ export function TrainingsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {visibleTrainings.map((training) => {
+                  {paginatedTrainings.map((training) => {
                     const meta = typeMeta(training.type);
                     const TypeIcon = meta.icon;
 
@@ -378,6 +389,16 @@ export function TrainingsPage() {
               </Table>
             </TableShell>
           )}
+
+          {!listLoading && visibleTrainings.length > 0 ? (
+            <PaginationBar
+              pagination={trainingsPagination}
+              page={trainingsPage}
+              pageSize={trainingsPageSize}
+              onPageChange={setTrainingsPage}
+              onPageSizeChange={setTrainingsPageSize}
+            />
+          ) : null}
         </CardContent>
       </Card>
 

@@ -317,17 +317,16 @@ export function TutorsPage() {
           </Table>
         </TableShell>
         {tutors.length === 0 ? <p className="py-12 text-center text-sm text-muted-foreground">Aucun tuteur trouvé.</p> : null}
+        {pagination && pagination.totalRows > 0 ? (
+          <PaginationBar
+            pagination={pagination}
+            page={page}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
+        ) : null}
       </Card>
-
-      {pagination && pagination.totalRows > 0 ? (
-        <PaginationBar
-          pagination={pagination}
-          page={page}
-          pageSize={pageSize}
-          onPageChange={setPage}
-          onPageSizeChange={setPageSize}
-        />
-      ) : null}
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>

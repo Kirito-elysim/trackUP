@@ -12,6 +12,8 @@ import { Chip } from '@/components/ui/chip';
 import { CountUp } from '@/components/ui/stat';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableShell } from '@/components/ui/table';
+import { PaginationBar } from '@/components/ui/pagination-bar';
+import { useClientPagination } from '../lib/useClientPagination';
 import { cn, learnerStateChipClass } from '@/lib/utils';
 
 function formatDurationClock(totalSeconds: number): string {
@@ -40,6 +42,7 @@ export function RiseUpLogsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
   const [payload, setPayload] = useState<RiseUpActivityLogsPayload | null>(null);
+  const groupPathsTable = useClientPagination(payload?.groupContext?.learningPaths ?? []);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -430,22 +433,6 @@ export function RiseUpLogsPage() {
                 }}
               />
             </div>
-
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-semibold">Résultats par page</label>
-              <Select
-                value={pageSize}
-                onChange={(event) => {
-                  setPageSize(Number(event.target.value));
-                  setPage(1);
-                }}
-              >
-                <option value={50}>50 résultats</option>
-                <option value={100}>100 résultats</option>
-                <option value={200}>200 résultats</option>
-                <option value={500}>500 résultats</option>
-              </Select>
-            </div>
           </div>
         </CardContent>
       </Card>
@@ -466,7 +453,7 @@ export function RiseUpLogsPage() {
       {payload && (
         <>
           {payload.groupContext ? (
-            <Card>
+            <Card className="overflow-hidden">
               <CardContent className="flex flex-col gap-5 p-6">
                 <div>
                   <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Groupe</p>
@@ -483,7 +470,7 @@ export function RiseUpLogsPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {payload.groupContext.learningPaths.map((item) => (
+                        {groupPathsTable.pageRows.map((item) => (
                           <TableRow key={item.id}>
                             <TableCell className="text-sm">{item.title}</TableCell>
                             <TableCell className="tabular text-sm font-semibold">{item.learnerCount}</TableCell>
@@ -495,6 +482,16 @@ export function RiseUpLogsPage() {
                 ) : (
                   <p className="text-sm text-muted-foreground">Aucun parcours trouvé pour ce groupe (via les inscriptions locales).</p>
                 )}
+                {payload.groupContext.learningPaths.length > 0 ? (
+                  <PaginationBar
+                    pagination={groupPathsTable.pagination}
+                    page={groupPathsTable.page}
+                    pageSize={groupPathsTable.pageSize}
+                    onPageChange={groupPathsTable.setPage}
+                    onPageSizeChange={groupPathsTable.setPageSize}
+                    className="-mx-6 -mb-6 mt-1"
+                  />
+                ) : null}
               </CardContent>
             </Card>
           ) : null}
@@ -512,7 +509,7 @@ export function RiseUpLogsPage() {
             />
           </div>
 
-          <Card>
+          <Card className="overflow-hidden">
             <CardContent className="flex flex-col gap-5 p-6">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
@@ -579,31 +576,17 @@ export function RiseUpLogsPage() {
                 </p>
               ) : null}
 
-              {payload.pagination.totalPages > 1 ? (
-                <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border pt-4">
-                  <p className="text-sm text-muted-foreground">
-                    Affichage de {payload.rows.length} ligne(s) sur {payload.pagination.totalRows}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={payload.pagination.page <= 1 || loading}
-                      onClick={() => setPage((current) => Math.max(1, current - 1))}
-                    >
-                      Précédent
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={payload.pagination.page >= payload.pagination.totalPages || loading}
-                      onClick={() => setPage((current) => Math.min(payload.pagination.totalPages, current + 1))}
-                    >
-                      Suivant
-                    </Button>
-                  </div>
-                </div>
-              ) : null}
+              <PaginationBar
+                pagination={payload.pagination}
+                page={page}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                onPageSizeChange={(nextPageSize) => {
+                  setPageSize(nextPageSize);
+                  setPage(1);
+                }}
+                className="-mx-6 -mb-6 mt-1"
+              />
             </CardContent>
           </Card>
         </>

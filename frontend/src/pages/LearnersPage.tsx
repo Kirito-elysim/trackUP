@@ -46,7 +46,9 @@ import { CountUp } from '@/components/ui/stat';
 import { Avatar } from '@/components/ui/avatar';
 import { Select } from '@/components/ui/select';
 import { SortableHead, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableShell } from '@/components/ui/table';
+import { PaginationBar } from '@/components/ui/pagination-bar';
 import { compareValues, type SortDirection } from '../lib/sort';
+import { useClientPagination } from '../lib/useClientPagination';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { SearchSelect } from '@/components/ui/search-select';
@@ -216,6 +218,15 @@ export function LearnersPage() {
     rows.sort((left, right) => compareValues(left[sortKey], right[sortKey], sortDirection));
     return rows;
   }, [learners, sortDirection, sortKey]);
+
+  const {
+    page: directoryPage,
+    pageSize: directoryPageSize,
+    pagination: directoryPagination,
+    pageRows: paginatedLearners,
+    setPage: setDirectoryPage,
+    setPageSize: setDirectoryPageSize,
+  } = useClientPagination(sortedLearners);
 
   const handleSort = (key: DirectorySortKey) => {
     if (sortKey === key) {
@@ -562,7 +573,7 @@ export function LearnersPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="overflow-hidden">
             <CardContent className="p-0">
               {listLoading ? (
                 <div className="flex flex-col gap-3 p-6">
@@ -606,7 +617,7 @@ export function LearnersPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {sortedLearners.map((learner) => {
+                      {paginatedLearners.map((learner) => {
                         const stateMeta = learnerStateMeta(learner.state);
 
                         return (
@@ -655,6 +666,16 @@ export function LearnersPage() {
                   </Table>
                 </TableShell>
               )}
+
+              {!listLoading && sortedLearners.length > 0 ? (
+                <PaginationBar
+                  pagination={directoryPagination}
+                  page={directoryPage}
+                  pageSize={directoryPageSize}
+                  onPageChange={setDirectoryPage}
+                  onPageSizeChange={setDirectoryPageSize}
+                />
+              ) : null}
             </CardContent>
           </Card>
         </>

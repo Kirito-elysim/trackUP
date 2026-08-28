@@ -14,6 +14,8 @@ import { SearchSelect } from '@/components/ui/search-select';
 import { Chip } from '@/components/ui/chip';
 import { CountUp } from '@/components/ui/stat';
 import { SortableHead, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableShell } from '@/components/ui/table';
+import { PaginationBar } from '@/components/ui/pagination-bar';
+import { useClientPagination } from '../lib/useClientPagination';
 
 const PERIOD_OPTIONS = [
   { value: 'day', label: 'Jour' },
@@ -168,6 +170,11 @@ export function AnalyticsPage() {
     () => sortedLearnerRows.find((row) => String(row.learnerId) === learnerId && String(row.learningPathId) === learningPathId) ?? null,
     [learnerId, learningPathId, sortedLearnerRows],
   );
+
+  const timeSeriesTable = useClientPagination(analytics?.timeSeries ?? []);
+  const pathsTable = useClientPagination(sortedLearningPaths);
+  const trainingsTable = useClientPagination(analytics?.trainingRows ?? []);
+  const learnersTable = useClientPagination(sortedLearnerRows);
 
   const handlePathSort = (key: typeof pathSort) => {
     if (pathSort === key) {
@@ -377,7 +384,7 @@ export function AnalyticsPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="overflow-hidden">
             <CardContent className="flex flex-col gap-5 p-6">
               <div>
                 <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Période</p>
@@ -397,7 +404,7 @@ export function AnalyticsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {analytics.timeSeries.map((item) => (
+                    {timeSeriesTable.pageRows.map((item) => (
                       <TableRow key={item.bucketKey}>
                         <TableCell className="text-sm">{item.label}</TableCell>
                         <TableCell className="tabular text-sm font-semibold">{formatDuration(item.totalTime)}</TableCell>
@@ -410,6 +417,17 @@ export function AnalyticsPage() {
                   </TableBody>
                 </Table>
               </TableShell>
+
+              {analytics.timeSeries.length > 0 ? (
+                <PaginationBar
+                  pagination={timeSeriesTable.pagination}
+                  page={timeSeriesTable.page}
+                  pageSize={timeSeriesTable.pageSize}
+                  onPageChange={timeSeriesTable.setPage}
+                  onPageSizeChange={timeSeriesTable.setPageSize}
+                  className="-mx-6 -mb-6 mt-1"
+                />
+              ) : null}
             </CardContent>
           </Card>
 
@@ -499,7 +517,7 @@ export function AnalyticsPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="overflow-hidden">
             <CardContent className="flex flex-col gap-5 p-6">
               <div>
                 <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Parcours</p>
@@ -521,7 +539,7 @@ export function AnalyticsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {sortedLearningPaths.map((item) => (
+                    {pathsTable.pageRows.map((item) => (
                       <TableRow key={item.id}>
                         <TableCell className="text-sm font-semibold">{item.title}</TableCell>
                         <TableCell className="tabular text-sm">{item.learnerCount}</TableCell>
@@ -536,10 +554,21 @@ export function AnalyticsPage() {
                   </TableBody>
                 </Table>
               </TableShell>
+
+              {sortedLearningPaths.length > 0 ? (
+                <PaginationBar
+                  pagination={pathsTable.pagination}
+                  page={pathsTable.page}
+                  pageSize={pathsTable.pageSize}
+                  onPageChange={pathsTable.setPage}
+                  onPageSizeChange={pathsTable.setPageSize}
+                  className="-mx-6 -mb-6 mt-1"
+                />
+              ) : null}
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="overflow-hidden">
             <CardContent className="flex flex-col gap-5 p-6">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
@@ -585,7 +614,7 @@ export function AnalyticsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {analytics.trainingRows.map((row) => (
+                    {trainingsTable.pageRows.map((row) => (
                       <TableRow key={row.trainingId}>
                         <TableCell className="text-sm font-semibold">{row.title}</TableCell>
                         <TableCell className="tabular text-sm">{row.learnerCount}</TableCell>
@@ -600,10 +629,21 @@ export function AnalyticsPage() {
                   </TableBody>
                 </Table>
               </TableShell>
+
+              {analytics.trainingRows.length > 0 ? (
+                <PaginationBar
+                  pagination={trainingsTable.pagination}
+                  page={trainingsTable.page}
+                  pageSize={trainingsTable.pageSize}
+                  onPageChange={trainingsTable.setPage}
+                  onPageSizeChange={trainingsTable.setPageSize}
+                  className="-mx-6 -mb-6 mt-1"
+                />
+              ) : null}
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="overflow-hidden">
             <CardContent className="flex flex-col gap-5 p-6">
               <div>
                 <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Détail apprenants</p>
@@ -627,7 +667,7 @@ export function AnalyticsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {sortedLearnerRows.map((row) => {
+                    {learnersTable.pageRows.map((row) => {
                       const active = learningPathId === String(row.learningPathId) && learnerId === String(row.learnerId);
 
                       return (
@@ -663,6 +703,17 @@ export function AnalyticsPage() {
                   </TableBody>
                 </Table>
               </TableShell>
+
+              {sortedLearnerRows.length > 0 ? (
+                <PaginationBar
+                  pagination={learnersTable.pagination}
+                  page={learnersTable.page}
+                  pageSize={learnersTable.pageSize}
+                  onPageChange={learnersTable.setPage}
+                  onPageSizeChange={learnersTable.setPageSize}
+                  className="-mx-6 -mb-6 mt-1"
+                />
+              ) : null}
             </CardContent>
           </Card>
         </>

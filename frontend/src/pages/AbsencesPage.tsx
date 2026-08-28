@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  ArrowUpDown,
   CheckCircle2,
   ChevronRight,
   Download,
@@ -19,6 +18,7 @@ import { compareValues } from '../lib/sort';
 import type { Absence, AbsencesPayload, AbsenceStatus } from '../types/trackup';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { PaginationBar } from '@/components/ui/pagination-bar';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
@@ -92,6 +92,7 @@ export function AbsencesPage() {
   const [pendingReviewOnly, setPendingReviewOnly] = useState(searchParams.get('pendingReview') === '1');
   const [sort, setSort] = useState<SortKey>('date');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
   const [payload, setPayload] = useState<AbsencesPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -100,7 +101,7 @@ export function AbsencesPage() {
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
     params.set('page', String(page));
-    params.set('pageSize', '50');
+    params.set('pageSize', String(pageSize));
     if (learnerQuery !== '') params.set('learnerQuery', learnerQuery);
     if (groupExternalId !== '') params.set('groupExternalId', groupExternalId);
     if (type !== '') params.set('type', type);
@@ -109,7 +110,7 @@ export function AbsencesPage() {
     const dateFrom = periodToDateFrom(period);
     if (dateFrom !== '') params.set('dateFrom', dateFrom);
     return params.toString();
-  }, [groupExternalId, learnerQuery, page, pendingReviewOnly, period, status, type]);
+  }, [groupExternalId, learnerQuery, page, pageSize, pendingReviewOnly, period, status, type]);
 
   useEffect(() => {
     if (!token) return;
@@ -443,37 +444,16 @@ export function AbsencesPage() {
             </div>
           ) : null}
 
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-3 text-xs text-muted-foreground">
-            <span>
-              {sortedAbsences.length} résultat{sortedAbsences.length > 1 ? 's' : ''} &middot; page {payload.pagination.page} sur{' '}
-              {payload.pagination.totalPages}
-            </span>
-            <div className="flex items-center gap-3">
-              <span className="inline-flex items-center gap-1">
-                <ArrowUpDown size={12} /> {sort === 'date' ? 'Date' : sort === 'learner' ? 'Apprenant' : 'Statut'}
-              </span>
-              {payload.pagination.totalPages > 1 ? (
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={payload.pagination.page <= 1 || loading}
-                    onClick={() => setPage((current) => Math.max(1, current - 1))}
-                  >
-                    Précédent
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={payload.pagination.page >= payload.pagination.totalPages || loading}
-                    onClick={() => setPage((current) => Math.min(payload.pagination.totalPages, current + 1))}
-                  >
-                    Suivant
-                  </Button>
-                </div>
-              ) : null}
-            </div>
-          </div>
+          <PaginationBar
+            pagination={payload.pagination}
+            page={page}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={(nextPageSize) => {
+              setPageSize(nextPageSize);
+              setPage(1);
+            }}
+          />
         </Card>
       ) : null}
     </section>

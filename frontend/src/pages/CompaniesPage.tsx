@@ -400,17 +400,16 @@ export function CompaniesPage() {
         {companies.length === 0 ? (
           <p className="py-12 text-center text-sm text-muted-foreground">Aucune entreprise trouvée.</p>
         ) : null}
+        {pagination && pagination.totalRows > 0 ? (
+          <PaginationBar
+            pagination={pagination}
+            page={page}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
+        ) : null}
       </Card>
-
-      {pagination && pagination.totalRows > 0 ? (
-        <PaginationBar
-          pagination={pagination}
-          page={page}
-          pageSize={pageSize}
-          onPageChange={setPage}
-          onPageSizeChange={setPageSize}
-        />
-      ) : null}
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>
