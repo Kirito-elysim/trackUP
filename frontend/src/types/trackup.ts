@@ -731,8 +731,8 @@ export type GroupDetail = {
     reference: string | null;
     imageUrl: string | null;
     memberCount: number;
-    totalTime: number;
-    averageProgress: number;
+    averageMasterclassCompletion: number;
+    averageElearningCompletion: number;
   };
   learningPaths: Array<{
     id: number;

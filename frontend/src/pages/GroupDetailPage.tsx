@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Clock, Users, TrendingUp, BookOpen } from 'lucide-react';
+import { ArrowLeft, Users, BookOpen, Video, Laptop } from 'lucide-react';
 import { useAuth } from '../contexts/useAuth';
 import { apiRequest, ApiError } from '../lib/api';
-import { formatDuration, formatPercentage } from '../lib/format';
+import { formatPercentage } from '../lib/format';
 import { LearnerTable, type LearnerTableData } from '../components/LearnerTable';
 import { SessionsModal } from '../components/SessionsModal';
 import type { GroupDetail } from '../types/trackup';
@@ -103,8 +103,8 @@ export function GroupDetailPage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <OverviewStat icon={Users} label="Membres" value={data.group.memberCount} delay={0} />
-        <OverviewStat icon={Clock} label="Temps total" value={formatDuration(data.group.totalTime)} delay={80} />
-        <OverviewStat icon={TrendingUp} label="Progression moyenne" value={formatPercentage(data.group.averageProgress)} delay={160} />
+        <OverviewStat icon={Video} label="Completion masterclass moyenne" value={formatPercentage(data.group.averageMasterclassCompletion)} delay={80} />
+        <OverviewStat icon={Laptop} label="Completion e-learning moyenne" value={formatPercentage(data.group.averageElearningCompletion)} delay={160} />
       </div>
 
       {data.learningPaths.length > 0 && (

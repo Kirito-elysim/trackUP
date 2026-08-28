@@ -3,6 +3,7 @@ import { Search, Send } from 'lucide-react';
 import { useAuth } from '../contexts/useAuth';
 import { apiRequest, ApiError } from '../lib/api';
 import { clampPercentage, formatDuration, formatPercentage, formatDateTime } from '../lib/format';
+import { cn } from '@/lib/utils';
 import type { ElearningReminderReason } from '../types/trackup';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -159,6 +160,12 @@ export function LearnerTable({ data, title = 'Apprenants', showProgress = true, 
     return sorted;
   }, [data, searchQuery, sortField, sortDirection]);
 
+  // Colonnes resserrées côté groupe (enableActions) pour que tout tienne sans scroll horizontal :
+  // police réduite, padding resserré, en-têtes autorisés à passer à la ligne (sinon un libellé long
+  // comme "Temps prévu masterclass" déborderait de sa colonne à largeur fixe).
+  const cellClass = enableActions ? 'px-2 py-2' : undefined;
+  const headClass = enableActions ? 'whitespace-normal break-words px-2 py-2 leading-tight' : undefined;
+
   const allVisibleSelected = filteredAndSorted.length > 0 && filteredAndSorted.every((learner) => selectedIds.has(learner.id));
 
   const toggleAll = () => {
@@ -249,12 +256,25 @@ export function LearnerTable({ data, title = 'Apprenants', showProgress = true, 
           </div>
         </div>
 
-        <TableShell>
-          <Table className="min-w-[75rem]">
+        <TableShell className={enableActions ? 'overflow-hidden' : undefined}>
+          <Table className={enableActions ? 'min-w-0 table-fixed text-xs' : 'min-w-[75rem]'}>
+            {enableActions ? (
+              <colgroup>
+                <col style={{ width: '3%' }} />
+                <col style={{ width: '17%' }} />
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '9%' }} />
+                <col style={{ width: '15%' }} />
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '9%' }} />
+                <col style={{ width: '15%' }} />
+                <col style={{ width: '16%' }} />
+              </colgroup>
+            ) : null}
             <TableHeader>
               <TableRow>
                 {enableActions ? (
-                  <TableHead className="w-10">
+                  <TableHead className="px-2 py-2">
                     <input
                       type="checkbox"
                       className="accent-primary"
@@ -264,17 +284,17 @@ export function LearnerTable({ data, title = 'Apprenants', showProgress = true, 
                     />
                   </TableHead>
                 ) : null}
-                <SortableHead {...sortableHeadProps('name')}>{title === 'Membres' ? 'Membre' : 'Apprenant'}</SortableHead>
+                <SortableHead {...sortableHeadProps('name')} className={headClass}>{title === 'Membres' ? 'Membre' : 'Apprenant'}</SortableHead>
                 {!enableActions ? <SortableHead {...sortableHeadProps('combinedTime')}>Temps passé</SortableHead> : null}
-                <SortableHead {...sortableHeadProps('sessionTime')}>{enableActions ? 'Temps masterclass' : 'Temps sessions'}</SortableHead>
-                <SortableHead {...sortableHeadProps('expectedTime')}>{enableActions ? 'Temps prévu masterclass' : 'Temps prévu sessions'}</SortableHead>
-                <SortableHead {...sortableHeadProps('timeCompletion')}>{enableActions ? 'Completion masterclass' : 'Completion sessions'}</SortableHead>
-                <SortableHead {...sortableHeadProps('elearningTime')}>Temps e-learning</SortableHead>
-                <SortableHead {...sortableHeadProps('expectedElearningTime')}>Temps prévu e-learning</SortableHead>
-                <SortableHead {...sortableHeadProps('elearningCompletion')}>Completion e-learning</SortableHead>
+                <SortableHead {...sortableHeadProps('sessionTime')} className={headClass}>{enableActions ? 'Temps masterclass' : 'Temps sessions'}</SortableHead>
+                <SortableHead {...sortableHeadProps('expectedTime')} className={headClass}>{enableActions ? 'Temps prévu masterclass' : 'Temps prévu sessions'}</SortableHead>
+                <SortableHead {...sortableHeadProps('timeCompletion')} className={headClass}>{enableActions ? 'Completion masterclass' : 'Completion sessions'}</SortableHead>
+                <SortableHead {...sortableHeadProps('elearningTime')} className={headClass}>Temps e-learning</SortableHead>
+                <SortableHead {...sortableHeadProps('expectedElearningTime')} className={headClass}>Temps prévu e-learning</SortableHead>
+                <SortableHead {...sortableHeadProps('elearningCompletion')} className={headClass}>Completion e-learning</SortableHead>
                 {showProgress ? <SortableHead {...sortableHeadProps('progress')}>Progression</SortableHead> : null}
                 {!enableActions ? <SortableHead {...sortableHeadProps('subscribedAt')}>Date d&apos;inscription</SortableHead> : null}
-                {enableActions ? <TableHead className="text-right">Actions</TableHead> : null}
+                {enableActions ? <TableHead className="px-2 py-2 text-right">Actions</TableHead> : null}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -285,7 +305,7 @@ export function LearnerTable({ data, title = 'Apprenants', showProgress = true, 
                   className={onRowClick ? 'cursor-pointer' : undefined}
                 >
                   {enableActions ? (
-                    <TableCell onClick={(event) => event.stopPropagation()}>
+                    <TableCell className={cellClass} onClick={(event) => event.stopPropagation()}>
                       <input
                         type="checkbox"
                         className="accent-primary"
@@ -295,8 +315,8 @@ export function LearnerTable({ data, title = 'Apprenants', showProgress = true, 
                       />
                     </TableCell>
                   ) : null}
-                  <TableCell>
-                    <div className="flex items-center gap-3">
+                  <TableCell className={cellClass}>
+                    <div className="flex min-w-0 items-center gap-3">
                       <Avatar name={learner.fullName} />
                       <div className="min-w-0">
                         <strong className="block truncate text-sm font-semibold">{learner.fullName}</strong>
@@ -309,22 +329,22 @@ export function LearnerTable({ data, title = 'Apprenants', showProgress = true, 
                       {formatDuration(learner.sessionTime + learner.elearningTime)}
                     </TableCell>
                   ) : null}
-                  <TableCell className="tabular whitespace-nowrap text-sm font-semibold">
+                  <TableCell className={cn('tabular whitespace-nowrap font-semibold', cellClass, !enableActions && 'text-sm')}>
                     {formatDuration(learner.sessionTime)}
                   </TableCell>
-                  <TableCell className="tabular whitespace-nowrap text-sm font-semibold">
+                  <TableCell className={cn('tabular whitespace-nowrap font-semibold', cellClass, !enableActions && 'text-sm')}>
                     {formatDuration(learner.expectedTime)}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className={cellClass}>
                     <CompletionCell current={learner.sessionTime} expected={learner.expectedTime} />
                   </TableCell>
-                  <TableCell className="tabular whitespace-nowrap text-sm font-semibold">
+                  <TableCell className={cn('tabular whitespace-nowrap font-semibold', cellClass, !enableActions && 'text-sm')}>
                     {formatDuration(learner.elearningTime)}
                   </TableCell>
-                  <TableCell className="tabular whitespace-nowrap text-sm font-semibold">
+                  <TableCell className={cn('tabular whitespace-nowrap font-semibold', cellClass, !enableActions && 'text-sm')}>
                     {formatDuration(learner.expectedElearningTime)}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className={cellClass}>
                     <CompletionCell current={learner.elearningTime} expected={learner.expectedElearningTime} />
                   </TableCell>
                   {showProgress ? (
@@ -347,7 +367,7 @@ export function LearnerTable({ data, title = 'Apprenants', showProgress = true, 
                     </TableCell>
                   ) : null}
                   {enableActions ? (
-                    <TableCell className="text-right" onClick={(event) => event.stopPropagation()}>
+                    <TableCell className={cn(cellClass, 'text-right')} onClick={(event) => event.stopPropagation()}>
                       <Button variant="outline" size="sm" onClick={() => openReminder([learner])}>
                         <Send size={13} />
                         Relance
@@ -422,9 +442,9 @@ function CompletionCell({ current, expected }: { current: number; expected: numb
   const percent = expected > 0 ? (current / expected) * 100 : 0;
 
   return (
-    <div className="flex items-center gap-2.5">
+    <div className="flex items-center gap-1.5">
       <Progress value={Math.min(percent, 100)} className="w-24" />
-      <span className="tabular text-xs font-semibold text-muted-foreground">
+      <span className="tabular whitespace-nowrap text-xs font-semibold text-muted-foreground">
         {expected > 0 ? formatPercentage(percent) : '0%'}
       </span>
     </div>

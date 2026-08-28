@@ -101,28 +101,28 @@ class GroupController extends AbstractController
             ['groupId' => ParameterType::INTEGER],
         );
 
-        // Calculer la progression moyenne du groupe : moyenne de la progression sur les parcours
-        // réellement suivis par les membres (riseup_learner_groups → learning_path_registrations), pas
-        // via riseup_group_learning_paths (association groupe ↔ parcours jamais alimentée par la
-        // synchro pour ce compte Rise Up, donc toujours vide — l'ancienne jointure ne retournait
-        // jamais aucune ligne et affichait systématiquement 0).
-        $progressRows = $connection->fetchAllAssociative(
-            <<<SQL
-                SELECT AVG(lpr.progress) AS averageProgress
-                FROM riseup_learner_groups rlg
-                INNER JOIN learning_path_registrations lpr ON lpr.learner_id = rlg.learner_id
-                WHERE rlg.group_id = :groupId
-            SQL,
-            ['groupId' => $id],
-            ['groupId' => ParameterType::INTEGER],
-        );
+        // Complétion masterclass/e-learning moyennes : moyenne, sur tous les membres, du même ratio
+        // temps réel / temps prévu déjà affiché par apprenant dans le tableau des membres (mêmes
+        // données que $memberTimeMetrics, pas de nouvelle requête).
+        $masterclassCompletions = [];
+        $elearningCompletions = [];
+        foreach ($members as $memberRow) {
+            $metrics = $memberTimeMetrics[(int) $memberRow['learnerId']] ?? null;
+            $sessionSeconds = $metrics['session_time_seconds'] ?? 0;
+            $expectedSeconds = $metrics['expected_time_seconds'] ?? 0;
+            $elearningSeconds = $metrics['module_time_seconds'] ?? 0;
+            $expectedElearningSeconds = $metrics['expected_elearning_time_seconds'] ?? 0;
 
-        $averageProgress = isset($progressRows[0]['averageProgress']) 
-            ? (float) $progressRows[0]['averageProgress'] 
-            : 0.0;
+            $masterclassCompletions[] = $expectedSeconds > 0 ? ($sessionSeconds / $expectedSeconds) * 100 : 0.0;
+            $elearningCompletions[] = $expectedElearningSeconds > 0 ? ($elearningSeconds / $expectedElearningSeconds) * 100 : 0.0;
+        }
 
-        // Calculer le temps total du groupe
-        $totalTimeSeconds = $this->timeMetricsService->getTotalTimeForGroups()[$id] ?? 0;
+        $averageMasterclassCompletion = $masterclassCompletions === []
+            ? 0.0
+            : array_sum($masterclassCompletions) / count($masterclassCompletions);
+        $averageElearningCompletion = $elearningCompletions === []
+            ? 0.0
+            : array_sum($elearningCompletions) / count($elearningCompletions);
 
         return $this->json([
             'group' => [
@@ -132,8 +132,8 @@ class GroupController extends AbstractController
                 'reference' => $group['reference'],
                 'imageUrl' => $group['imageUrl'],
                 'memberCount' => (int) $group['memberCount'],
-                'totalTime' => DurationUnit::secondsToMinutesInt($totalTimeSeconds),
-                'averageProgress' => round($averageProgress, 2),
+                'averageMasterclassCompletion' => round($averageMasterclassCompletion, 2),
+                'averageElearningCompletion' => round($averageElearningCompletion, 2),
             ],
             'learningPaths' => array_map(fn (array $row): array => [
                 'id' => (int) $row['id'],
