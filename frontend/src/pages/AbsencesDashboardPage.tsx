@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CalendarX2, CheckCircle2, ChevronRight, Clock, ShieldAlert, XCircle } from 'lucide-react';
+import { CalendarX2, CheckCircle2, ChevronRight, Clock, FileCheck2, Info, ShieldAlert, XCircle } from 'lucide-react';
+import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from 'recharts';
 import { useAuth } from '../contexts/useAuth';
 import { apiRequest, ApiError } from '../lib/api';
 import { formatDateTime } from '../lib/format';
-import type { AbsenceStatus, AbsencesDashboardPayload } from '../types/trackup';
+import type { AbsenceEvolutionGranularity, AbsenceEvolutionPayload, AbsenceStatus, AbsencesDashboardPayload } from '../types/trackup';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CountUp } from '@/components/ui/stat';
@@ -13,6 +14,33 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableShe
 import { AbsAvatar, AbsStatusChip, AbsTypeChip } from '@/components/absences/badges';
 import { ABS_STATUS_META } from '@/components/absences/meta';
 import { cn } from '@/lib/utils';
+
+const STATUS_COLOR: Record<AbsenceStatus, string> = {
+  en_attente: 'var(--color-abs-warning-500)',
+  justifiee: 'var(--color-abs-success-500)',
+  non_justifiee: 'var(--color-abs-danger-500)',
+  autre: 'var(--color-abs-ink-400)',
+};
+
+const EVOLUTION_GRANULARITIES: Array<{ value: AbsenceEvolutionGranularity; label: string }> = [
+  { value: 'year', label: 'Année' },
+  { value: 'month', label: 'Mois' },
+  { value: 'day', label: 'Jour' },
+];
+
+function formatPeriodLabel(period: string, granularity: AbsenceEvolutionGranularity): string {
+  if (granularity === 'year') return period;
+
+  if (granularity === 'month') {
+    const [year, month] = period.split('-');
+    const date = new Date(Number(year), Number(month) - 1, 1);
+    return date.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' });
+  }
+
+  const [year, month, day] = period.split('-');
+  const date = new Date(Number(year), Number(month) - 1, Number(day));
+  return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+}
 
 const STATUS_LABEL: Record<AbsenceStatus, string> = {
   en_attente: 'En attente',
@@ -29,6 +57,10 @@ export function AbsencesDashboardPage() {
   const [payload, setPayload] = useState<AbsencesDashboardPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [evolutionGranularity, setEvolutionGranularity] = useState<AbsenceEvolutionGranularity>('month');
+  const [evolution, setEvolution] = useState<AbsenceEvolutionPayload | null>(null);
+  const [evolutionLoading, setEvolutionLoading] = useState(true);
 
   useEffect(() => {
     if (!token) return;
@@ -55,6 +87,34 @@ export function AbsencesDashboardPage() {
       cancelled = true;
     };
   }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+
+    let cancelled = false;
+
+    const load = async () => {
+      setEvolutionLoading(true);
+
+      try {
+        const data = await apiRequest<AbsenceEvolutionPayload>(
+          `/api/admin/absences/evolution?granularity=${evolutionGranularity}`,
+          { token },
+        );
+        if (!cancelled) setEvolution(data);
+      } catch {
+        if (!cancelled) setEvolution(null);
+      } finally {
+        if (!cancelled) setEvolutionLoading(false);
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token, evolutionGranularity]);
 
   return (
     <section className="flex flex-col gap-8">
@@ -96,6 +156,35 @@ export function AbsencesDashboardPage() {
 
       {payload ? (
         <>
+          {payload.pendingReviewCount > 0 ? (
+            <button
+              type="button"
+              onClick={() => navigate('/absences?pendingReview=1')}
+              className="flex items-center gap-3 rounded-xl border border-abs-brand-200 bg-abs-brand-50 p-4 text-left text-sm text-abs-brand-800 transition-colors hover:bg-abs-brand-100"
+            >
+              <FileCheck2 size={16} className="shrink-0" />
+              <p className="flex-1">
+                <strong>{payload.pendingReviewCount}</strong> justificatif{payload.pendingReviewCount > 1 ? 's' : ''}{' '}
+                déposé{payload.pendingReviewCount > 1 ? 's' : ''} par des apprenants et en attente de vérification.
+              </p>
+              <ChevronRight size={15} className="shrink-0" />
+            </button>
+          ) : null}
+
+          {payload.streakTracking.resetAt ? (
+            <div className="flex items-start gap-3 rounded-xl border border-abs-warning-200 bg-abs-warning-50 p-4 text-sm text-abs-warning-800">
+              <Info size={16} className="mt-0.5 shrink-0" />
+              <p>
+                Le suivi des relances disciplinaires (3 absences masterclass consécutives) ne compte que
+                les absences détectées à partir du{' '}
+                <strong>{formatDateTime(payload.streakTracking.resetAt)}</strong> pour{' '}
+                {payload.streakTracking.affectedLearnersCount} apprenant(s) dont le compteur a été
+                réinitialisé — les absences antérieures à cette date, même en attente, ne déclenchent
+                pas d&rsquo;alerte.
+              </p>
+            </div>
+          ) : null}
+
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <DashboardStat icon={CalendarX2} tone="brand" label="Total absences" value={payload.stats.total} hint="Masterclass + présentiel" delay={0} />
             <DashboardStat icon={Clock} tone="warning" label="En attente" value={payload.stats.byStatus.en_attente} hint="Justificatif attendu" delay={80} />
@@ -111,16 +200,33 @@ export function AbsencesDashboardPage() {
                   <h3 className="font-display text-base font-bold tracking-tight">Répartition par statut</h3>
                 </div>
                 {payload.stats.total > 0 ? (
-                  <div className="flex h-3 overflow-hidden rounded-full bg-abs-ink-100">
-                    {STATUS_ORDER.map((status) => (
-                      <div
-                        key={status}
-                        className={ABS_STATUS_META[status].bar}
-                        style={{ width: `${(payload.stats.byStatus[status] / payload.stats.total) * 100}%` }}
-                        title={STATUS_LABEL[status]}
+                  <ResponsiveContainer width="100%" height={160}>
+                    <PieChart>
+                      <Pie
+                        data={STATUS_ORDER.map((status) => ({ status, value: payload.stats.byStatus[status] }))}
+                        dataKey="value"
+                        nameKey="status"
+                        innerRadius={42}
+                        outerRadius={64}
+                        paddingAngle={2}
+                        strokeWidth={0}
+                      >
+                        {STATUS_ORDER.map((status) => (
+                          <Cell key={status} fill={STATUS_COLOR[status]} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip
+                        contentStyle={{
+                          backgroundColor: 'var(--color-card)',
+                          border: '1px solid var(--color-border)',
+                          borderRadius: 8,
+                          fontFamily: 'var(--font-sans)',
+                          fontSize: 12,
+                        }}
+                        formatter={(value, name) => [Number(value), STATUS_LABEL[name as AbsenceStatus] ?? String(name)]}
                       />
-                    ))}
-                  </div>
+                    </PieChart>
+                  </ResponsiveContainer>
                 ) : null}
                 <ul className="flex flex-col gap-2.5">
                   {STATUS_ORDER.map((status) => (
@@ -208,6 +314,85 @@ export function AbsencesDashboardPage() {
               </CardContent>
             </Card>
           </div>
+
+          <Card>
+            <CardContent className="flex flex-col gap-5 p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Historique</p>
+                  <h3 className="font-display text-lg font-bold tracking-tight">Évolution des absences</h3>
+                </div>
+                <div className="flex gap-1 rounded-lg bg-abs-ink-50 p-1">
+                  {EVOLUTION_GRANULARITIES.map((item) => (
+                    <button
+                      key={item.value}
+                      type="button"
+                      onClick={() => setEvolutionGranularity(item.value)}
+                      className={cn(
+                        'rounded-md px-3 py-1.5 text-xs font-semibold transition-colors',
+                        evolutionGranularity === item.value
+                          ? 'bg-white text-abs-brand-700 shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {evolution && evolution.series.some((entry) => entry.total > 0) ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart
+                    data={evolution.series.map((entry) => ({
+                      ...entry,
+                      label: formatPeriodLabel(entry.period, evolution.granularity),
+                    }))}
+                    margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+                    <XAxis
+                      dataKey="label"
+                      interval={evolutionGranularity === 'day' ? 6 : 0}
+                      tick={{ fill: 'var(--color-muted-foreground)', fontSize: 11 }}
+                      tickLine={{ stroke: 'var(--color-border)' }}
+                    />
+                    <YAxis allowDecimals={false} tick={{ fill: 'var(--color-muted-foreground)', fontSize: 11 }} tickLine={{ stroke: 'var(--color-border)' }} />
+                    <RechartsTooltip
+                      contentStyle={{
+                        backgroundColor: 'var(--color-card)',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 8,
+                        fontFamily: 'var(--font-sans)',
+                        fontSize: 12,
+                      }}
+                      labelFormatter={(label) => label}
+                      formatter={(value, name) => [Number(value), STATUS_LABEL[name as AbsenceStatus] ?? String(name)]}
+                    />
+                    <Legend
+                      formatter={(value) => STATUS_LABEL[value as AbsenceStatus] ?? value}
+                      wrapperStyle={{ fontSize: 12, fontFamily: 'var(--font-sans)' }}
+                    />
+                    {STATUS_ORDER.map((status, index) => (
+                      <Bar
+                        key={status}
+                        dataKey={status}
+                        stackId="absences"
+                        fill={STATUS_COLOR[status]}
+                        radius={index === STATUS_ORDER.length - 1 ? [3, 3, 0, 0] : undefined}
+                      />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="rounded-md border border-border bg-muted/30 p-10 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    {evolutionLoading ? 'Chargement du graphique...' : 'Aucune absence sur cette période.'}
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           <Card>
             <CardContent className="flex flex-col gap-5 p-6">

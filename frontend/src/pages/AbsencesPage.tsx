@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowUpDown,
   CheckCircle2,
   ChevronRight,
   Download,
+  FileCheck2,
   FileText,
   Filter,
   Image as ImageIcon,
@@ -77,11 +78,18 @@ function downloadCsv(rows: Absence[]) {
 export function AbsencesPage() {
   const { token } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialStatus = searchParams.get('status');
   const [learnerQuery, setLearnerQuery] = useState('');
   const [groupExternalId, setGroupExternalId] = useState('');
   const [type, setType] = useState('');
   const [period, setPeriod] = useState('');
-  const [status, setStatus] = useState<AbsenceStatus | 'all'>('all');
+  const [status, setStatus] = useState<AbsenceStatus | 'all'>(
+    initialStatus && (STATUS_TABS as Array<{ key: string }>).some((tab) => tab.key === initialStatus)
+      ? (initialStatus as AbsenceStatus)
+      : 'all',
+  );
+  const [pendingReviewOnly, setPendingReviewOnly] = useState(searchParams.get('pendingReview') === '1');
   const [sort, setSort] = useState<SortKey>('date');
   const [page, setPage] = useState(1);
   const [payload, setPayload] = useState<AbsencesPayload | null>(null);
@@ -97,10 +105,11 @@ export function AbsencesPage() {
     if (groupExternalId !== '') params.set('groupExternalId', groupExternalId);
     if (type !== '') params.set('type', type);
     if (status !== 'all') params.set('status', status);
+    if (pendingReviewOnly) params.set('pendingReview', '1');
     const dateFrom = periodToDateFrom(period);
     if (dateFrom !== '') params.set('dateFrom', dateFrom);
     return params.toString();
-  }, [groupExternalId, learnerQuery, page, period, status, type]);
+  }, [groupExternalId, learnerQuery, page, pendingReviewOnly, period, status, type]);
 
   useEffect(() => {
     if (!token) return;
@@ -284,6 +293,28 @@ export function AbsencesPage() {
               </button>
             );
           })}
+
+          <button
+            onClick={() => {
+              setPendingReviewOnly((current) => !current);
+              setPage(1);
+            }}
+            className={`ml-1 flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border px-3.5 py-2 text-sm font-medium transition-colors ${
+              pendingReviewOnly
+                ? 'border-abs-brand-300 bg-abs-brand-100 text-abs-brand-800'
+                : 'border-abs-ink-200 bg-card text-abs-ink-600 hover:bg-abs-ink-50'
+            }`}
+          >
+            <FileCheck2 size={14} />
+            Justificatif à vérifier
+            <span
+              className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                pendingReviewOnly ? 'bg-white/60' : 'bg-abs-ink-100 text-abs-ink-600'
+              }`}
+            >
+              {payload?.stats.pendingReviewCount ?? 0}
+            </span>
+          </button>
         </div>
       </Card>
 
@@ -301,8 +332,17 @@ export function AbsencesPage() {
 
       {payload ? (
         <Card className="overflow-hidden p-0">
-          <TableShell>
-            <Table>
+          <TableShell className="overflow-hidden">
+            <Table className="min-w-0 table-fixed text-xs">
+              <colgroup>
+                <col style={{ width: '21%' }} />
+                <col style={{ width: '21%' }} />
+                <col style={{ width: '13%' }} />
+                <col style={{ width: '9%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '15%' }} />
+                <col style={{ width: '11%' }} />
+              </colgroup>
               <TableHeader>
                 <TableRow>
                   <TableHead>Apprenant</TableHead>
@@ -317,73 +357,76 @@ export function AbsencesPage() {
               <TableBody>
                 {sortedAbsences.map((absence) => (
                   <TableRow key={absence.id}>
-                    <TableCell>
+                    <TableCell className="px-2.5 py-2.5">
                       <button
                         onClick={() => navigate(`/learners/${absence.learner.id}`)}
-                        className="flex items-center gap-2.5 text-left"
+                        className="flex min-w-0 items-center gap-2 text-left"
                       >
                         <AbsAvatar name={absence.learner.fullName} size="sm" />
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-medium hover:text-abs-brand-600">{absence.learner.fullName}</p>
-                          <p className="truncate text-xs text-muted-foreground">{absence.learner.email ?? 'Email indisponible'}</p>
+                          <p className="truncate text-xs font-medium hover:text-abs-brand-600">{absence.learner.fullName}</p>
+                          <p className="truncate text-[0.68rem] text-muted-foreground">{absence.learner.email ?? 'Email indisponible'}</p>
                         </div>
                       </button>
                     </TableCell>
-                    <TableCell className="max-w-[220px]">
+                    <TableCell className="px-2.5 py-2.5">
                       <button
                         onClick={() => navigate(`/absences/${absence.id}`)}
-                        className="block truncate text-left text-sm text-foreground hover:text-abs-brand-600"
+                        className="block w-full truncate text-left text-xs text-foreground hover:text-abs-brand-600"
+                        title={absence.session.title}
                       >
                         {absence.session.title}
                       </button>
                     </TableCell>
-                    <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                    <TableCell className="truncate whitespace-nowrap px-2.5 py-2.5 text-xs text-muted-foreground">
                       {formatDateTime(absence.session.startAt)}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="px-2.5 py-2.5">
                       <AbsTypeChip type={absence.type} />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="px-2.5 py-2.5">
                       <AbsStatusChip status={absence.status} />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="px-2.5 py-2.5">
                       {absence.justificationFileOriginalName ? (
-                        <span className="inline-flex items-center gap-1.5 text-xs text-foreground">
+                        <span className="inline-flex min-w-0 max-w-full items-center gap-1 text-xs text-foreground">
                           {absence.justificationFileOriginalName.toLowerCase().endsWith('.pdf') ? (
-                            <FileText size={14} className="text-abs-danger-500" />
+                            <FileText size={13} className="shrink-0 text-abs-danger-500" />
                           ) : (
-                            <ImageIcon size={14} className="text-abs-brand-500" />
+                            <ImageIcon size={13} className="shrink-0 text-abs-brand-500" />
                           )}
-                          <span className="max-w-[120px] truncate">{absence.justificationFileOriginalName}</span>
+                          <span className="min-w-0 truncate" title={absence.justificationFileOriginalName}>
+                            {absence.justificationFileOriginalName}
+                          </span>
                         </span>
                       ) : (
                         <span className="text-xs text-muted-foreground">&mdash;</span>
                       )}
                     </TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-end gap-1">
+                    <TableCell className="px-2 py-2.5">
+                      <div className="flex items-center justify-end gap-0.5">
                         <button
                           title="Valider"
                           disabled={savingId === absence.id}
                           onClick={() => void updateAbsence(absence.id, { status: 'justifiee' })}
-                          className="flex h-8 w-8 items-center justify-center rounded-md text-abs-success-700 transition-colors hover:bg-abs-success-50 disabled:opacity-50"
+                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-abs-success-700 transition-colors hover:bg-abs-success-50 disabled:opacity-50"
                         >
-                          <CheckCircle2 size={16} />
+                          <CheckCircle2 size={15} />
                         </button>
                         <button
                           title="Rejeter"
                           disabled={savingId === absence.id}
                           onClick={() => void updateAbsence(absence.id, { status: 'non_justifiee' })}
-                          className="flex h-8 w-8 items-center justify-center rounded-md text-abs-danger-700 transition-colors hover:bg-abs-danger-50 disabled:opacity-50"
+                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-abs-danger-700 transition-colors hover:bg-abs-danger-50 disabled:opacity-50"
                         >
-                          <XCircle size={16} />
+                          <XCircle size={15} />
                         </button>
                         <button
                           title="Détail"
                           onClick={() => navigate(`/absences/${absence.id}`)}
-                          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-abs-ink-50"
+                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-abs-ink-50"
                         >
-                          <ChevronRight size={16} />
+                          <ChevronRight size={15} />
                         </button>
                       </div>
                     </TableCell>

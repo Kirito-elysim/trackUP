@@ -43,7 +43,6 @@ class GroupController extends AbstractController
                     rg.name,
                     rg.reference,
                     COUNT(DISTINCT rlg.learner_id) AS memberCount,
-                    COUNT(DISTINCT rglp.learning_path_external_id) AS learningPathCount,
                     (
                         SELECT lp_img.image_url
                         FROM riseup_group_learning_paths rglp_img
@@ -53,7 +52,6 @@ class GroupController extends AbstractController
                     ) AS imageUrl
                 FROM riseup_groups rg
                 LEFT JOIN riseup_learner_groups rlg ON rlg.group_id = rg.id
-                LEFT JOIN riseup_group_learning_paths rglp ON rglp.group_id = rg.id
                 WHERE rg.id = :id
                 GROUP BY rg.id, rg.external_id, rg.name, rg.reference
             SQL,
@@ -103,14 +101,16 @@ class GroupController extends AbstractController
             ['groupId' => ParameterType::INTEGER],
         );
 
-        // Calculer la progression moyenne du groupe
+        // Calculer la progression moyenne du groupe : moyenne de la progression sur les parcours
+        // réellement suivis par les membres (riseup_learner_groups → learning_path_registrations), pas
+        // via riseup_group_learning_paths (association groupe ↔ parcours jamais alimentée par la
+        // synchro pour ce compte Rise Up, donc toujours vide — l'ancienne jointure ne retournait
+        // jamais aucune ligne et affichait systématiquement 0).
         $progressRows = $connection->fetchAllAssociative(
             <<<SQL
                 SELECT AVG(lpr.progress) AS averageProgress
                 FROM riseup_learner_groups rlg
                 INNER JOIN learning_path_registrations lpr ON lpr.learner_id = rlg.learner_id
-                INNER JOIN learning_paths lp ON lp.id = lpr.learning_path_id
-                INNER JOIN riseup_group_learning_paths rglp ON rglp.learning_path_external_id = lp.external_id AND rglp.group_id = rlg.group_id
                 WHERE rlg.group_id = :groupId
             SQL,
             ['groupId' => $id],
@@ -132,7 +132,6 @@ class GroupController extends AbstractController
                 'reference' => $group['reference'],
                 'imageUrl' => $group['imageUrl'],
                 'memberCount' => (int) $group['memberCount'],
-                'learningPathCount' => (int) $group['learningPathCount'],
                 'totalTime' => DurationUnit::secondsToMinutesInt($totalTimeSeconds),
                 'averageProgress' => round($averageProgress, 2),
             ],

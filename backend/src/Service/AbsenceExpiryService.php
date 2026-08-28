@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Entity\Absence;
+use App\Entity\AbsenceEvent;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 
@@ -17,6 +18,7 @@ class AbsenceExpiryService
         private readonly EntityManagerInterface $entityManager,
         private readonly AbsenceNotificationService $absenceNotificationService,
         private readonly AbsenceStreakService $absenceStreakService,
+        private readonly AbsenceEventLogger $absenceEventLogger,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -39,9 +41,16 @@ class AbsenceExpiryService
 
         /** @var Absence $absence */
         foreach ($overdue as $absence) {
+            $previousStatus = $absence->getStatus();
             $absence->setStatus(Absence::STATUS_NON_JUSTIFIEE);
             $absence->setValidation(new \DateTimeImmutable(), null);
             $this->absenceNotificationService->sendConfirmation($absence);
+            $this->absenceEventLogger->log($absence, AbsenceEvent::TYPE_STATUS_CHANGED, null, [
+                'from' => $previousStatus,
+                'to' => Absence::STATUS_NON_JUSTIFIEE,
+                'emailSent' => true,
+                'reason' => 'expired',
+            ]);
             ++$expired;
 
             if ($absence->getType() === Absence::TYPE_MASTERCLASS) {

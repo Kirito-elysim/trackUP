@@ -301,6 +301,20 @@ export type LearnerDetail = {
     sessionEndAt: string | null;
     sessionTitle: string;
   }>;
+  communications: LearnerCommunicationEntry[];
+};
+
+export type LearnerCommunicationType = 'notification_sent' | 'confirmation_sent' | 'disciplinary_email' | 'elearning_reminder';
+export type ElearningReminderReason = 'progress' | 'schedule';
+
+export type LearnerCommunicationEntry = {
+  type: LearnerCommunicationType;
+  occurredAt: string;
+  actorName: string | null;
+  sessionStartAt: string | null;
+  sessionTitle: string | null;
+  absenceId: number | null;
+  metadata: Record<string, unknown>;
 };
 
 export type AbsenceType = 'masterclass' | 'presentiel';
@@ -322,9 +336,18 @@ export type Absence = {
 
 export type AbsencesPayload = {
   absences: Absence[];
-  stats: { total: number; byStatus: Record<AbsenceStatus, number> };
+  stats: { total: number; byStatus: Record<AbsenceStatus, number>; pendingReviewCount: number };
   pagination: { page: number; pageSize: number; totalRows: number; totalPages: number };
   filters: { availableGroups: Array<{ externalId: number; name: string }> };
+};
+
+export type AbsenceEventType = 'notification_sent' | 'confirmation_sent' | 'justification_submitted' | 'status_changed' | 'note_added';
+
+export type AbsenceEventEntry = {
+  type: AbsenceEventType;
+  occurredAt: string;
+  actorName: string | null;
+  metadata: Record<string, unknown>;
 };
 
 export type AbsenceDetail = {
@@ -333,8 +356,11 @@ export type AbsenceDetail = {
   status: AbsenceStatus;
   detectedAt: string;
   notificationSentAt: string | null;
+  hasActiveJustificationToken: boolean;
+  justificationTokenExpiresAt: string | null;
   justificationSubmittedAt: string | null;
   justificationFileOriginalName: string | null;
+  justificationFileAvailable: boolean;
   confirmationSentAt: string | null;
   validatedAt: string | null;
   adminNote: string | null;
@@ -347,6 +373,7 @@ export type AbsenceDetail = {
   };
   session: { id: number; title: string; startAt: string | null; endAt: string | null };
   validatedByName: string | null;
+  events: AbsenceEventEntry[];
 };
 
 export type AbsencesDashboardPayload = {
@@ -364,6 +391,15 @@ export type AbsencesDashboardPayload = {
   }>;
   activeAlertsCount: number;
   activeAlertsPreview: Array<{ learnerId: number; fullName: string; group: string | null; consecutiveCount: number }>;
+  streakTracking: { resetAt: string | null; affectedLearnersCount: number };
+  pendingReviewCount: number;
+};
+
+export type AbsenceEvolutionGranularity = 'year' | 'month' | 'day';
+
+export type AbsenceEvolutionPayload = {
+  granularity: AbsenceEvolutionGranularity;
+  series: Array<{ period: string } & Record<AbsenceStatus, number> & { total: number }>;
 };
 
 export type AbsenceAlertsPayload = {
@@ -669,8 +705,8 @@ export type GroupSummary = {
   imageUrl: string | null;
   memberCount: number;
   learningPathCount: number;
+  learningPaths: string[];
   totalTime: number;
-  averageProgress: number;
 };
 
 export type GroupMember = {
@@ -695,7 +731,6 @@ export type GroupDetail = {
     reference: string | null;
     imageUrl: string | null;
     memberCount: number;
-    learningPathCount: number;
     totalTime: number;
     averageProgress: number;
   };

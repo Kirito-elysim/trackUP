@@ -175,6 +175,10 @@ class DashboardController extends AbstractController
         // Récupérer les temps totaux via le service centralisé
         $totalTimesByGroup = $this->timeMetricsService->getTotalTimeForGroups();
 
+        // learningPathCount : dérivé des parcours réellement suivis par les membres du groupe
+        // (riseup_learner_groups → learning_path_registrations), pas de riseup_group_learning_paths
+        // (association groupe ↔ parcours jamais alimentée par la synchro pour ce compte Rise Up, donc
+        // toujours vide — l'ancienne jointure renvoyait systématiquement 0).
         $rows = $connection->fetchAllAssociative(
             <<<SQL
                 SELECT
@@ -183,8 +187,8 @@ class DashboardController extends AbstractController
                     rg.name,
                     rg.reference,
                     COUNT(DISTINCT rlg.learner_id) AS memberCount,
-                    COUNT(DISTINCT rglp.learning_path_external_id) AS learningPathCount,
-                    ROUND(COALESCE(AVG(lpr.progress), 0), 2) AS averageProgress,
+                    COUNT(DISTINCT lp.id) AS learningPathCount,
+                    GROUP_CONCAT(DISTINCT lp.title ORDER BY lp.title SEPARATOR '||') AS learningPathTitles,
                     (
                         SELECT lp_img.image_url
                         FROM riseup_group_learning_paths rglp_img
@@ -194,9 +198,8 @@ class DashboardController extends AbstractController
                     ) AS imageUrl
                 FROM riseup_groups rg
                 LEFT JOIN riseup_learner_groups rlg ON rlg.group_id = rg.id
-                LEFT JOIN riseup_group_learning_paths rglp ON rglp.group_id = rg.id
-                LEFT JOIN learning_paths lp ON lp.external_id = rglp.learning_path_external_id
-                LEFT JOIN learning_path_registrations lpr ON lpr.learning_path_id = lp.id AND lpr.learner_id = rlg.learner_id
+                LEFT JOIN learning_path_registrations lpr ON lpr.learner_id = rlg.learner_id
+                LEFT JOIN learning_paths lp ON lp.id = lpr.learning_path_id
                 WHERE rg.hidden = 0
                 GROUP BY rg.id, rg.external_id, rg.name, rg.reference
                 ORDER BY memberCount DESC, rg.name ASC
@@ -211,7 +214,9 @@ class DashboardController extends AbstractController
             'imageUrl' => $row['imageUrl'],
             'memberCount' => (int) $row['memberCount'],
             'learningPathCount' => (int) $row['learningPathCount'],
-            'averageProgress' => (float) $row['averageProgress'],
+            'learningPaths' => $row['learningPathTitles'] !== null && $row['learningPathTitles'] !== ''
+                ? explode('||', $row['learningPathTitles'])
+                : [],
             'totalTime' => DurationUnit::secondsToMinutesInt($totalTimesByGroup[(int) $row['id']] ?? 0),
         ], $rows);
     }

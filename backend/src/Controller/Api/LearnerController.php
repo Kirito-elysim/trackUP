@@ -9,6 +9,7 @@ use App\Entity\Prospect;
 use App\Entity\Tutor;
 use App\Entity\User;
 use App\Service\AbsenceStreakService;
+use App\Service\LearnerReminderService;
 use App\Service\TimeMetricsService;
 use App\Service\UserPermissionResolver;
 use App\Util\DurationUnit;
@@ -29,6 +30,7 @@ class LearnerController extends AbstractController
         private readonly UserPermissionResolver $permissionResolver,
         private readonly TimeMetricsService $timeMetricsService,
         private readonly AbsenceStreakService $absenceStreakService,
+        private readonly LearnerReminderService $learnerReminderService,
     ) {
     }
 
@@ -314,6 +316,45 @@ class LearnerController extends AbstractController
             ['learnerId' => ParameterType::INTEGER]
         );
 
+        // Onglet "Communications" de la fiche apprenant : fusionne deux sources — les emails liés à
+        // UNE absence précise (AbsenceEvent, sur toutes les absences de l'apprenant) et les
+        // communications rattachées directement à l'apprenant, pas à une absence en particulier (ex.
+        // email disciplinaire manuel, LearnerCommunication) — pour donner une vue unique de tout ce
+        // qui a été envoyé, quel que soit le canal ajouté plus tard.
+        $communications = $connection->fetchAllAssociative(
+            <<<SQL
+                (
+                    SELECT
+                        ae.type, ae.occurred_at AS occurredAt, ae.metadata,
+                        u.first_name AS actorFirstName, u.last_name AS actorLastName,
+                        cs.start_at AS sessionStartAt, COALESCE(t.title, tm.title, 'Session') AS sessionTitle,
+                        a.id AS absenceId
+                    FROM absence_events ae
+                    INNER JOIN absences a ON a.id = ae.absence_id
+                    INNER JOIN classroom_session_registrations csr ON csr.id = a.registration_id
+                    INNER JOIN classroom_sessions cs ON cs.id = csr.session_id
+                    LEFT JOIN trainings t ON t.id = cs.training_id
+                    LEFT JOIN training_modules tm ON tm.id = cs.module_id
+                    LEFT JOIN users u ON u.id = ae.actor_id
+                    WHERE csr.learner_id = :learnerId AND ae.type IN ('notification_sent', 'confirmation_sent')
+                )
+                UNION ALL
+                (
+                    SELECT
+                        lc.type, lc.occurred_at AS occurredAt, lc.metadata,
+                        u.first_name AS actorFirstName, u.last_name AS actorLastName,
+                        NULL AS sessionStartAt, NULL AS sessionTitle,
+                        NULL AS absenceId
+                    FROM learner_communications lc
+                    LEFT JOIN users u ON u.id = lc.actor_id
+                    WHERE lc.learner_id = :learnerId
+                )
+                ORDER BY occurredAt DESC
+            SQL,
+            ['learnerId' => $id],
+            ['learnerId' => ParameterType::INTEGER]
+        );
+
         $recentActivities = $connection->fetchAllAssociative(
             <<<SQL
                 SELECT
@@ -459,6 +500,17 @@ class LearnerController extends AbstractController
                 'moduleTitle' => $row['moduleTitle'],
                 'trainingTitle' => $row['trainingTitle'],
             ], $recentActivities),
+            'communications' => array_map(static fn (array $row): array => [
+                'type' => $row['type'],
+                'occurredAt' => $row['occurredAt'],
+                'actorName' => $row['actorFirstName'] !== null
+                    ? trim(sprintf('%s %s', (string) $row['actorFirstName'], (string) $row['actorLastName']))
+                    : null,
+                'sessionStartAt' => $row['sessionStartAt'],
+                'sessionTitle' => $row['sessionTitle'],
+                'absenceId' => $row['absenceId'] !== null ? (int) $row['absenceId'] : null,
+                'metadata' => json_decode((string) $row['metadata'], true) ?? [],
+            ], $communications),
         ]);
     }
 
@@ -485,6 +537,46 @@ class LearnerController extends AbstractController
         return $this->json([
             'consecutiveUnjustifiedMasterclassAbsences' => $learner->getConsecutiveUnjustifiedMasterclassAbsences(),
         ]);
+    }
+
+    // Relance e-learning manuelle (tableau des membres d'un groupe/parcours) : envoie l'un des deux
+    // messages types (avancement insuffisant / horaires de connexion non respectés) à un ou plusieurs
+    // apprenants à la fois. Jamais automatique — toujours déclenché par le clic d'un admin.
+    #[Route('/elearning-reminder', name: 'api_learners_elearning_reminder', methods: ['POST'])]
+    public function sendElearningReminder(Request $request): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = $this->getUser();
+
+        if (!$this->permissionResolver->userHasFeature($user, 'learners.manage')) {
+            return $this->json(['message' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        $data = $request->getContent() !== '' ? $request->toArray() : [];
+        $learnerIds = array_values(array_unique(array_map('intval', (array) ($data['learnerIds'] ?? []))));
+        $reason = (string) ($data['reason'] ?? '');
+
+        if ($learnerIds === [] || !in_array($reason, LearnerReminderService::REASONS, true)) {
+            return $this->json(['message' => 'Requête invalide.'], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $sent = 0;
+        $skipped = 0;
+
+        foreach ($learnerIds as $learnerId) {
+            $learner = $this->entityManager->getRepository(Learner::class)->find($learnerId);
+
+            if (!$learner instanceof Learner || !$this->learnerReminderService->sendElearningReminder($learner, $reason, $user)) {
+                ++$skipped;
+                continue;
+            }
+
+            ++$sent;
+        }
+
+        $this->entityManager->flush();
+
+        return $this->json(['sent' => $sent, 'skipped' => $skipped]);
     }
 
     #[Route('/{id}/assignment', name: 'api_learners_update_assignment', methods: ['PUT'], requirements: ['id' => '\d+'])]

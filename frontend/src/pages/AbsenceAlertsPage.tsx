@@ -55,6 +55,24 @@ export function AbsenceAlertsPage() {
     }
   };
 
+  const sendDisciplinaryEmail = async (learnerId: number) => {
+    if (!token) return;
+
+    setBusyLearnerId(learnerId);
+    setFeedback(null);
+    try {
+      const result = await apiRequest<{ message: string }>(`/api/admin/absences/alerts/${learnerId}/send-disciplinary-email`, {
+        method: 'POST',
+        token,
+      });
+      setFeedback(result.message);
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.message : "Envoi impossible.");
+    } finally {
+      setBusyLearnerId(null);
+    }
+  };
+
   const reset = async (learnerId: number) => {
     if (!token) return;
 
@@ -147,7 +165,17 @@ export function AbsenceAlertsPage() {
                             </span>
                           </div>
                         </button>
-                        <div className="flex shrink-0 gap-2">
+                        <div className="flex shrink-0 flex-wrap gap-2">
+                          <Button
+                            size="sm"
+                            className="bg-abs-danger-600 text-white hover:bg-abs-danger-700"
+                            disabled={busyLearnerId === item.learnerId || !item.email}
+                            title={!item.email ? "Cet apprenant n'a pas d'adresse email connue." : undefined}
+                            onClick={() => void sendDisciplinaryEmail(item.learnerId)}
+                          >
+                            <Mail size={14} />
+                            Email à l&rsquo;apprenant
+                          </Button>
                           <Button variant="outline" size="sm" disabled={busyLearnerId === item.learnerId} onClick={() => void resend(item.learnerId)}>
                             <Send size={14} />
                             Renvoyer l&rsquo;email

@@ -21,6 +21,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Building2,
+  Eye,
   Loader2,
   Pencil,
   UserRound,
@@ -32,7 +33,7 @@ import {
   ShieldAlert,
   CalendarX2,
 } from 'lucide-react';
-import type { Company, LearnerDetail, LearnerSummary, Tutor, TutorsIndexResponse } from '../types/trackup';
+import type { Company, LearnerCommunicationEntry, LearnerDetail, LearnerSummary, Tutor, TutorsIndexResponse } from '../types/trackup';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,10 +42,65 @@ import { Chip } from '@/components/ui/chip';
 import { Progress } from '@/components/ui/progress';
 import { CountUp } from '@/components/ui/stat';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { SearchSelect } from '@/components/ui/search-select';
 import { AbsAvatar, AbsAlertBadge, AbsStatusChip } from '@/components/absences/badges';
 import { cn, stateChipVariant } from '@/lib/utils';
 
+
+type CommunicationDisplay = {
+  label: string;
+  detail: string | null;
+  email: { subject: string; text: string; to: string } | null;
+};
+
+function extractCommunicationEmail(meta: Record<string, unknown>): { subject: string; text: string; to: string } | null {
+  if (typeof meta.subject !== 'string' || typeof meta.text !== 'string') return null;
+
+  return { subject: meta.subject, text: meta.text, to: typeof meta.to === 'string' ? meta.to : '' };
+}
+
+// Traduit un LearnerCommunicationEntry (fusion des emails liés à une absence et des communications
+// propres à l'apprenant, ex. email disciplinaire manuel) en rendu affichable pour l'onglet
+// "Communications" — mêmes conventions que describeEvent() sur la fiche absence.
+function describeCommunication(entry: LearnerCommunicationEntry): CommunicationDisplay {
+  const meta = entry.metadata;
+  const email = extractCommunicationEmail(meta);
+
+  switch (entry.type) {
+    case 'notification_sent': {
+      const manual = entry.actorName !== null;
+      return {
+        label: manual ? `Relance manuelle envoyée par ${entry.actorName}` : 'Email de notification automatique envoyé',
+        detail: entry.sessionTitle,
+        email,
+      };
+    }
+    case 'confirmation_sent':
+      return {
+        label: entry.actorName ? `Email de confirmation envoyé par ${entry.actorName}` : 'Email de confirmation automatique envoyé',
+        detail: entry.sessionTitle,
+        email,
+      };
+    case 'elearning_reminder': {
+      const reason = meta.reason === 'schedule' ? 'Horaires de connexion' : 'Avancement insuffisant';
+      return {
+        label: entry.actorName ? `Relance e-learning envoyée par ${entry.actorName}` : 'Relance e-learning envoyée',
+        detail: reason,
+        email,
+      };
+    }
+    case 'disciplinary_email':
+    default: {
+      const count = typeof meta.consecutiveCount === 'number' ? meta.consecutiveCount : null;
+      return {
+        label: entry.actorName ? `Email disciplinaire envoyé par ${entry.actorName}` : 'Email disciplinaire envoyé',
+        detail: count !== null ? `${count} absences masterclass consécutives` : null,
+        email,
+      };
+    }
+  }
+}
 
 export function LearnersPage() {
   const { token, canAccess } = useAuth();
@@ -62,7 +118,8 @@ export function LearnersPage() {
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'formations' | 'sessions' | 'activity' | 'absences'>('formations');
+  const [activeTab, setActiveTab] = useState<'formations' | 'sessions' | 'activity' | 'absences' | 'communications'>('formations');
+  const [selectedCommunicationEmail, setSelectedCommunicationEmail] = useState<{ subject: string; text: string; to: string } | null>(null);
   const [resettingAbsenceCounter, setResettingAbsenceCounter] = useState(false);
   const [upcomingPage, setUpcomingPage] = useState(1);
   const upcomingPageSize = 4;
@@ -915,6 +972,10 @@ export function LearnersPage() {
                     <AlertTriangle size={15} />
                     Absences ({selectedLearner.absences.length})
                   </TabsTrigger>
+                  <TabsTrigger value="communications" className="data-[state=active]:bg-abs-brand-100 data-[state=active]:text-abs-brand-700">
+                    <Mail size={15} />
+                    Communications ({selectedLearner.communications.length})
+                  </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="formations">
@@ -1039,7 +1100,12 @@ export function LearnersPage() {
                 <TabsContent value="absences">
                   <div className="flex flex-col gap-3">
                     {selectedLearner.absences.map((absence) => (
-                      <div key={absence.id} className="rounded-md border border-abs-ink-100 p-4">
+                      <button
+                        key={absence.id}
+                        type="button"
+                        onClick={() => navigate(`/absences/${absence.id}`)}
+                        className="w-full rounded-md border border-abs-ink-100 p-4 text-left transition-colors hover:border-abs-brand-200 hover:bg-abs-brand-50/40"
+                      >
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div>
                             <h4 className="text-sm font-semibold">{absence.sessionTitle}</h4>
@@ -1047,7 +1113,10 @@ export function LearnersPage() {
                               {absence.type === 'masterclass' ? 'Masterclass' : 'Session présentiel'}
                             </p>
                           </div>
-                          <AbsStatusChip status={absence.status} />
+                          <div className="flex items-center gap-2">
+                            <AbsStatusChip status={absence.status} />
+                            <ChevronRight size={15} className="text-abs-ink-400" />
+                          </div>
                         </div>
                         <div className="mt-3 flex flex-wrap gap-4 border-t border-abs-ink-100 pt-3">
                           <span className="flex items-center gap-1.5 text-xs text-abs-ink-400">
@@ -1064,10 +1133,47 @@ export function LearnersPage() {
                             <span className="text-xs text-abs-ink-400">Note : {absence.adminNote}</span>
                           )}
                         </div>
-                      </div>
+                      </button>
                     ))}
                     {selectedLearner.absences.length === 0 && (
                       <p className="py-8 text-center text-sm text-abs-ink-400">Aucune absence enregistrée</p>
+                    )}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="communications">
+                  <div className="flex flex-col gap-3">
+                    {selectedLearner.communications.map((entry, index) => {
+                      const display = describeCommunication(entry);
+
+                      return (
+                        <div key={`${entry.type}-${entry.occurredAt}-${index}`} className="rounded-md border border-abs-ink-100 p-4">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="flex items-start gap-2.5">
+                              <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-abs-brand-100 text-abs-brand-600">
+                                <Mail size={14} />
+                              </span>
+                              <div>
+                                <p className="text-sm font-semibold">{display.label}</p>
+                                {display.detail && <p className="text-xs text-abs-ink-400">{display.detail}</p>}
+                              </div>
+                            </div>
+                            <span className="whitespace-nowrap text-xs text-abs-ink-400">{formatDateTime(entry.occurredAt)}</span>
+                          </div>
+                          {display.email ? (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedCommunicationEmail(display.email)}
+                              className="mt-2 flex items-center gap-1 text-xs font-semibold text-abs-brand-600 hover:text-abs-brand-700"
+                            >
+                              <Eye size={12} /> Voir le contenu de l&rsquo;email
+                            </button>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                    {selectedLearner.communications.length === 0 && (
+                      <p className="py-8 text-center text-sm text-abs-ink-400">Aucune communication enregistrée</p>
                     )}
                   </div>
                 </TabsContent>
@@ -1076,6 +1182,18 @@ export function LearnersPage() {
           </Card>
         </div>
       )}
+
+      <Dialog open={selectedCommunicationEmail !== null} onOpenChange={(open) => !open && setSelectedCommunicationEmail(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{selectedCommunicationEmail?.subject}</DialogTitle>
+            <DialogDescription>À {selectedCommunicationEmail?.to || 'destinataire inconnu'}</DialogDescription>
+          </DialogHeader>
+          <DialogBody>
+            <p className="whitespace-pre-line text-sm leading-relaxed text-foreground">{selectedCommunicationEmail?.text}</p>
+          </DialogBody>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

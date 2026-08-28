@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronDown, ChevronRight, ExternalLink, GraduationCap, Settings2, Users } from 'lucide-react';
 import { useAuth } from '../contexts/useAuth';
 import { apiRequest, ApiError } from '../lib/api';
-import { clampPercentage, formatDuration, formatPercentage } from '../lib/format';
+import { formatDuration } from '../lib/format';
 import { groupByPromotion, NO_PROMOTION_LABEL } from '../lib/promotion';
 import { DASHBOARD_KPIS, DEFAULT_DASHBOARD_KPIS } from '../lib/dashboardKpis';
 import { NAV_ITEMS } from '../lib/navItems';
@@ -13,7 +13,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CountUp } from '@/components/ui/stat';
-import { Progress } from '@/components/ui/progress';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 // Trie les promotions par année la plus récente d'abord (à partir du dernier "AAAA" trouvé dans le
@@ -89,6 +89,7 @@ export function DashboardPage() {
   const shortcuts = preferences?.shortcuts ?? [];
 
   return (
+    <TooltipProvider delayDuration={150}>
     <section className="flex flex-col gap-8" data-dashboard-theme={preferences?.theme ?? 'brand'}>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -209,6 +210,7 @@ export function DashboardPage() {
 
       <DashboardCustomizePanel open={customizeOpen} onOpenChange={setCustomizeOpen} preferences={preferences} />
     </section>
+    </TooltipProvider>
   );
 }
 
@@ -238,17 +240,30 @@ function GroupRow({ group, onClick }: { group: GroupSummary; onClick: () => void
         <span className="tabular w-20 text-right">
           <strong className="font-semibold text-foreground">{group.memberCount}</strong> membres
         </span>
-        <span className="tabular w-20 text-right">
-          <strong className="font-semibold text-foreground">{group.learningPathCount}</strong> parcours
-        </span>
+        {group.learningPaths.length > 0 ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="tabular w-20 cursor-help text-right underline decoration-dotted decoration-muted-foreground/50 underline-offset-4">
+                <strong className="font-semibold text-foreground">{group.learningPathCount}</strong> parcours
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" align="end" onClick={(event) => event.stopPropagation()}>
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Parcours associés
+              </p>
+              <ul className="space-y-0.5">
+                {group.learningPaths.map((title) => (
+                  <li key={title}>{title}</li>
+                ))}
+              </ul>
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          <span className="tabular w-20 text-right">
+            <strong className="font-semibold text-foreground">{group.learningPathCount}</strong> parcours
+          </span>
+        )}
         <span className="tabular w-16 text-right">{formatDuration(group.totalTime)}</span>
-      </div>
-
-      <div className="flex w-24 shrink-0 items-center gap-2">
-        <Progress value={clampPercentage(group.averageProgress)} className="flex-1" />
-        <span className="tabular w-9 shrink-0 text-right text-xs font-bold text-primary">
-          {formatPercentage(group.averageProgress)}
-        </span>
       </div>
 
       <ChevronRight size={15} className="shrink-0 text-muted-foreground" />

@@ -101,11 +101,10 @@ export function GroupDetailPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <OverviewStat icon={Users} label="Membres" value={data.group.memberCount} delay={0} />
-        <OverviewStat icon={BookOpen} label="Parcours" value={data.group.learningPathCount} delay={80} />
-        <OverviewStat icon={Clock} label="Temps total" value={formatDuration(data.group.totalTime)} delay={160} />
-        <OverviewStat icon={TrendingUp} label="Progression moyenne" value={formatPercentage(data.group.averageProgress)} delay={240} />
+        <OverviewStat icon={Clock} label="Temps total" value={formatDuration(data.group.totalTime)} delay={80} />
+        <OverviewStat icon={TrendingUp} label="Progression moyenne" value={formatPercentage(data.group.averageProgress)} delay={160} />
       </div>
 
       {data.learningPaths.length > 0 && (
@@ -139,6 +138,7 @@ export function GroupDetailPage() {
         data={memberTableData}
         title="Membres"
         showProgress={false}
+        enableActions
         onRowClick={(member) => setSelectedMember({ id: member.learnerId, name: member.fullName })}
       />
 

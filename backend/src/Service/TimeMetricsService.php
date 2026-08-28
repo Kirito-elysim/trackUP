@@ -105,7 +105,10 @@ final class TimeMetricsService
                 INNER JOIN learning_path_trainings lpt ON lpt.learning_path_id = lpr.learning_path_id
                 INNER JOIN training_modules tm ON tm.training_id = lpt.training_id
                 WHERE lpr.learning_path_id = :learningPathId
-                  AND tm.type IN ('scorm', 'rise')
+                  AND tm.type = 'online'
+                  -- training_modules.type n'est jamais 'scorm'/'rise' pour ce compte Rise Up (valeurs
+                  -- réelles : 'online'/'physical') ; l'ancien filtre 'scorm','rise' ne matchait donc
+                  -- jamais rien et laissait le temps prévu e-learning à 0.
                 GROUP BY lpr.learner_id
             SQL,
             ['learningPathId' => $learningPathId]
@@ -340,52 +343,30 @@ final class TimeMetricsService
     }
 
     /**
-     * Récupère les temps totaux pour tous les groupes Rise Up
-     * Agrège les temps de tous les parcours associés à chaque groupe
-     * 
+     * Récupère les temps totaux pour tous les groupes Rise Up (somme du temps de chaque membre,
+     * lui-même dédupliqué via getTimeMetricsByGroupMember()).
+     *
+     * Corrigé (roadmap "vrai temps en minute") : l'ancienne requête filtrait via
+     * riseup_group_learning_paths (association groupe ↔ parcours), une table jamais alimentée par la
+     * synchro pour ce compte Rise Up — la jointure INNER ne retournait donc plus aucune ligne et le
+     * temps total affichait systématiquement 0. On recalcule maintenant par membre, à partir des
+     * mêmes sous-requêtes déjà dédupliquées (DISTINCT sur l'identifiant du log/signature/module) que
+     * getTimeMetricsByGroupMember(), qui ne dépendent pas de cette table vide.
+     *
      * @return array<int, int> Temps total en secondes par group_id
      */
     public function getTotalTimeForGroups(): array
     {
-        $rows = $this->connection->fetchAllAssociative(
-            <<<SQL
-                SELECT
-                    rg.id AS group_id,
-                    SUM(COALESCE(module_logs.module_time, 0)) + SUM(COALESCE(session_logs.masterclass_time, 0) * 60) AS total_time
-                FROM riseup_groups rg
-                INNER JOIN riseup_learner_groups rlg ON rlg.group_id = rg.id
-                INNER JOIN learning_path_registrations lpr ON lpr.learner_id = rlg.learner_id
-                INNER JOIN learning_paths lp ON lp.id = lpr.learning_path_id
-                INNER JOIN riseup_group_learning_paths rglp ON rglp.group_id = rg.id AND rglp.learning_path_external_id = lp.external_id
-                LEFT JOIN (
-                    SELECT
-                        lpt2.learning_path_id,
-                        l2.id AS learner_id,
-                        COALESCE(SUM(ral.duration_seconds), 0) AS module_time
-                    FROM riseup_activity_logs ral
-                    INNER JOIN trainings t2 ON t2.external_id = ral.training_external_id
-                    INNER JOIN learning_path_trainings lpt2 ON lpt2.training_id = t2.id
-                    INNER JOIN learners l2 ON l2.external_id = ral.learner_external_id
-                    GROUP BY lpt2.learning_path_id, l2.id
-                ) module_logs ON module_logs.learning_path_id = lpr.learning_path_id AND module_logs.learner_id = lpr.learner_id
-                LEFT JOIN (
-                    SELECT
-                        lpt2.learning_path_id,
-                        csr.learner_id,
-                        COALESCE(SUM(CASE WHEN css.has_signed = 1 THEN cs2.edu_duration ELSE 0 END), 0) AS masterclass_time
-                    FROM classroom_session_registrations csr
-                    INNER JOIN classroom_sessions cs2 ON cs2.id = csr.session_id
-                    INNER JOIN learning_path_trainings lpt2 ON lpt2.training_id = cs2.training_id
-                    LEFT JOIN classroom_session_signatures css ON css.registration_id = csr.id
-                    GROUP BY lpt2.learning_path_id, csr.learner_id
-                ) session_logs ON session_logs.learning_path_id = lpr.learning_path_id AND session_logs.learner_id = lpr.learner_id
-                GROUP BY rg.id
-            SQL
-        );
+        $groupIds = $this->connection->fetchFirstColumn('SELECT id FROM riseup_groups WHERE hidden = 0');
 
         $result = [];
-        foreach ($rows as $row) {
-            $result[(int) $row['group_id']] = (int) ($row['total_time'] ?? 0);
+        foreach ($groupIds as $groupId) {
+            $groupId = (int) $groupId;
+            $total = 0;
+            foreach ($this->getTimeMetricsByGroupMember($groupId) as $member) {
+                $total += $member['total_time_seconds'];
+            }
+            $result[$groupId] = $total;
         }
 
         return $result;
@@ -466,6 +447,8 @@ final class TimeMetricsService
         // Expected e-learning time par membre. tm.duration est en minutes en base ;
         // converti en secondes plus bas.
         // Déduplique les modules qui apparaissent dans plusieurs parcours via DISTINCT sur tm.id
+        // tm.type = 'online' : voir le commentaire de getExpectedElearningTimeByLearner() ci-dessus,
+        // 'scorm'/'rise' ne correspondent à aucune valeur réelle en base.
         $expectedElearningRows = $this->connection->fetchAllAssociative(
             <<<SQL
                 SELECT
@@ -483,7 +466,7 @@ final class TimeMetricsService
                     LEFT JOIN learning_path_trainings lpt ON lpt.learning_path_id = lp.id
                     LEFT JOIN training_modules tm ON tm.training_id = lpt.training_id
                     WHERE rlg.group_id = :groupId
-                      AND tm.type IN ('scorm', 'rise')
+                      AND tm.type = 'online'
                 ) sub
                 GROUP BY sub.learner_id
             SQL,

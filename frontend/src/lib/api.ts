@@ -67,3 +67,19 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 export function apiUrl(path: string): string {
   return buildUrl(path);
 }
+
+// Ouvre un fichier servi par un endpoint protégé (ex. justificatif d'absence) dans un nouvel onglet.
+// Un <a href> classique n'enverrait pas l'en-tête Authorization, donc on récupère le blob via fetch
+// puis on l'ouvre depuis une URL objet locale.
+export async function openAuthenticatedFile(path: string, token: string): Promise<void> {
+  const response = await fetch(buildUrl(path), { headers: { Authorization: `Bearer ${token}` } });
+
+  if (!response.ok) {
+    throw new ApiError('Fichier introuvable.', response.status);
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank', 'noopener,noreferrer');
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}

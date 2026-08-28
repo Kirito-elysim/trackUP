@@ -4,16 +4,21 @@ declare(strict_types=1);
 namespace App\Controller\Api\Admin;
 
 use App\Entity\Absence;
+use App\Entity\AbsenceEvent;
 use App\Entity\Learner;
 use App\Entity\User;
+use App\Service\AbsenceEventLogger;
 use App\Service\AbsenceNotificationService;
 use App\Service\AbsenceStreakService;
 use App\Service\UserPermissionResolver;
 use Doctrine\DBAL\ParameterType;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\Routing\Attribute\Route;
 
 #[Route('/api/admin/absences')]
@@ -37,6 +42,8 @@ class AbsenceController extends AbstractController
         private readonly UserPermissionResolver $permissionResolver,
         private readonly AbsenceNotificationService $absenceNotificationService,
         private readonly AbsenceStreakService $absenceStreakService,
+        private readonly AbsenceEventLogger $absenceEventLogger,
+        private readonly string $uploadDir,
     ) {
     }
 
@@ -98,6 +105,15 @@ class AbsenceController extends AbstractController
             $params['dateTo'] = $dateTo . ' 23:59:59';
         }
 
+        // Filtre "à vérifier" (badge de nav "Absences") : justificatif déposé par l'apprenant, pas
+        // encore traité par un admin. Implique status=en_attente (un justificatif validé/rejeté n'a
+        // plus rien "à vérifier"), donc combiné avec les onglets de statut cela ne peut donner de
+        // résultats que sur l'onglet "En attente".
+        $pendingReviewOnly = $request->query->get('pendingReview') === '1';
+        if ($pendingReviewOnly) {
+            $conditions[] = "a.justification_submitted_at IS NOT NULL AND a.status = 'en_attente'";
+        }
+
         // Les compteurs par statut (onglets "Toutes / En attente / ...") doivent rester stables quel
         // que soit l'onglet sélectionné : ils respectent les autres filtres (apprenant, groupe, type,
         // période) mais jamais le filtre de statut lui-même, sinon les onglets non sélectionnés
@@ -134,6 +150,13 @@ class AbsenceController extends AbstractController
             $statsByStatus[$row['status']] = (int) $row['total'];
         }
         $statsTotal = array_sum($statsByStatus);
+
+        // Compteur du chip "Justificatif à vérifier" : respecte les autres filtres actifs (apprenant,
+        // groupe, type, période), comme les onglets de statut, mais jamais le toggle pendingReview
+        // lui-même (sinon il retomberait à 0 quand il est déjà actif).
+        $pendingReviewCondition = "a.justification_submitted_at IS NOT NULL AND a.status = 'en_attente'";
+        $pendingReviewSql = $statsWhereSql === '' ? "WHERE {$pendingReviewCondition}" : "{$statsWhereSql} AND {$pendingReviewCondition}";
+        $pendingReviewCount = (int) $connection->fetchOne("SELECT COUNT(*) {$fromSql} {$pendingReviewSql}", $params, $types);
 
         $rows = $connection->fetchAllAssociative(
             <<<SQL
@@ -194,6 +217,7 @@ class AbsenceController extends AbstractController
             'stats' => [
                 'total' => $statsTotal,
                 'byStatus' => $statsByStatus,
+                'pendingReviewCount' => $pendingReviewCount,
             ],
             'pagination' => [
                 'page' => $page,
@@ -228,7 +252,10 @@ class AbsenceController extends AbstractController
                 SELECT
                     a.id, a.type, a.status, a.detected_at AS detectedAt,
                     a.notification_sent_at AS notificationSentAt,
+                    a.justification_token AS justificationToken,
+                    a.justification_token_expires_at AS justificationTokenExpiresAt,
                     a.justification_submitted_at AS justificationSubmittedAt,
+                    a.justification_file_path AS justificationFilePath,
                     a.justification_file_original_name AS justificationFileOriginalName,
                     a.confirmation_sent_at AS confirmationSentAt,
                     a.validated_at AS validatedAt, a.admin_note AS adminNote,
@@ -261,6 +288,9 @@ class AbsenceController extends AbstractController
             'status' => $row['status'],
             'detectedAt' => $row['detectedAt'],
             'notificationSentAt' => $row['notificationSentAt'],
+            'hasActiveJustificationToken' => $row['justificationToken'] !== null
+                && ($row['justificationTokenExpiresAt'] === null || $row['justificationTokenExpiresAt'] > date('Y-m-d H:i:s')),
+            'justificationTokenExpiresAt' => $row['justificationTokenExpiresAt'],
             'justificationSubmittedAt' => $row['justificationSubmittedAt'],
             'justificationFileOriginalName' => $row['justificationFileOriginalName'],
             'confirmationSentAt' => $row['confirmationSentAt'],
@@ -282,7 +312,76 @@ class AbsenceController extends AbstractController
             'validatedByName' => $row['validatedByFirstName'] !== null
                 ? trim(sprintf('%s %s', (string) $row['validatedByFirstName'], (string) $row['validatedByLastName']))
                 : null,
+            'justificationFileAvailable' => $row['justificationFilePath'] !== null,
+            'events' => $this->fetchAbsenceEvents($id),
         ]);
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function fetchAbsenceEvents(int $absenceId): array
+    {
+        $rows = $this->entityManager->getConnection()->fetchAllAssociative(
+            <<<SQL
+                SELECT
+                    ae.type, ae.occurred_at AS occurredAt, ae.metadata,
+                    u.first_name AS actorFirstName, u.last_name AS actorLastName
+                FROM absence_events ae
+                LEFT JOIN users u ON u.id = ae.actor_id
+                WHERE ae.absence_id = :id
+                ORDER BY ae.occurred_at DESC, ae.id DESC
+            SQL,
+            ['id' => $absenceId],
+            ['id' => ParameterType::INTEGER]
+        );
+
+        return array_map(static fn (array $row): array => [
+            'type' => $row['type'],
+            'occurredAt' => $row['occurredAt'],
+            'actorName' => $row['actorFirstName'] !== null
+                ? trim(sprintf('%s %s', (string) $row['actorFirstName'], (string) $row['actorLastName']))
+                : null,
+            'metadata' => json_decode((string) $row['metadata'], true) ?? [],
+        ], $rows);
+    }
+
+    // Visualisation du justificatif déposé (carte "Historique" côté fiche absence) : le stockage est
+    // sur disque, jamais servi statiquement, donc ce endpoint est le seul moyen pour un admin de voir
+    // le PDF/image envoyé par l'apprenant. `inline` pour un aperçu direct dans un nouvel onglet.
+    #[Route('/{id}/justification-file', name: 'api_admin_absences_justification_file', methods: ['GET'], requirements: ['id' => '\d+'])]
+    public function justificationFile(int $id): Response
+    {
+        /** @var User|null $user */
+        $user = $this->getUser();
+
+        if (!$this->permissionResolver->userHasFeature($user, 'absences.view')) {
+            return $this->json(['message' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        $absence = $this->entityManager->getRepository(Absence::class)->find($id);
+        $filePath = $absence?->getJustificationFilePath();
+
+        if ($absence === null || $filePath === null) {
+            return $this->json(['message' => 'Aucun justificatif disponible.'], JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        $fullPath = $this->uploadDir . '/' . $filePath;
+        if (!is_file($fullPath)) {
+            return $this->json(['message' => 'Fichier introuvable.'], JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        $extension = strtolower(pathinfo($fullPath, PATHINFO_EXTENSION));
+        $mimeTypes = ['pdf' => 'application/pdf', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png'];
+
+        $response = new BinaryFileResponse($fullPath);
+        $response->headers->set('Content-Type', $mimeTypes[$extension] ?? 'application/octet-stream');
+        $response->setContentDisposition(
+            ResponseHeaderBag::DISPOSITION_INLINE,
+            $absence->getJustificationFileOriginalName() ?? $filePath
+        );
+
+        return $response;
     }
 
     // Sous-section Absences : agrégats pour la page /absences/dashboard.
@@ -357,6 +456,22 @@ class AbsenceController extends AbstractController
             'SELECT COUNT(*) FROM learners WHERE disciplinary_alert_sent_at IS NOT NULL'
         );
 
+        // Justificatifs déposés mais pas encore traités par un admin (statut toujours en_attente) —
+        // alerte demandée pour le Dashboard : "j'ai reçu un justificatif pour vérifier".
+        $pendingReviewCount = (int) $connection->fetchOne(
+            "SELECT COUNT(*) FROM absences WHERE status = 'en_attente' AND justification_submitted_at IS NOT NULL"
+        );
+
+        // Suivi des séries (roadmap 3.4) : le compteur de relances d'un apprenant ne compte que ses
+        // absences détectées après son propre absence_counter_reset_at (reset manuel ou global) — les
+        // absences antérieures à cette date ne sont donc jamais prises en compte pour le déclenchement
+        // d'une alerte. Affiché tel quel côté admin pour éviter la confusion "pourquoi pas d'alerte
+        // alors qu'il y a plein d'absences en attente ?".
+        $streakTrackingRow = $connection->fetchAssociative(
+            'SELECT MAX(absence_counter_reset_at) AS resetAt, COUNT(*) AS affectedCount
+             FROM learners WHERE absence_counter_reset_at IS NOT NULL'
+        );
+
         return $this->json([
             'stats' => ['total' => $total, 'byStatus' => $statsByStatus],
             'byGroup' => array_map(static fn (array $row): array => [
@@ -374,13 +489,177 @@ class AbsenceController extends AbstractController
                 'sessionStartAt' => $row['sessionStartAt'],
             ], $recentRows),
             'activeAlertsCount' => $activeAlertsCount,
+            'pendingReviewCount' => $pendingReviewCount,
             'activeAlertsPreview' => array_map(static fn (array $row): array => [
                 'learnerId' => (int) $row['id'],
                 'fullName' => trim(sprintf('%s %s', (string) $row['firstName'], (string) $row['lastName'])),
                 'group' => $row['groupName'],
                 'consecutiveCount' => (int) $row['consecutiveCount'],
             ], $alertsPreviewRows),
+            'streakTracking' => [
+                'resetAt' => $streakTrackingRow['resetAt'] ?: null,
+                'affectedLearnersCount' => (int) ($streakTrackingRow['affectedCount'] ?? 0),
+            ],
         ]);
+    }
+
+    // Sous-section Absences : graphique d'évolution (page /absences/dashboard) — nombre d'absences
+    // détectées par période (année/mois/jour), ventilé par statut pour un histogramme empilé.
+    #[Route('/evolution', name: 'api_admin_absences_evolution', methods: ['GET'])]
+    public function evolution(Request $request): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = $this->getUser();
+
+        if (!$this->permissionResolver->userHasFeature($user, 'absences.view')) {
+            return $this->json(['message' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        $granularity = (string) $request->query->get('granularity', 'month');
+        if (!in_array($granularity, ['year', 'month', 'day'], true)) {
+            $granularity = 'month';
+        }
+
+        $connection = $this->entityManager->getConnection();
+        $dateFormat = match ($granularity) {
+            'year' => '%Y',
+            'day' => '%Y-%m-%d',
+            default => '%Y-%m',
+        };
+
+        $sql = <<<SQL
+            SELECT DATE_FORMAT(cs.start_at, :dateFormat) AS period, a.status, COUNT(*) AS total
+            FROM absences a
+            INNER JOIN classroom_session_registrations csr ON csr.id = a.registration_id
+            INNER JOIN classroom_sessions cs ON cs.id = csr.session_id
+            WHERE cs.start_at IS NOT NULL
+        SQL;
+        $params = ['dateFormat' => $dateFormat];
+
+        // Granularité "jour" limitée aux 60 derniers jours : sur ~1 an d'historique, un point par jour
+        // sur toute la période rendrait le graphique illisible.
+        if ($granularity === 'day') {
+            $since = (new \DateTimeImmutable('today'))->modify('-59 days');
+            $sql .= ' AND cs.start_at >= :since';
+            $params['since'] = $since->format('Y-m-d 00:00:00');
+        }
+
+        $sql .= ' GROUP BY period, a.status';
+
+        $rows = $connection->fetchAllAssociative($sql, $params);
+
+        $countsByPeriod = [];
+        $minPeriod = null;
+        $maxPeriod = null;
+        foreach ($rows as $row) {
+            $period = (string) $row['period'];
+            $countsByPeriod[$period][$row['status']] = (int) $row['total'];
+            if ($minPeriod === null || $period < $minPeriod) {
+                $minPeriod = $period;
+            }
+            if ($maxPeriod === null || $period > $maxPeriod) {
+                $maxPeriod = $period;
+            }
+        }
+
+        $periods = $this->buildEvolutionPeriods($granularity, $minPeriod, $maxPeriod);
+
+        $series = array_map(function (string $period) use ($countsByPeriod): array {
+            $counts = $countsByPeriod[$period] ?? [];
+            $entry = ['period' => $period];
+            $total = 0;
+            foreach (self::SETTABLE_STATUSES as $status) {
+                $count = $counts[$status] ?? 0;
+                $entry[$status] = $count;
+                $total += $count;
+            }
+            $entry['total'] = $total;
+
+            return $entry;
+        }, $periods);
+
+        return $this->json(['granularity' => $granularity, 'series' => $series]);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function buildEvolutionPeriods(string $granularity, ?string $min, ?string $max): array
+    {
+        if ($granularity === 'day') {
+            $cursor = (new \DateTimeImmutable('today'))->modify('-59 days');
+            $end = new \DateTimeImmutable('today');
+            $periods = [];
+            while ($cursor <= $end) {
+                $periods[] = $cursor->format('Y-m-d');
+                $cursor = $cursor->modify('+1 day');
+            }
+
+            return $periods;
+        }
+
+        if ($min === null || $max === null) {
+            return [];
+        }
+
+        if ($granularity === 'year') {
+            $periods = [];
+            for ($year = (int) $min; $year <= (int) $max; ++$year) {
+                $periods[] = (string) $year;
+            }
+
+            return $periods;
+        }
+
+        $cursor = \DateTimeImmutable::createFromFormat('Y-m-d', $min . '-01');
+        $end = \DateTimeImmutable::createFromFormat('Y-m-d', $max . '-01');
+        $periods = [];
+        while ($cursor <= $end) {
+            $periods[] = $cursor->format('Y-m');
+            $cursor = $cursor->modify('+1 month');
+        }
+
+        return $periods;
+    }
+
+    // Badge de notification sur l'item de nav "Alertes" (sidebar) : nombre d'apprenants en alerte
+    // disciplinaire active, sans le reste du payload de /alerts (chargé à chaque rendu de la sidebar).
+    #[Route('/alerts/count', name: 'api_admin_absences_alerts_count', methods: ['GET'])]
+    public function alertsCount(): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = $this->getUser();
+
+        if (!$this->permissionResolver->userHasFeature($user, 'absences.view')) {
+            return $this->json(['message' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        $count = (int) $this->entityManager->getConnection()->fetchOne(
+            'SELECT COUNT(*) FROM learners WHERE disciplinary_alert_sent_at IS NOT NULL'
+        );
+
+        return $this->json(['count' => $count]);
+    }
+
+    // Badge de notification sur l'item de nav "Absences" (sidebar) : nombre de justificatifs déposés
+    // par des apprenants et pas encore traités par un admin — même calcul que
+    // dashboard()['pendingReviewCount'], exposé séparément pour être chargé par la sidebar sans le
+    // reste du payload du dashboard.
+    #[Route('/pending-review/count', name: 'api_admin_absences_pending_review_count', methods: ['GET'])]
+    public function pendingReviewCount(): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = $this->getUser();
+
+        if (!$this->permissionResolver->userHasFeature($user, 'absences.view')) {
+            return $this->json(['message' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        $count = (int) $this->entityManager->getConnection()->fetchOne(
+            "SELECT COUNT(*) FROM absences WHERE status = 'en_attente' AND justification_submitted_at IS NOT NULL"
+        );
+
+        return $this->json(['count' => $count]);
     }
 
     // Sous-section Absences : page /absences/alertes — apprenants en alerte active et "à surveiller".
@@ -591,6 +870,91 @@ class AbsenceController extends AbstractController
         return $this->json(['message' => "Email d'alerte renvoyé."]);
     }
 
+    // Email disciplinaire envoyé DIRECTEMENT à l'apprenant (page /absences/alertes) — distinct de
+    // l'alerte interne automatique à pedagogie@edup-bs.com ci-dessus. Décision explicite de
+    // l'utilisateur : jamais automatique, uniquement sur clic d'un admin.
+    #[Route('/alerts/{learnerId}/send-disciplinary-email', name: 'api_admin_absences_alerts_send_disciplinary_email', methods: ['POST'], requirements: ['learnerId' => '\d+'])]
+    public function sendDisciplinaryEmailToLearner(int $learnerId): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = $this->getUser();
+
+        if (!$this->permissionResolver->userHasFeature($user, 'absences.manage')) {
+            return $this->json(['message' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        $learner = $this->entityManager->getRepository(Learner::class)->find($learnerId);
+
+        if (!$learner instanceof Learner) {
+            return $this->json(['message' => 'Apprenant introuvable.'], JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        if ($learner->getEmail() === null || $learner->getEmail() === '') {
+            return $this->json(
+                ['message' => "Cet apprenant n'a pas d'adresse email connue."],
+                JsonResponse::HTTP_UNPROCESSABLE_ENTITY
+            );
+        }
+
+        $this->absenceNotificationService->sendDisciplinaryEmailToLearner(
+            $learner,
+            $learner->getConsecutiveUnjustifiedMasterclassAbsences(),
+            $user
+        );
+        $this->entityManager->flush();
+
+        return $this->json(['message' => 'Email envoyé à ' . $learner->getEmail() . '.']);
+    }
+
+    // Relance manuelle (page /absences/{id}) : renvoie l'email à l'apprenant. Par défaut réutilise le
+    // même lien (même token, même expiration) tant qu'il est encore valide — décision explicite de
+    // l'utilisateur : une relance ne remet pas le délai à zéro. `extend: true` dans le corps de la
+    // requête prolonge explicitement l'expiration à 14 jours à partir de maintenant (bouton
+    // "Prolonger" séparé côté fiche absence). Sert aussi de rattrapage pour les absences détectées
+    // avant l'ajout du token dans AbsenceNotificationService, qui n'en ont jamais reçu.
+    #[Route('/{id}/resend-notification', name: 'api_admin_absences_resend_notification', methods: ['POST'], requirements: ['id' => '\d+'])]
+    public function resendNotification(int $id, Request $request): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = $this->getUser();
+
+        if (!$this->permissionResolver->userHasFeature($user, 'absences.manage')) {
+            return $this->json(['message' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        $absence = $this->entityManager->getRepository(Absence::class)->find($id);
+
+        if (!$absence instanceof Absence) {
+            return $this->json(['message' => 'Absence introuvable.'], JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        if ($absence->getStatus() !== Absence::STATUS_EN_ATTENTE) {
+            return $this->json(
+                ['message' => "Cette absence n'est plus en attente de justificatif, la relance est désactivée."],
+                JsonResponse::HTTP_UNPROCESSABLE_ENTITY
+            );
+        }
+
+        $learnerEmail = $absence->getRegistration()->getLearner()->getEmail();
+        if ($learnerEmail === null || $learnerEmail === '') {
+            return $this->json(
+                ['message' => "Cet apprenant n'a pas d'adresse email connue."],
+                JsonResponse::HTTP_UNPROCESSABLE_ENTITY
+            );
+        }
+
+        $extend = $request->getContent() !== '' ? (bool) ($request->toArray()['extend'] ?? false) : false;
+        $renewed = $this->absenceNotificationService->resend($absence, $user, $extend);
+        $this->entityManager->flush();
+
+        return $this->json([
+            'notificationSentAt' => $absence->getNotificationSentAt()?->format(DATE_ATOM),
+            'hasActiveJustificationToken' => $absence->getJustificationToken() !== null,
+            'justificationTokenExpiresAt' => $absence->getJustificationTokenExpiresAt()?->format(DATE_ATOM),
+            'renewed' => $renewed,
+        ]);
+    }
+
     // Valide, rejette, remet en attente ou reclasse une absence, et/ou met à jour la note interne
     // admin (roadmap 3.2, étape 4 / 3.3). Un email de confirmation est envoyé à l'apprenant
     // uniquement lorsque le statut change effectivement vers l'un des 3 statuts définitifs.
@@ -612,6 +976,7 @@ class AbsenceController extends AbstractController
 
         $data = $request->toArray();
         $previousStatus = $absence->getStatus();
+        $previousNote = $absence->getAdminNote();
 
         if (array_key_exists('status', $data)) {
             $status = (string) $data['status'];
@@ -630,10 +995,23 @@ class AbsenceController extends AbstractController
 
         $statusChanged = $absence->getStatus() !== $previousStatus;
         $statusChangedToFinal = $statusChanged && in_array($absence->getStatus(), self::FINAL_STATUSES, true);
+        $noteChanged = $absence->getAdminNote() !== $previousNote;
 
         if ($statusChangedToFinal) {
             $absence->setValidation(new \DateTimeImmutable(), $user);
-            $this->absenceNotificationService->sendConfirmation($absence);
+            $this->absenceNotificationService->sendConfirmation($absence, $user);
+        }
+
+        if ($statusChanged) {
+            $this->absenceEventLogger->log($absence, AbsenceEvent::TYPE_STATUS_CHANGED, $user, [
+                'from' => $previousStatus,
+                'to' => $absence->getStatus(),
+                'emailSent' => $statusChangedToFinal,
+            ]);
+        } elseif ($noteChanged) {
+            $this->absenceEventLogger->log($absence, AbsenceEvent::TYPE_NOTE_ADDED, $user, [
+                'note' => $absence->getAdminNote(),
+            ]);
         }
 
         // Flush avant le recalcul de série : AbsenceStreakService lit les statuts d'absence via une
@@ -665,6 +1043,9 @@ class AbsenceController extends AbstractController
             'validatedByName' => $validatedBy instanceof User
                 ? trim(sprintf('%s %s', $validatedBy->getFirstName(), $validatedBy->getLastName()))
                 : null,
+            // Renvoyé pour que la carte "Historique" se mette à jour sans recharger la page après un
+            // PATCH (changement de statut ou note) — évite un second aller-retour GET côté frontend.
+            'events' => $this->fetchAbsenceEvents((int) $absence->getId()),
         ];
     }
 }

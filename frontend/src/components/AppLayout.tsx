@@ -4,15 +4,27 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, LogOut, Menu, X } from 'lucide-react';
 import { useAuth } from '../contexts/useAuth';
 import { NAV_ITEMS } from '../lib/navItems';
+import { apiRequest } from '../lib/api';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
+// Badges de notification sur les items de nav "Alertes"/"Absences" (sidebar) : réhydratés au montage
+// puis toutes les 60s, pour rester à peu près à jour sans justifier une infra de websocket/polling
+// partagée. Un item de nav → l'endpoint de comptage léger correspondant.
+const NAV_BADGE_POLL_INTERVAL_MS = 60_000;
+const NAV_BADGE_SOURCES: Array<{ to: string; endpoint: string }> = [
+  { to: '/absences/alertes', endpoint: '/api/admin/absences/alerts/count' },
+  { to: '/absences', endpoint: '/api/admin/absences/pending-review/count' },
+];
+
 export function AppLayout() {
-  const { user, logout, canAccess } = useAuth();
+  const { user, token, logout, canAccess } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [navBadgeCounts, setNavBadgeCounts] = useState<Record<string, number>>({});
   const visibleItems = NAV_ITEMS.filter((item) => !item.hidden && canAccess(item.feature));
   const navGroups = Array.from(new Set(visibleItems.map((item) => item.group)));
+  const canSeeAbsencesBadges = canAccess('absences.view');
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -25,6 +37,37 @@ export function AppLayout() {
       document.body.style.overflow = previousOverflow;
     };
   }, [sidebarOpen]);
+
+  useEffect(() => {
+    if (!token || !canSeeAbsencesBadges) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const results = await Promise.all(
+          NAV_BADGE_SOURCES.map((source) => apiRequest<{ count: number }>(source.endpoint, { token })),
+        );
+        if (!cancelled) {
+          setNavBadgeCounts(
+            Object.fromEntries(NAV_BADGE_SOURCES.map((source, index) => [source.to, results[index].count])),
+          );
+        }
+      } catch {
+        // Badges silencieux en cas d'échec — pas de dégradation visible de la sidebar pour ça.
+      }
+    };
+
+    void load();
+    const interval = setInterval(load, NAV_BADGE_POLL_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [token, canSeeAbsencesBadges]);
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -98,6 +141,9 @@ export function AppLayout() {
                   .filter((item) => item.group === group)
                   .map((item) => {
                     const Icon = item.icon;
+                    const badgeCount = navBadgeCounts[item.to] ?? 0;
+                    const showBadge = badgeCount > 0;
+                    const badgeLabel = badgeCount > 99 ? '99+' : badgeCount;
 
                     return (
                       <NavLink
@@ -112,10 +158,26 @@ export function AppLayout() {
                             isActive && 'bg-gradient-brand text-white shadow-soft hover:translate-x-0 hover:text-white',
                           )
                         }
-                        title={sidebarCollapsed ? item.label : undefined}
+                        title={sidebarCollapsed ? `${item.label}${showBadge ? ` (${badgeCount})` : ''}` : undefined}
                       >
-                        <Icon size={17} className="shrink-0" />
-                        {!sidebarCollapsed && <span>{item.label}</span>}
+                        <span className="relative shrink-0">
+                          <Icon size={17} />
+                          {showBadge && sidebarCollapsed && (
+                            <span className="absolute -right-1.5 -top-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-destructive px-1 text-[0.55rem] font-bold leading-none text-destructive-foreground">
+                              {badgeLabel}
+                            </span>
+                          )}
+                        </span>
+                        {!sidebarCollapsed && (
+                          <span className="flex flex-1 items-center justify-between gap-2">
+                            {item.label}
+                            {showBadge && (
+                              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[0.65rem] font-bold leading-none text-destructive-foreground">
+                                {badgeLabel}
+                              </span>
+                            )}
+                          </span>
+                        )}
                       </NavLink>
                     );
                   })}

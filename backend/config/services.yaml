@@ -54,5 +54,13 @@ services:
         arguments:
             $uploadDir: '%app.absences_upload_dir%'
 
+    App\Controller\Api\Admin\AbsenceController:
+        arguments:
+            $uploadDir: '%app.absences_upload_dir%'
+
+    App\Service\LearnerReminderService:
+        arguments:
+            $fromAddress: '%app.mailer_from_address%'
+
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
