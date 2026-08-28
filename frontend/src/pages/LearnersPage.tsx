@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/useAuth';
 import { apiRequest, ApiError } from '../lib/api';
 import { clampPercentage, formatDuration, formatPercentage, formatDateTime } from '../lib/format';
 import {
+  ArrowLeft,
   Search,
   Clock,
   TrendingUp,
@@ -14,7 +15,7 @@ import {
   XCircle,
   Activity,
   AlertTriangle,
-  X,
+  FilterX,
   Award,
   Target,
   Zap,
@@ -40,7 +41,12 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Chip } from '@/components/ui/chip';
 import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
 import { CountUp } from '@/components/ui/stat';
+import { Avatar } from '@/components/ui/avatar';
+import { Select } from '@/components/ui/select';
+import { SortableHead, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableShell } from '@/components/ui/table';
+import { compareValues, type SortDirection } from '../lib/sort';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { SearchSelect } from '@/components/ui/search-select';
@@ -53,6 +59,18 @@ type CommunicationDisplay = {
   detail: string | null;
   email: { subject: string; text: string; to: string } | null;
 };
+
+const LEARNER_STATE_META: Record<string, { label: string; variant: 'success' | 'destructive' | 'neutral' }> = {
+  active: { label: 'Actif', variant: 'success' },
+  suspended: { label: 'Suspendu', variant: 'destructive' },
+  inactive: { label: 'Inactif', variant: 'neutral' },
+};
+
+type DirectorySortKey = 'fullName' | 'trainingCount' | 'averageProgress' | 'totalTime' | 'lastActivityAt';
+
+function learnerStateMeta(state: string): { label: string; variant: 'success' | 'destructive' | 'neutral' } {
+  return LEARNER_STATE_META[state.toLowerCase()] ?? { label: state, variant: 'neutral' };
+}
 
 function extractCommunicationEmail(meta: Record<string, unknown>): { subject: string; text: string; to: string } | null {
   if (typeof meta.subject !== 'string' || typeof meta.text !== 'string') return null;
@@ -111,11 +129,14 @@ export function LearnersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const deferredQuery = useDeferredValue(searchQuery);
   const [learners, setLearners] = useState<LearnerSummary[]>([]);
+  const [stateFilter, setStateFilter] = useState('');
+  const [sortKey, setSortKey] = useState<DirectorySortKey>('lastActivityAt');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [selectedLearnerId, setSelectedLearnerId] = useState<number | null>(
     routeLearnerId ? Number(routeLearnerId) : null,
   );
   const [selectedLearner, setSelectedLearner] = useState<LearnerDetail | null>(null);
-  const [showSearchResults, setShowSearchResults] = useState(false);
+  const [listLoading, setListLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'formations' | 'sessions' | 'activity' | 'absences' | 'communications'>('formations');
@@ -176,7 +197,48 @@ export function LearnersPage() {
   const upcomingPageStartIndex = (upcomingPage - 1) * upcomingPageSize;
   const upcomingPageItems = upcomingSessions.slice(upcomingPageStartIndex, upcomingPageStartIndex + upcomingPageSize);
 
-  const visibleLearners = deferredQuery.trim().length < 2 ? [] : learners;
+  const directoryTotals = useMemo(() => {
+    const actifs = learners.filter((learner) => learner.state.toLowerCase() === 'active').length;
+    const totalTime = learners.reduce((sum, learner) => sum + learner.totalTime, 0);
+    const sessions = learners.reduce((sum, learner) => sum + learner.sessionRegistrationCount, 0);
+    // Progression pondérée par le nombre de formations suivies par apprenant.
+    const registrations = learners.reduce((sum, learner) => sum + learner.trainingCount, 0);
+    const weightedProgress =
+      registrations > 0 ? learners.reduce((sum, learner) => sum + learner.averageProgress * learner.trainingCount, 0) / registrations : 0;
+
+    return { actifs, totalTime, sessions, weightedProgress };
+  }, [learners]);
+
+  const stateOptions = useMemo(() => [...new Set(learners.map((learner) => learner.state))], [learners]);
+
+  const sortedLearners = useMemo(() => {
+    const rows = [...learners];
+    rows.sort((left, right) => compareValues(left[sortKey], right[sortKey], sortDirection));
+    return rows;
+  }, [learners, sortDirection, sortKey]);
+
+  const handleSort = (key: DirectorySortKey) => {
+    if (sortKey === key) {
+      setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'));
+      return;
+    }
+
+    setSortKey(key);
+    setSortDirection(key === 'fullName' ? 'asc' : 'desc');
+  };
+
+  const hasActiveFilters = searchQuery.trim() !== '' || stateFilter !== '';
+
+  const resetFilters = () => {
+    setSearchQuery('');
+    setStateFilter('');
+  };
+
+  const handleBackToDirectory = () => {
+    setSelectedLearnerId(null);
+    setSelectedLearner(null);
+    navigate('/learners');
+  };
 
   useEffect(() => {
     if (routeLearnerId) {
@@ -185,19 +247,25 @@ export function LearnersPage() {
   }, [routeLearnerId]);
 
   useEffect(() => {
-    if (!token || deferredQuery.trim().length < 2) {
+    if (!token) {
       return;
     }
 
     let cancelled = false;
 
     const loadLearners = async () => {
+      setListLoading(true);
       setError(null);
 
-      const params = new URLSearchParams({
-        limit: '20',
-        q: deferredQuery.trim()
-      });
+      const params = new URLSearchParams({ limit: '100' });
+
+      if (deferredQuery.trim() !== '') {
+        params.set('q', deferredQuery.trim());
+      }
+
+      if (stateFilter !== '') {
+        params.set('state', stateFilter);
+      }
 
       try {
         const payload = await apiRequest<LearnerSummary[]>(`/api/learners?${params.toString()}`, { token });
@@ -207,8 +275,12 @@ export function LearnersPage() {
         }
       } catch (caught) {
         if (!cancelled) {
-          setError(caught instanceof ApiError ? caught.message : 'Recherche impossible.');
+          setError(caught instanceof ApiError ? caught.message : 'Chargement du répertoire impossible.');
           setLearners([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setListLoading(false);
         }
       }
     };
@@ -218,7 +290,7 @@ export function LearnersPage() {
     return () => {
       cancelled = true;
     };
-  }, [deferredQuery, token]);
+  }, [deferredQuery, stateFilter, token]);
 
   useEffect(() => {
     if (!token || !selectedLearnerId) {
@@ -289,8 +361,6 @@ export function LearnersPage() {
   const handleSelectLearner = (learnerId: number) => {
     setSelectedLearnerId(learnerId);
     setUpcomingPage(1);
-    setShowSearchResults(false);
-    setSearchQuery('');
     setEditingAssignment(false);
     setAssignmentMessage(null);
     setEditingProspect(false);
@@ -432,96 +502,181 @@ export function LearnersPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div>
-        <h2 className="font-display text-3xl font-extrabold tracking-tight text-abs-ink-900">Apprenants</h2>
-        <p className="mt-1.5 text-sm text-abs-ink-400">Recherchez et consultez les détails de vos apprenants</p>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="mb-1.5 text-xs uppercase tracking-[0.2em] text-muted-foreground">Pilotage</p>
+          <h2 className="font-display text-3xl font-extrabold tracking-tight">Apprenants</h2>
+        </div>
+        <div className="flex flex-col items-end gap-2 text-right">
+          <p className="max-w-[38ch] text-sm text-muted-foreground">
+            Répertoire synchronisé depuis Rise Up : activité, progression et assiduité.
+          </p>
+          <Chip variant="neutral">{learners.length} apprenant{learners.length > 1 ? 's' : ''}</Chip>
+        </div>
       </div>
 
-      <div className="relative mx-auto w-full max-w-2xl">
-        <Card className="border-abs-ink-100 p-1">
-          <div className="relative flex items-center">
-            <Search size={18} className="pointer-events-none absolute left-4 text-abs-brand-600" />
-            <input
-              type="text"
-              placeholder="Rechercher un apprenant par nom ou email..."
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setShowSearchResults(e.target.value.length >= 2);
-              }}
-              onFocus={() => setShowSearchResults(searchQuery.length >= 2)}
-              className="h-12 w-full rounded-md border-0 bg-transparent pl-11 pr-11 text-sm focus:outline-none"
-            />
-            {searchQuery.length > 0 && (
-              <button
-                onClick={() => {
-                  setSearchQuery('');
-                  setShowSearchResults(false);
-                }}
-                type="button"
-                className="absolute right-3 flex h-7 w-7 items-center justify-center rounded-full text-abs-ink-400 transition-colors hover:bg-abs-ink-50 hover:text-abs-ink-900"
-              >
-                <X size={15} />
-              </button>
-            )}
-          </div>
+      {error ? (
+        <Card className="border-destructive/30 bg-destructive/5">
+          <CardContent className="p-5 text-sm text-destructive">{error}</CardContent>
         </Card>
+      ) : null}
 
-        {showSearchResults && (
-          <div className="absolute top-full z-20 mt-2 w-full overflow-hidden rounded-md border border-abs-ink-100 bg-card shadow-lg">
-            {visibleLearners.length > 0 ? (
-              <div className="max-h-96 overflow-y-auto p-2">
-                {visibleLearners.map((learner) => (
-                  <button
-                    key={learner.id}
-                    onClick={() => handleSelectLearner(learner.id)}
-                    type="button"
-                    className="flex w-full items-center gap-3 rounded-md p-3 text-left transition hover:bg-abs-ink-50"
-                  >
-                    <AbsAvatar name={learner.fullName} className="h-10 w-10 text-sm" />
-                    <div className="min-w-0 flex-1">
-                      <strong className="block truncate text-sm font-semibold text-abs-ink-900">{learner.fullName}</strong>
-                      <span className="block truncate text-xs text-abs-ink-400">{learner.email}</span>
-                    </div>
-                    <Chip variant="neutral" className={cn('capitalize', absLearnerStateChipClass(learner.state))}>
-                      {learner.state}
-                    </Chip>
-                  </button>
+      {selectedLearnerId === null ? (
+        <>
+          <Card>
+            <CardContent className="grid grid-cols-2 divide-border p-0 sm:grid-cols-4 sm:divide-x">
+              <SummaryStat icon={User} label="Apprenants" value={learners.length} hint={`${directoryTotals.actifs} actif${directoryTotals.actifs > 1 ? 's' : ''}`} />
+              <SummaryStat icon={TrendingUp} label="Progression moyenne" value={formatPercentage(directoryTotals.weightedProgress)} hint="Pondérée par les inscriptions" />
+              <SummaryStat icon={Clock} label="Temps cumulé" value={formatDuration(directoryTotals.totalTime)} hint="Toutes formations" />
+              <SummaryStat icon={Calendar} label="Sessions suivies" value={directoryTotals.sessions} hint="Inscriptions aux sessions" />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center">
+              <div className="relative flex-1">
+                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Rechercher par nom ou email..."
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  className="border-0 pl-9 focus-visible:ring-0"
+                />
+              </div>
+
+              <Select value={stateFilter} onChange={(event) => setStateFilter(event.target.value)} aria-label="Filtrer par état" className="lg:w-48">
+                <option value="">Tous les états</option>
+                {stateOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {learnerStateMeta(option).label}
+                  </option>
                 ))}
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-3 p-10 text-center text-abs-ink-400">
-                <User size={26} className="opacity-40" />
-                <p className="text-sm">{searchQuery.length < 2 ? 'Tapez au moins 2 caractères pour rechercher' : 'Aucun apprenant trouvé'}</p>
-              </div>
-            )}
+              </Select>
+
+              {hasActiveFilters ? (
+                <Button variant="outline" size="sm" onClick={resetFilters} className="lg:ml-auto">
+                  <FilterX size={14} /> Réinitialiser
+                </Button>
+              ) : null}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-0">
+              {listLoading ? (
+                <div className="flex flex-col gap-3 p-6">
+                  {Array.from({ length: 8 }).map((_, index) => (
+                    <Skeleton key={index} className="h-12 w-full" />
+                  ))}
+                </div>
+              ) : sortedLearners.length === 0 ? (
+                <div className="flex flex-col items-center gap-3 p-12 text-center">
+                  <User size={36} className="text-muted-foreground opacity-40" />
+                  <h3 className="font-display text-lg font-bold tracking-tight">Aucun apprenant trouvé</h3>
+                  <p className="text-sm text-muted-foreground">Aucun apprenant ne correspond à vos filtres</p>
+                  {hasActiveFilters ? (
+                    <Button variant="outline" size="sm" onClick={resetFilters}>
+                      <FilterX size={14} /> Réinitialiser les filtres
+                    </Button>
+                  ) : null}
+                </div>
+              ) : (
+                <TableShell>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <SortableHead active={sortKey === 'fullName'} direction={sortDirection} onClick={() => handleSort('fullName')}>
+                          Apprenant
+                        </SortableHead>
+                        <TableHead>État</TableHead>
+                        <SortableHead active={sortKey === 'trainingCount'} direction={sortDirection} onClick={() => handleSort('trainingCount')}>
+                          Formations
+                        </SortableHead>
+                        <TableHead>Sessions</TableHead>
+                        <SortableHead active={sortKey === 'averageProgress'} direction={sortDirection} onClick={() => handleSort('averageProgress')} className="min-w-40">
+                          Progression
+                        </SortableHead>
+                        <SortableHead active={sortKey === 'totalTime'} direction={sortDirection} onClick={() => handleSort('totalTime')}>
+                          Temps cumulé
+                        </SortableHead>
+                        <SortableHead active={sortKey === 'lastActivityAt'} direction={sortDirection} onClick={() => handleSort('lastActivityAt')}>
+                          Dernière activité
+                        </SortableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {sortedLearners.map((learner) => {
+                        const stateMeta = learnerStateMeta(learner.state);
+
+                        return (
+                          <TableRow
+                            key={learner.id}
+                            className="cursor-pointer"
+                            onClick={() => handleSelectLearner(learner.id)}
+                            tabIndex={0}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                handleSelectLearner(learner.id);
+                              }
+                            }}
+                          >
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                <Avatar name={learner.fullName} />
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-semibold">{learner.fullName}</p>
+                                  <p className="truncate text-xs text-muted-foreground">{learner.email}</p>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Chip variant={stateMeta.variant} className="capitalize">
+                                {stateMeta.label}
+                              </Chip>
+                            </TableCell>
+                            <TableCell className="tabular text-sm font-semibold">{learner.trainingCount}</TableCell>
+                            <TableCell className="tabular text-sm">{learner.sessionRegistrationCount}</TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2.5">
+                                <Progress value={clampPercentage(learner.averageProgress)} className="w-24" />
+                                <span className="tabular text-xs font-semibold">{formatPercentage(learner.averageProgress)}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="tabular text-sm">{formatDuration(learner.totalTime)}</TableCell>
+                            <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                              {formatDateTime(learner.lastActivityAt ?? learner.lastLoginAt)}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableShell>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      ) : (
+        <div className="flex flex-col gap-6">
+          <div>
+            <Button variant="outline" size="sm" onClick={handleBackToDirectory}>
+              <ArrowLeft size={14} /> Retour au répertoire
+            </Button>
           </div>
-        )}
-      </div>
 
-      {error && (
-        <Card className="border-abs-danger-200 bg-abs-danger-50">
-          <CardContent className="p-5 text-sm text-abs-danger-700">{error}</CardContent>
-        </Card>
-      )}
+          {detailLoading && !selectedLearner ? (
+            <Card>
+              <CardContent className="flex flex-col gap-3 p-6">
+                <Skeleton className="h-16 w-full" />
+                <Skeleton className="h-40 w-full" />
+                <Skeleton className="h-40 w-full" />
+              </CardContent>
+            </Card>
+          ) : null}
 
-      {!selectedLearner && !detailLoading && (
-        <Card className="border-abs-ink-200 border-dashed">
-          <CardContent className="flex flex-col items-center gap-3 p-16 text-center">
-            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-abs-brand-50 text-abs-brand-600">
-              <User size={30} />
-            </span>
-            <h3 className="font-display text-lg font-bold tracking-tight text-abs-ink-900">Sélectionnez un apprenant</h3>
-            <p className="max-w-sm text-sm text-abs-ink-400">
-              Utilisez la barre de recherche ci-dessus pour trouver et afficher les détails d&rsquo;un apprenant
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {detailLoading && <p className="py-12 text-center text-sm text-abs-ink-400">Chargement des détails...</p>}
-
-      {selectedLearner && (
+          {selectedLearner ? (
         <div className="flex flex-col gap-8">
           <Card className="border-abs-ink-100">
             <CardContent className="flex flex-wrap items-start gap-5 p-6">
@@ -1181,6 +1336,8 @@ export function LearnersPage() {
             </CardContent>
           </Card>
         </div>
+          ) : null}
+        </div>
       )}
 
       <Dialog open={selectedCommunicationEmail !== null} onOpenChange={(open) => !open && setSelectedCommunicationEmail(null)}>
@@ -1330,17 +1487,21 @@ function AlternanceTile({
   );
 }
 
-// Palette abs-* reprise du prototype pour le statut d'un apprenant dans la
-// liste de recherche (voir components/absences/meta.ts pour le même principe).
-function absLearnerStateChipClass(state: string): string {
-  switch (state.toLowerCase()) {
-    case 'active':
-      return 'bg-abs-success-100 text-abs-success-800';
-    case 'suspended':
-      return 'bg-abs-danger-100 text-abs-danger-800';
-    default:
-      return 'bg-abs-ink-100 text-abs-ink-700';
-  }
+// Statistique de synthèse du répertoire — même présentation que la barre de
+// synthèse de la page Formations (icône en dégradé + compteur animé).
+function SummaryStat({ icon: Icon, label, value, hint }: { icon: typeof User; label: string; value: string | number; hint: string }) {
+  return (
+    <div className="flex items-center gap-3.5 p-5">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-brand text-white">
+        <Icon size={18} />
+      </span>
+      <div className="min-w-0">
+        <p className="text-[0.66rem] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{label}</p>
+        <CountUp value={value} className="text-xl text-primary" />
+        <p className="text-xs text-muted-foreground">{hint}</p>
+      </div>
+    </div>
+  );
 }
 
 function activityStateMeta(state: string): { label: string; variant: 'success' | 'accent' | 'neutral' } {
