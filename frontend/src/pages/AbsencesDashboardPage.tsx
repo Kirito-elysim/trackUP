@@ -179,6 +179,10 @@ export function AbsencesDashboardPage() {
               <ShieldAlert size={15} />
               Alertes actives {payload && payload.activeAlertsCount > 0 ? `(${payload.activeAlertsCount})` : ''}
             </Button>
+            <Button variant="outline" className="border-white/20 bg-white/10 text-white hover:bg-white/20" onClick={openResetDateEditor}>
+              <Pencil size={15} />
+              Date de suivi
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -203,49 +207,44 @@ export function AbsencesDashboardPage() {
             </button>
           ) : null}
 
-          {payload.streakTracking.resetAt ? (
+          {editingResetDate ? (
             <div className="flex items-start gap-3 rounded-xl border border-abs-warning-200 bg-abs-warning-50 p-4 text-sm text-abs-warning-800">
               <Info size={16} className="mt-0.5 shrink-0" />
-              {editingResetDate ? (
-                <div className="flex flex-1 flex-col gap-2.5">
-                  <p className="text-xs text-abs-warning-700">
-                    Nouvelle date de départ du suivi, appliquée aux {payload.streakTracking.affectedLearnersCount}{' '}
-                    apprenant(s) déjà suivi(s).
-                  </p>
-                  <div className="flex flex-wrap items-center gap-2.5">
-                    <Input
-                      type="date"
-                      value={resetDateValue}
-                      max={new Date().toISOString().slice(0, 10)}
-                      onChange={(event) => setResetDateValue(event.target.value)}
-                      className="w-auto border-abs-warning-300 bg-white text-abs-ink-900"
-                    />
-                    <Button size="sm" disabled={savingResetDate || resetDateValue === ''} onClick={() => void handleSaveResetDate()}>
-                      {savingResetDate ? 'Enregistrement...' : 'Enregistrer'}
-                    </Button>
-                    <Button size="sm" variant="ghost" disabled={savingResetDate} onClick={() => setEditingResetDate(false)}>
-                      Annuler
-                    </Button>
-                  </div>
-                  {resetDateError ? <p className="text-xs text-abs-danger-700">{resetDateError}</p> : null}
-                </div>
-              ) : (
-                <p className="flex-1">
-                  Le suivi des relances disciplinaires (3 absences masterclass consécutives) ne compte que
-                  les absences détectées à partir du{' '}
-                  <strong>{formatDateTime(payload.streakTracking.resetAt)}</strong> pour{' '}
-                  {payload.streakTracking.affectedLearnersCount} apprenant(s) dont le compteur a été
-                  réinitialisé — les absences antérieures à cette date, même en attente, ne déclenchent
-                  pas d&rsquo;alerte.{' '}
-                  <button
-                    type="button"
-                    onClick={openResetDateEditor}
-                    className="inline-flex items-center gap-1 font-semibold underline decoration-dotted underline-offset-2 hover:text-abs-warning-900"
-                  >
-                    <Pencil size={12} /> Modifier la date
-                  </button>
+              <div className="flex flex-1 flex-col gap-2.5">
+                <p className="text-xs text-abs-warning-700">
+                  {payload.streakTracking.resetAt
+                    ? `Nouvelle date de départ du suivi, appliquée aux ${payload.streakTracking.affectedLearnersCount} apprenant(s) déjà suivi(s).`
+                    : "Aucun apprenant n'est encore suivi (aucun compteur n'a jamais été réinitialisé) — cette date sera appliquée à tous les apprenants."}
                 </p>
-              )}
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <Input
+                    type="date"
+                    value={resetDateValue}
+                    max={new Date().toISOString().slice(0, 10)}
+                    onChange={(event) => setResetDateValue(event.target.value)}
+                    className="w-auto border-abs-warning-300 bg-white text-abs-ink-900"
+                  />
+                  <Button size="sm" disabled={savingResetDate || resetDateValue === ''} onClick={() => void handleSaveResetDate()}>
+                    {savingResetDate ? 'Enregistrement...' : 'Enregistrer'}
+                  </Button>
+                  <Button size="sm" variant="ghost" disabled={savingResetDate} onClick={() => setEditingResetDate(false)}>
+                    Annuler
+                  </Button>
+                </div>
+                {resetDateError ? <p className="text-xs text-abs-danger-700">{resetDateError}</p> : null}
+              </div>
+            </div>
+          ) : payload.streakTracking.resetAt ? (
+            <div className="flex items-start gap-3 rounded-xl border border-abs-warning-200 bg-abs-warning-50 p-4 text-sm text-abs-warning-800">
+              <Info size={16} className="mt-0.5 shrink-0" />
+              <p className="flex-1">
+                Le suivi des relances disciplinaires (3 absences masterclass consécutives) ne compte que
+                les absences détectées à partir du{' '}
+                <strong>{formatDateTime(payload.streakTracking.resetAt)}</strong> pour{' '}
+                {payload.streakTracking.affectedLearnersCount} apprenant(s) dont le compteur a été
+                réinitialisé — les absences antérieures à cette date, même en attente, ne déclenchent
+                pas d&rsquo;alerte.
+              </p>
             </div>
           ) : null}
 
