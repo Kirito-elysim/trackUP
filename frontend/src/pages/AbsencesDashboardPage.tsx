@@ -239,11 +239,11 @@ export function AbsencesDashboardPage() {
               <Info size={16} className="mt-0.5 shrink-0" />
               <p className="flex-1">
                 Le suivi des relances disciplinaires (3 absences masterclass consécutives) ne compte que
-                les absences détectées à partir du{' '}
+                les absences dont la session a lieu à partir du{' '}
                 <strong>{formatDateTime(payload.streakTracking.resetAt)}</strong> pour{' '}
                 {payload.streakTracking.affectedLearnersCount} apprenant(s) dont le compteur a été
-                réinitialisé — les absences antérieures à cette date, même en attente, ne déclenchent
-                pas d&rsquo;alerte.
+                réinitialisé — les absences dont la session est antérieure à cette date, même en
+                attente, ne déclenchent pas d&rsquo;alerte.
               </p>
             </div>
           ) : null}

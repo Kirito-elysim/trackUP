@@ -15,8 +15,11 @@ use Doctrine\ORM\EntityManagerInterface;
 // séparée à maintenir.
 //
 // absenceCounterResetAt sert de point de départ pour une réinitialisation manuelle admin : après un
-// reset, seules les absences détectées après cette date comptent dans la série courante, même si
-// l'historique réel contient d'autres absences non justifiées plus anciennes.
+// reset, seules les absences dont la session (s.startAt) est postérieure à cette date comptent dans
+// la série courante, même si l'historique réel contient d'autres absences non justifiées plus
+// anciennes. Volontairement basé sur la date de la session et non sur detectedAt (le moment où
+// `app:absences:detect` a tourné) : une détection en masse sur un historique donnerait le même
+// detectedAt à des absences dont la session réelle date de plusieurs mois, rendant le filtre inopérant.
 class AbsenceStreakService
 {
     private const ALERT_THRESHOLD = 3;
@@ -43,7 +46,13 @@ class AbsenceStreakService
 
         $resetAt = $learner->getAbsenceCounterResetAt();
         if ($resetAt !== null) {
-            $qb->andWhere('a.detectedAt > :resetAt')->setParameter('resetAt', $resetAt);
+            // Filtre sur la date réelle de la session (s.startAt), pas sur detectedAt : detectedAt
+            // est le moment où `app:absences:detect` a tourné, pas la date de la session manquée. Une
+            // détection en masse sur un historique (import initial, rattrapage) donne le même
+            // detectedAt à des dizaines d'absences dont la session réelle peut dater de plusieurs
+            // mois — filtrer sur detectedAt ne les exclurait donc jamais après un reset, faussant le
+            // compteur de séries consécutives.
+            $qb->andWhere('s.startAt > :resetAt')->setParameter('resetAt', $resetAt);
         }
 
         /** @var Absence[] $absences */
@@ -76,9 +85,9 @@ class AbsenceStreakService
     }
 
     // Décale en masse la date de départ du suivi (bannière "Le suivi des relances disciplinaires
-    // ne compte que les absences détectées à partir du..." sur le tableau de bord) — évite de devoir
-    // le faire un par un ou par requête SQL manuelle. Contrairement à resetCounter() qui remet le
-    // compteur à 0 (correct uniquement pour une date de reset = maintenant, où rien ne peut encore
+    // ne compte que les absences dont la session a lieu à partir du..." sur le tableau de bord) —
+    // évite de devoir le faire un par un ou par requête SQL manuelle. Contrairement à resetCounter()
+    // qui remet le compteur à 0 (correct uniquement pour une date de reset = maintenant, où rien ne peut encore
     // s'être passé après), la nouvelle date pouvant être dans le passé, on recalcule via recompute()
     // pour compter correctement les absences déjà survenues entre cette date et maintenant.
     //

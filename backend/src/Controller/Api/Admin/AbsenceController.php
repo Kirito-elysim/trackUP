@@ -463,10 +463,10 @@ class AbsenceController extends AbstractController
         );
 
         // Suivi des séries (roadmap 3.4) : le compteur de relances d'un apprenant ne compte que ses
-        // absences détectées après son propre absence_counter_reset_at (reset manuel ou global) — les
-        // absences antérieures à cette date ne sont donc jamais prises en compte pour le déclenchement
-        // d'une alerte. Affiché tel quel côté admin pour éviter la confusion "pourquoi pas d'alerte
-        // alors qu'il y a plein d'absences en attente ?".
+        // absences dont la session est postérieure à son propre absence_counter_reset_at (reset manuel
+        // ou global) — les absences dont la session est antérieure à cette date ne sont donc jamais
+        // prises en compte pour le déclenchement d'une alerte. Affiché tel quel côté admin pour éviter
+        // la confusion "pourquoi pas d'alerte alors qu'il y a plein d'absences en attente ?".
         $streakTrackingRow = $connection->fetchAssociative(
             'SELECT MAX(absence_counter_reset_at) AS resetAt, COUNT(*) AS affectedCount
              FROM learners WHERE absence_counter_reset_at IS NOT NULL'
