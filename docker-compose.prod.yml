@@ -3,6 +3,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile.prod
+    image: trackup-backend-prod:latest
     restart: unless-stopped
     environment:
       APP_ENV: prod
@@ -46,9 +47,14 @@ services:
       - internal
 
   worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile.prod
+    # Pas de `build:` ici, volontairement : `worker` réutilise l'image construite par le service
+    # `backend` juste au-dessus (même `image:`, même Dockerfile.prod). Avant, les deux déclaraient
+    # chacun leur propre `build:` — Compose recompilait donc deux fois la partie la plus lente du
+    # build (compilation des extensions PHP dont `pecl install redis`, `composer install`...) à
+    # chaque déploiement, pour un résultat strictement identique. `docker compose build` ne build
+    # que les services qui ont un `build:` ; `worker` récupère simplement l'image déjà taguée par
+    # celui de `backend`, construite juste avant lui dans la même passe de déploiement.
+    image: trackup-backend-prod:latest
     restart: unless-stopped
     command: php bin/console messenger:consume async --time-limit=3600 --memory-limit=256M -vv
     environment:

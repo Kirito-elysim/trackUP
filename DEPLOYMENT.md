@@ -90,7 +90,12 @@ MYSQL_ROOT_PASSWORD=votre_root_password
 MYSQL_PASSWORD=votre_user_password
 REDIS_PASSWORD=votre_redis_password
 VITE_API_BASE_URL=/api
+MAILER_FROM_ADDRESS=no-reply@votredomaine.com
+FRONTEND_URL=https://trackup.votredomaine.com
+ABSENCES_DISCIPLINARY_ALERT_EMAIL=pedagogie@edup-bs.com
 ```
+
+**⚠️ Important** : si `MAILER_FROM_ADDRESS` ou `FRONTEND_URL` sont absents/vides, **tout envoi d'email plante en 500** (reset mot de passe, relances, alertes absences...) au lieu d'échouer silencieusement — `Email::from('')` lève une `RfcComplianceException` qui n'est pas rattrapée par le code (celui-ci n'attrape que les erreurs de transport SMTP, pas les adresses malformées).
 
 ### Étape 4 : Configuration des domaines
 
@@ -102,6 +107,11 @@ VITE_API_BASE_URL=/api
 **phpMyAdmin** (service `phpmyadmin`) :
 - Domain : `pma.votredomaine.com` (ex: `pma.trackup.elysium-solution.com`)
 - Port : `80`
+- HTTPS : Activé
+
+**Mailer / Mailpit** (service `mailer`) — système de mail "pour le moment" (voir `.env.prod.example`), interface de consultation des emails capturés (jamais réellement délivrés) :
+- Domain : `mail.votredomaine.com` (ex: `mail.trackup.elysium-solution.com`)
+- Port : `8025`
 - HTTPS : Activé
 
 **ℹ️ Important** : l'API est accessible via le même domaine, sous `/api` (ex: `https://trackup.votredomaine.com/api/health`). Le service `backend` n'a pas besoin de domaine public.
@@ -118,7 +128,12 @@ VITE_API_BASE_URL=/api
 
 ### 1. Migrations de base de données
 
-Une fois déployé, exécutez les migrations :
+Automatique depuis `docker-entrypoint.sh` : au démarrage, chaque conteneur `backend`/`worker` lance
+`doctrine:migrations:migrate --no-interaction --allow-no-migration` (verrouillé via le volume
+`jwt_keys` partagé pour qu'un seul des deux migre à la fois). Plus besoin d'une étape manuelle après
+un déploiement normal.
+
+Si besoin de le relancer manuellement (ex. déboguer une migration) :
 
 ```bash
 # Sur Coolify, ouvrez le terminal du service "backend"

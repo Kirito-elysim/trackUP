@@ -28,4 +28,23 @@ if [ ! -f "$JWT_DIR/private.pem" ]; then
     fi
 fi
 
+# Applique les migrations Doctrine en attente avant de démarrer, pour ne plus jamais avoir besoin
+# de le faire manuellement après un déploiement (voir DEPLOYMENT.md). Même mécanisme de verrou
+# que pour les clés JWT ci-dessus, sur le même volume jwt_keys partagé entre backend et worker :
+# le premier conteneur qui démarre migre, l'autre attend plutôt que de migrer en même temps.
+MIGRATE_LOCK_DIR="$JWT_DIR/.migrate.lock"
+
+if mkdir "$MIGRATE_LOCK_DIR" 2>/dev/null; then
+    trap 'rmdir "$MIGRATE_LOCK_DIR" 2>/dev/null || true' EXIT
+    php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration
+    trap - EXIT
+    rmdir "$MIGRATE_LOCK_DIR" 2>/dev/null || true
+else
+    # Idem : un autre conteneur migre déjà, on attend qu'il ait fini avant de démarrer, pour ne
+    # jamais servir de requêtes sur un schéma pas encore à jour.
+    while [ -d "$MIGRATE_LOCK_DIR" ]; do
+        sleep 1
+    done
+fi
+
 exec "$@"
