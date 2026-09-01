@@ -6,12 +6,13 @@ RUN apk add --no-cache \
     icu-dev \
     libzip-dev \
     oniguruma-dev \
+    libpng-dev \
     unzip \
     zip \
     autoconf \
     g++ \
     make \
- && docker-php-ext-install intl pdo_mysql zip \
+ && docker-php-ext-install intl pdo_mysql zip gd \
  && pecl install redis \
  && docker-php-ext-enable redis \
  && apk del autoconf g++ make

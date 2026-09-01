@@ -7,12 +7,13 @@ RUN apk add --no-cache \
     icu-dev \
     libzip-dev \
     oniguruma-dev \
+    libpng-dev \
     unzip \
     zip \
     autoconf \
     g++ \
     make \
- && docker-php-ext-install intl pdo_mysql zip opcache \
+ && docker-php-ext-install intl pdo_mysql zip opcache gd \
  && pecl install redis \
  && docker-php-ext-enable redis \
  && apk del autoconf g++ make
@@ -40,6 +41,7 @@ RUN apk add --no-cache \
     icu-libs \
     libzip \
     oniguruma \
+    libpng \
     openssl
 
 # Copy PHP extensions from builder

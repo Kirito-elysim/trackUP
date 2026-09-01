@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useDeferredValue } from 'react';
 import { useAuth } from '../contexts/useAuth';
 import { ApiError, apiRequest, apiUrl } from '../lib/api';
 import { formatDateTime, formatDuration } from '../lib/format';
-import { Clock, User, BookOpen, Calendar, Filter, Download, RefreshCw, Users, TrendingUp, Activity, X, Search } from 'lucide-react';
+import { Clock, User, BookOpen, Calendar, Filter, Download, FileText, RefreshCw, Users, TrendingUp, Activity, X, Search } from 'lucide-react';
 import type { RiseUpActivityLogsPayload, LearnerSummary } from '../types/trackup';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -45,6 +45,7 @@ export function RiseUpLogsPage() {
   const groupPathsTable = useClientPagination(payload?.groupContext?.learningPaths ?? []);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const visibleLearnerSuggestions = deferredLearnerQuery.trim().length < 2 ? [] : learnerSuggestions;
@@ -180,60 +181,85 @@ export function RiseUpLogsPage() {
     setPage(1);
   };
 
+  const buildExportParams = () => {
+    const params = new URLSearchParams();
+    if (learnerQuery !== '') {
+      params.set('learnerQuery', learnerQuery);
+    }
+    if (groupExternalId !== '') {
+      params.set('groupExternalId', groupExternalId);
+    }
+    if (learningPathId !== '') {
+      params.set('learningPathId', learningPathId);
+    }
+    if (trainingExternalId !== '') {
+      params.set('trainingExternalId', trainingExternalId);
+    }
+    if (dateFrom !== '') {
+      params.set('dateFrom', dateFrom);
+    }
+    if (dateTo !== '') {
+      params.set('dateTo', dateTo);
+    }
+    return params;
+  };
+
+  const downloadExport = async (path: string, extension: 'csv' | 'pdf') => {
+    if (!token) {
+      return;
+    }
+
+    const params = buildExportParams();
+
+    const response = await fetch(
+      `${apiUrl(path)}${params.size > 0 ? `?${params.toString()}` : ''}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    );
+
+    if (!response.ok) {
+      throw new ApiError('Export impossible.', response.status);
+    }
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `riseup-activity-logs-${new Date().toISOString().slice(0, 10)}.${extension}`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
   const exportCsv = async () => {
-    if (!payload || !token) {
+    if (!payload) {
       return;
     }
 
     setExporting(true);
-
     try {
-      const params = new URLSearchParams();
-      if (learnerQuery !== '') {
-        params.set('learnerQuery', learnerQuery);
-      }
-      if (groupExternalId !== '') {
-        params.set('groupExternalId', groupExternalId);
-      }
-      if (learningPathId !== '') {
-        params.set('learningPathId', learningPathId);
-      }
-      if (trainingExternalId !== '') {
-        params.set('trainingExternalId', trainingExternalId);
-      }
-      if (dateFrom !== '') {
-        params.set('dateFrom', dateFrom);
-      }
-      if (dateTo !== '') {
-        params.set('dateTo', dateTo);
-      }
-
-      const response = await fetch(
-        `${apiUrl('/api/riseup-activity-logs/export')}${
-          params.size > 0 ? `?${params.toString()}` : ''
-        }`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      if (!response.ok) {
-        throw new ApiError('Export impossible.', response.status);
-      }
-
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = `riseup-activity-logs-${new Date().toISOString().slice(0, 10)}.csv`;
-      anchor.click();
-      URL.revokeObjectURL(url);
+      await downloadExport('/api/riseup-activity-logs/export', 'csv');
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : 'Export impossible.');
     } finally {
       setExporting(false);
+    }
+  };
+
+  const exportPdf = async () => {
+    if (!payload) {
+      return;
+    }
+
+    setExportingPdf(true);
+    try {
+      await downloadExport('/api/riseup-activity-logs/export-pdf', 'pdf');
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.message : 'Export impossible.');
+    } finally {
+      setExportingPdf(false);
     }
   };
 
@@ -248,10 +274,16 @@ export function RiseUpLogsPage() {
           </p>
         </div>
         {payload && (
-          <Button onClick={() => void exportCsv()} disabled={exporting}>
-            <Download size={15} />
-            {exporting ? 'Export en cours...' : 'Exporter CSV'}
-          </Button>
+          <div className="flex items-center gap-2.5">
+            <Button variant="outline" onClick={() => void exportPdf()} disabled={exportingPdf}>
+              <FileText size={15} />
+              {exportingPdf ? 'Export en cours...' : 'Exporter PDF'}
+            </Button>
+            <Button onClick={() => void exportCsv()} disabled={exporting}>
+              <Download size={15} />
+              {exporting ? 'Export en cours...' : 'Exporter CSV'}
+            </Button>
+          </div>
         )}
       </div>
 

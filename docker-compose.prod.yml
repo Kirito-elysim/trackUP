@@ -15,12 +15,18 @@ services:
       RISEUP_API_BASE_URL: ${RISEUP_API_BASE_URL}
       RISEUP_API_PUBLIC_KEY: ${RISEUP_API_PUBLIC_KEY}
       RISEUP_API_PRIVATE_KEY: ${RISEUP_API_PRIVATE_KEY}
+      MAILER_DSN: smtp://mailer:1025
+      MAILER_FROM_ADDRESS: ${MAILER_FROM_ADDRESS}
+      FRONTEND_URL: ${FRONTEND_URL}
+      ABSENCES_DISCIPLINARY_ALERT_EMAIL: ${ABSENCES_DISCIPLINARY_ALERT_EMAIL}
     volumes:
       - jwt_keys:/app/config/jwt
     depends_on:
       mysql:
         condition: service_healthy
       redis:
+        condition: service_started
+      mailer:
         condition: service_started
     expose:
       - "8000"
@@ -55,12 +61,18 @@ services:
       RISEUP_API_BASE_URL: ${RISEUP_API_BASE_URL}
       RISEUP_API_PUBLIC_KEY: ${RISEUP_API_PUBLIC_KEY}
       RISEUP_API_PRIVATE_KEY: ${RISEUP_API_PRIVATE_KEY}
+      MAILER_DSN: smtp://mailer:1025
+      MAILER_FROM_ADDRESS: ${MAILER_FROM_ADDRESS}
+      FRONTEND_URL: ${FRONTEND_URL}
+      ABSENCES_DISCIPLINARY_ALERT_EMAIL: ${ABSENCES_DISCIPLINARY_ALERT_EMAIL}
     volumes:
       - jwt_keys:/app/config/jwt
     depends_on:
       mysql:
         condition: service_healthy
       redis:
+        condition: service_started
+      mailer:
         condition: service_started
     healthcheck:
       test: ["CMD", "php", "-v"]
@@ -131,6 +143,23 @@ services:
       retries: 5
     networks:
       - internal
+
+  # Système de mail "pour le moment" : Mailpit capture tous les emails envoyés par l'app (reset de
+  # mot de passe, notifications d'absence, alertes disciplinaires, résumés de sync...) sans jamais
+  # les délivrer réellement à un vrai destinataire — même logique qu'en dev (voir docker-compose.yml).
+  # Le port 1025 (SMTP factice) reste interne, seul le port 8025 (interface web de consultation) est
+  # exposé via Traefik/Coolify, comme phpmyadmin ci-dessous. À remplacer par un vrai fournisseur SMTP
+  # (MAILER_DSN) quand l'app sera prête à envoyer de vrais emails.
+  mailer:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    expose:
+      - "8025"
+    networks:
+      - coolify
+      - internal
+    labels:
+      - traefik.docker.network=coolify
 
   phpmyadmin:
     image: phpmyadmin:5-apache

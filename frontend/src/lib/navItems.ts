@@ -21,6 +21,11 @@ import {
 // retirée. Repasser à `true` pour la faire réapparaître.
 const ANALYTICS_NAV_ENABLED = false;
 
+// Lien Exports masqué du menu à la demande du client (pas besoin pour le moment) — la page/route
+// reste entièrement fonctionnelle, seule l'entrée de nav est retirée. Repasser à `true` pour la
+// faire réapparaître.
+const EXPORTS_NAV_ENABLED = false;
+
 // Catalogue des pages de l'app, utilisé par la sidebar (AppLayout.tsx) et comme source des
 // destinations disponibles pour les raccourcis du Dashboard personnalisable (DashboardCustomizePanel.tsx).
 export const NAV_ITEMS = [
@@ -32,7 +37,7 @@ export const NAV_ITEMS = [
   { to: '/companies', label: 'Entreprises', feature: 'companies.view', group: 'Alternance', icon: Building2 },
   { to: '/tutors', label: 'Tuteurs', feature: 'companies.view', group: 'Alternance', icon: UserRound },
   { to: '/riseup-logs', label: 'Logs exacts', feature: 'exports.view', group: 'Conformité', icon: FileSearch },
-  { to: '/exports', label: 'Exports', feature: 'exports.view', group: 'Conformité', icon: Download },
+  { to: '/exports', label: 'Exports', feature: 'exports.view', group: 'Conformité', icon: Download, hidden: !EXPORTS_NAV_ENABLED },
   { to: '/absences/dashboard', label: 'Tableau de bord', feature: 'absences.view', group: 'Absences', icon: LayoutDashboard },
   { to: '/absences', label: 'Absences', feature: 'absences.view', group: 'Absences', icon: AlertTriangle },
   { to: '/absences/alertes', label: 'Alertes', feature: 'absences.view', group: 'Absences', icon: ShieldAlert },

@@ -13,6 +13,7 @@ parameters:
     app.mailer_from_address: '%env(MAILER_FROM_ADDRESS)%'
     app.absences_upload_dir: '%kernel.project_dir%/var/uploads/absences'
     app.absences_disciplinary_alert_email: '%env(ABSENCES_DISCIPLINARY_ALERT_EMAIL)%'
+    app.logo_path: '%kernel.project_dir%/assets/logo/trackup-logo.png'
 
 services:
     # default configuration for services in *this* file
@@ -57,6 +58,10 @@ services:
     App\Controller\Api\Admin\AbsenceController:
         arguments:
             $uploadDir: '%app.absences_upload_dir%'
+
+    App\Controller\Api\RiseUpActivityLogController:
+        arguments:
+            $logoPath: '%app.logo_path%'
 
     App\Service\LearnerReminderService:
         arguments:
