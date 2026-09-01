@@ -74,4 +74,34 @@ class AbsenceStreakService
         $learner->setConsecutiveUnjustifiedMasterclassAbsences(0);
         $learner->setDisciplinaryAlertSentAt(null);
     }
+
+    // Décale en masse la date de départ du suivi (bannière "Le suivi des relances disciplinaires
+    // ne compte que les absences détectées à partir du..." sur le tableau de bord) pour tous les
+    // apprenants déjà suivis (absenceCounterResetAt non nul) — évite de devoir le faire un par un
+    // ou par requête SQL manuelle. Contrairement à resetCounter() qui remet le compteur à 0 (correct
+    // uniquement pour une date de reset = maintenant, où rien ne peut encore s'être passé après), la
+    // nouvelle date pouvant être dans le passé, on recalcule via recompute() pour compter correctement
+    // les absences déjà survenues entre cette date et maintenant.
+    public function bulkShiftTrackingDate(\DateTimeImmutable $resetAt): int
+    {
+        /** @var Learner[] $learners */
+        $learners = $this->entityManager->createQueryBuilder()
+            ->select('l')
+            ->from(Learner::class, 'l')
+            ->where('l.absenceCounterResetAt IS NOT NULL')
+            ->getQuery()
+            ->getResult();
+
+        foreach ($learners as $learner) {
+            $learner->setAbsenceCounterResetAt($resetAt);
+        }
+        $this->entityManager->flush();
+
+        foreach ($learners as $learner) {
+            $this->recompute($learner);
+        }
+        $this->entityManager->flush();
+
+        return count($learners);
+    }
 }

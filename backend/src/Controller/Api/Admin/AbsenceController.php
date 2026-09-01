@@ -503,6 +503,45 @@ class AbsenceController extends AbstractController
         ]);
     }
 
+    // Décale la date de suivi affichée dans la bannière ci-dessus (streakTracking) pour tous les
+    // apprenants déjà suivis, sans passer par une requête SQL manuelle — voir
+    // AbsenceStreakService::bulkShiftTrackingDate(). `resetAt` est une date ISO (YYYY-MM-DD ou
+    // datetime complet) ; minuit est utilisé si seule la date est fournie.
+    #[Route('/streak-tracking/reset', name: 'api_admin_absences_streak_tracking_reset', methods: ['POST'])]
+    public function resetStreakTrackingDate(Request $request): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = $this->getUser();
+
+        if (!$this->permissionResolver->userHasFeature($user, 'absences.manage')) {
+            return $this->json(['message' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        $data = $request->toArray();
+        $rawResetAt = trim((string) ($data['resetAt'] ?? ''));
+
+        if ($rawResetAt === '') {
+            return $this->json(['message' => 'La date est requise.'], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        try {
+            $resetAt = new \DateTimeImmutable($rawResetAt);
+        } catch (\Exception) {
+            return $this->json(['message' => 'Date invalide.'], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        if ($resetAt > new \DateTimeImmutable()) {
+            return $this->json(['message' => 'La date ne peut pas être dans le futur.'], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $affectedCount = $this->absenceStreakService->bulkShiftTrackingDate($resetAt);
+
+        return $this->json([
+            'resetAt' => $resetAt->format(DATE_ATOM),
+            'affectedLearnersCount' => $affectedCount,
+        ]);
+    }
+
     // Sous-section Absences : graphique d'évolution (page /absences/dashboard) — nombre d'absences
     // détectées par période (année/mois/jour), ventilé par statut pour un histogramme empilé.
     #[Route('/evolution', name: 'api_admin_absences_evolution', methods: ['GET'])]
@@ -909,7 +948,7 @@ class AbsenceController extends AbstractController
     // Relance manuelle (page /absences/{id}) : renvoie l'email à l'apprenant. Par défaut réutilise le
     // même lien (même token, même expiration) tant qu'il est encore valide — décision explicite de
     // l'utilisateur : une relance ne remet pas le délai à zéro. `extend: true` dans le corps de la
-    // requête prolonge explicitement l'expiration à 14 jours à partir de maintenant (bouton
+    // requête prolonge explicitement l'expiration à 7 jours à partir de maintenant (bouton
     // "Prolonger" séparé côté fiche absence). Sert aussi de rattrapage pour les absences détectées
     // avant l'ajout du token dans AbsenceNotificationService, qui n'en ont jamais reçu.
     #[Route('/{id}/resend-notification', name: 'api_admin_absences_resend_notification', methods: ['POST'], requirements: ['id' => '\d+'])]

@@ -10,7 +10,7 @@ use Psr\Log\LoggerInterface;
 
 // Roadmap 3.4 : deuxième déclencheur du statut "non justifiée", en plus du rejet explicite par un
 // admin (Admin/AbsenceController) — expiration automatique du délai de dépôt de justificatif
-// (14 jours, voir AbsenceNotificationService::JUSTIFICATION_TOKEN_TTL) sans qu'aucun document n'ait
+// (7 jours, voir AbsenceNotificationService::JUSTIFICATION_TOKEN_TTL) sans qu'aucun document n'ait
 // été déposé. Décision explicite de l'utilisateur : les deux déclencheurs comptent.
 class AbsenceExpiryService
 {

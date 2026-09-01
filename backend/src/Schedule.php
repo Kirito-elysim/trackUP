@@ -29,7 +29,7 @@ class Schedule implements ScheduleProviderInterface
             // Détection des absences (sessions passées sans émargement), tous les jours à 3h00,
             // après le cron de sync pour disposer des émargements Rise Up à jour.
             ->add(RecurringMessage::cron('0 3 * * *', new DetectAbsencesMessage()))
-            // Expiration des délais de dépôt de justificatif (14 jours), tous les jours à 4h00,
+            // Expiration des délais de dépôt de justificatif (7 jours), tous les jours à 4h00,
             // après la détection pour ne pas expirer une absence qui vient d'être détectée.
             ->add(RecurringMessage::cron('0 4 * * *', new ExpireAbsenceJustificationsMessage()))
         ;

@@ -17,7 +17,7 @@ use Symfony\Component\Mime\Email;
 // AuthController::forgotPassword — token en clair, expiration, usage unique côté justification).
 class AbsenceNotificationService
 {
-    private const JUSTIFICATION_TOKEN_TTL = '+14 days';
+    private const JUSTIFICATION_TOKEN_TTL = '+7 days';
 
     public function __construct(
         private readonly MailerInterface $mailer,
@@ -43,7 +43,7 @@ class AbsenceNotificationService
     // explicite de l'utilisateur : une relance ne remet PAS le délai à zéro par défaut — elle renvoie
     // le même lien (même token, même expiration) tant qu'il est encore valide, pour que l'apprenant
     // garde le nombre de jours restants affiché sur la page publique. $extend=true (bouton
-    // "Prolonger" séparé) repousse explicitement l'expiration à 14 jours à partir de maintenant, en
+    // "Prolonger" séparé) repousse explicitement l'expiration à 7 jours à partir de maintenant, en
     // conservant le même token. Si aucun token valide n'existe (jamais envoyé, ou expiré), un nouveau
     // token est généré dans tous les cas puisqu'il n'y a rien à réutiliser.
     public function resend(Absence $absence, ?User $actor, bool $extend = false): bool

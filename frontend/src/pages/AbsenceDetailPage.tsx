@@ -279,7 +279,7 @@ export function AbsenceDetailPage() {
       setResendFeedback({
         type: 'success',
         message: extend
-          ? 'Délai prolongé de 14 jours, email de relance renvoyé.'
+          ? 'Délai prolongé de 7 jours, email de relance renvoyé.'
           : result.renewed
             ? "Email de relance renvoyé avec un nouveau lien (l'ancien avait expiré)."
             : 'Email de relance renvoyé (même lien, même échéance).',
@@ -478,7 +478,7 @@ export function AbsenceDetailPage() {
                     onClick={() => void resendNotification(true)}
                     className="font-semibold text-abs-brand-600 hover:text-abs-brand-700"
                   >
-                    Prolonger de 14 jours
+                    Prolonger de 7 jours
                   </button>
                 </div>
               ) : null}

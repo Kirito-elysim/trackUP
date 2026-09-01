@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CalendarX2, CheckCircle2, ChevronRight, Clock, FileCheck2, Info, ShieldAlert, XCircle } from 'lucide-react';
+import { CalendarX2, CheckCircle2, ChevronRight, Clock, FileCheck2, Info, Pencil, ShieldAlert, XCircle } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from 'recharts';
 import { useAuth } from '../contexts/useAuth';
 import { apiRequest, ApiError } from '../lib/api';
@@ -8,6 +8,7 @@ import { formatDateTime } from '../lib/format';
 import type { AbsenceEvolutionGranularity, AbsenceEvolutionPayload, AbsenceStatus, AbsencesDashboardPayload } from '../types/trackup';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { CountUp } from '@/components/ui/stat';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableShell } from '@/components/ui/table';
@@ -62,6 +63,11 @@ export function AbsencesDashboardPage() {
   const [evolution, setEvolution] = useState<AbsenceEvolutionPayload | null>(null);
   const [evolutionLoading, setEvolutionLoading] = useState(true);
 
+  const [editingResetDate, setEditingResetDate] = useState(false);
+  const [resetDateValue, setResetDateValue] = useState('');
+  const [savingResetDate, setSavingResetDate] = useState(false);
+  const [resetDateError, setResetDateError] = useState<string | null>(null);
+
   useEffect(() => {
     if (!token) return;
 
@@ -115,6 +121,32 @@ export function AbsencesDashboardPage() {
       cancelled = true;
     };
   }, [token, evolutionGranularity]);
+
+  const openResetDateEditor = () => {
+    setResetDateValue(payload?.streakTracking.resetAt ? payload.streakTracking.resetAt.slice(0, 10) : '');
+    setResetDateError(null);
+    setEditingResetDate(true);
+  };
+
+  const handleSaveResetDate = async () => {
+    if (!token || resetDateValue === '') return;
+
+    setSavingResetDate(true);
+    setResetDateError(null);
+
+    try {
+      const result = await apiRequest<{ resetAt: string; affectedLearnersCount: number }>(
+        '/api/admin/absences/streak-tracking/reset',
+        { token, method: 'POST', body: { resetAt: resetDateValue } },
+      );
+      setPayload((prev) => (prev ? { ...prev, streakTracking: result } : prev));
+      setEditingResetDate(false);
+    } catch (caught) {
+      setResetDateError(caught instanceof ApiError ? caught.message : 'Impossible de mettre à jour la date.');
+    } finally {
+      setSavingResetDate(false);
+    }
+  };
 
   return (
     <section className="flex flex-col gap-8">
@@ -174,14 +206,46 @@ export function AbsencesDashboardPage() {
           {payload.streakTracking.resetAt ? (
             <div className="flex items-start gap-3 rounded-xl border border-abs-warning-200 bg-abs-warning-50 p-4 text-sm text-abs-warning-800">
               <Info size={16} className="mt-0.5 shrink-0" />
-              <p>
-                Le suivi des relances disciplinaires (3 absences masterclass consécutives) ne compte que
-                les absences détectées à partir du{' '}
-                <strong>{formatDateTime(payload.streakTracking.resetAt)}</strong> pour{' '}
-                {payload.streakTracking.affectedLearnersCount} apprenant(s) dont le compteur a été
-                réinitialisé — les absences antérieures à cette date, même en attente, ne déclenchent
-                pas d&rsquo;alerte.
-              </p>
+              {editingResetDate ? (
+                <div className="flex flex-1 flex-col gap-2.5">
+                  <p className="text-xs text-abs-warning-700">
+                    Nouvelle date de départ du suivi, appliquée aux {payload.streakTracking.affectedLearnersCount}{' '}
+                    apprenant(s) déjà suivi(s).
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <Input
+                      type="date"
+                      value={resetDateValue}
+                      max={new Date().toISOString().slice(0, 10)}
+                      onChange={(event) => setResetDateValue(event.target.value)}
+                      className="w-auto border-abs-warning-300 bg-white text-abs-ink-900"
+                    />
+                    <Button size="sm" disabled={savingResetDate || resetDateValue === ''} onClick={() => void handleSaveResetDate()}>
+                      {savingResetDate ? 'Enregistrement...' : 'Enregistrer'}
+                    </Button>
+                    <Button size="sm" variant="ghost" disabled={savingResetDate} onClick={() => setEditingResetDate(false)}>
+                      Annuler
+                    </Button>
+                  </div>
+                  {resetDateError ? <p className="text-xs text-abs-danger-700">{resetDateError}</p> : null}
+                </div>
+              ) : (
+                <p className="flex-1">
+                  Le suivi des relances disciplinaires (3 absences masterclass consécutives) ne compte que
+                  les absences détectées à partir du{' '}
+                  <strong>{formatDateTime(payload.streakTracking.resetAt)}</strong> pour{' '}
+                  {payload.streakTracking.affectedLearnersCount} apprenant(s) dont le compteur a été
+                  réinitialisé — les absences antérieures à cette date, même en attente, ne déclenchent
+                  pas d&rsquo;alerte.{' '}
+                  <button
+                    type="button"
+                    onClick={openResetDateEditor}
+                    className="inline-flex items-center gap-1 font-semibold underline decoration-dotted underline-offset-2 hover:text-abs-warning-900"
+                  >
+                    <Pencil size={12} /> Modifier la date
+                  </button>
+                </p>
+              )}
             </div>
           ) : null}
 
