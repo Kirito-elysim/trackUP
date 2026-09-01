@@ -128,10 +128,10 @@ ABSENCES_DISCIPLINARY_ALERT_EMAIL=pedagogie@edup-bs.com
 
 ### 1. Migrations de base de données
 
-Automatique depuis `docker-entrypoint.sh` : au démarrage, chaque conteneur `backend`/`worker` lance
-`doctrine:migrations:migrate --no-interaction --allow-no-migration` (verrouillé via le volume
-`jwt_keys` partagé pour qu'un seul des deux migre à la fois). Plus besoin d'une étape manuelle après
-un déploiement normal.
+Automatique depuis `docker-entrypoint.sh` : au démarrage, chaque conteneur `backend`/`worker`/
+`scheduler` lance `doctrine:migrations:migrate --no-interaction --allow-no-migration` (verrouillé via
+le volume `jwt_keys` partagé pour qu'un seul des trois migre à la fois). Plus besoin d'une étape
+manuelle après un déploiement normal.
 
 Si besoin de le relancer manuellement (ex. déboguer une migration) :
 
@@ -255,6 +255,21 @@ docker compose -f docker-compose.prod.yml logs -f worker
 
 # Vérifier la connexion Redis
 docker compose -f docker-compose.prod.yml exec backend php bin/console debug:messenger
+```
+
+### Les crons planifiés (sync 2h00, détection d'absences 3h00, expiration 4h00) ne se déclenchent jamais
+
+Ces jobs passent par le transport `scheduler_default`, qui a besoin d'un processus dédié qui le
+consomme en continu — le service `scheduler` du compose (même image que `backend`/`worker`, juste la
+commande `messenger:consume scheduler_default` change). S'il est absent ou arrêté, les jobs restent
+enregistrés côté code mais ne partent jamais.
+
+```bash
+# Vérifier que le service tourne
+docker compose -f docker-compose.prod.yml logs -f scheduler
+
+# Vérifier les prochains passages programmés
+docker compose -f docker-compose.prod.yml exec backend php bin/console debug:scheduler
 ```
 
 ### Erreur "no available server"
