@@ -60,6 +60,10 @@ class SyncClassroomSessionsCommand extends Command
             ['Signatures removed' => (string) $result['signatures']['removed']],
         ];
 
+        if (isset($result['signatures']['registrations_skipped_old_session'])) {
+            $definitionListRows[] = ['Signature registrations skipped (session older than 60 days)' => (string) $result['signatures']['registrations_skipped_old_session']];
+        }
+
         if (isset($result['signatures']['registrations_failed'])) {
             $definitionListRows[] = ['Signature registrations failed (skipped, kept unchanged)' => (string) $result['signatures']['registrations_failed']];
         }
