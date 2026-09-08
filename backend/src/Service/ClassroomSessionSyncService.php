@@ -25,14 +25,6 @@ class ClassroomSessionSyncService
     // calls syncSessions()/syncRegistrations() already made earlier in the same rolling minute.
     private const SIGNATURE_REQUEST_DELAY_MICROSECONDS = 220_000;
 
-    // An attendance sheet for a session that ended more than this many days ago has settled —
-    // nobody signs (or un-signs) it retroactively a month later. Re-fetching it on every sync
-    // was the majority of the ~2000 sequential per-registration API calls above, for essentially
-    // no benefit once the dataset has a few months of history. Registrations for older sessions
-    // are skipped entirely (their existing signatures are left untouched, not removed) — only
-    // recent/ongoing sessions are re-checked each run.
-    private const SIGNATURE_SYNC_WINDOW_DAYS = 60;
-
     public function __construct(
         private readonly RiseUpApiClient $riseUpApiClient,
         private readonly EntityManagerInterface $entityManager,
@@ -169,30 +161,11 @@ class ClassroomSessionSyncService
     }
 
     /**
-     * @return array{registrations_processed:int,fetched:int,created:int,updated:int,removed:int,registrations_skipped_old_session?:int,registrations_skipped?:int,registrations_failed?:int}
+     * @return array{registrations_processed:int,fetched:int,created:int,updated:int,removed:int,registrations_skipped?:int,registrations_failed?:int}
      */
     private function syncSignatures(int $flushEvery): array
     {
-        $totalRegistrations = (int) $this->entityManager->createQueryBuilder()
-            ->select('COUNT(r.id)')
-            ->from(ClassroomSessionRegistration::class, 'r')
-            ->getQuery()
-            ->getSingleScalarResult();
-
-        $windowStart = (new \DateTimeImmutable())->modify(sprintf('-%d days', self::SIGNATURE_SYNC_WINDOW_DAYS));
-
-        /** @var ClassroomSessionRegistration[] $registrations */
-        $registrations = $this->entityManager->createQueryBuilder()
-            ->select('r')
-            ->from(ClassroomSessionRegistration::class, 'r')
-            ->join('r.session', 's')
-            ->where('s.endAt IS NULL')
-            ->orWhere('s.endAt >= :windowStart')
-            ->setParameter('windowStart', $windowStart)
-            ->getQuery()
-            ->getResult();
-
-        $skippedOldSessions = $totalRegistrations - count($registrations);
+        $registrations = $this->entityManager->getRepository(ClassroomSessionRegistration::class)->findAll();
 
         $fetched = 0;
         $created = 0;
@@ -306,10 +279,6 @@ class ClassroomSessionSyncService
             'updated' => $updated,
             'removed' => $removed,
         ];
-
-        if ($skippedOldSessions > 0) {
-            $result['registrations_skipped_old_session'] = $skippedOldSessions;
-        }
 
         if ($skippedRegistrations > 0) {
             $result['registrations_skipped'] = $skippedRegistrations;
