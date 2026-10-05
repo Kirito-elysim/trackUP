@@ -78,19 +78,21 @@ class AbsenceNotificationService
         }
 
         $session = $absence->getRegistration()->getSession();
-        $sessionLabel = $session->getTraining()?->getTitle() ?? $session->getModule()?->getTitle() ?? 'votre session';
+        $trainingOrModuleTitle = $session->getTraining()?->getTitle() ?? $session->getModule()?->getTitle() ?? 'votre session';
         $sessionDate = $session->getStartAt()?->format('d/m/Y à H:i') ?? 'date inconnue';
         $justificationUrl = sprintf('%s/absences/justificatif?token=%s', rtrim($this->frontendUrl, '/'), $token);
-        $learnerName = trim(sprintf('%s %s', (string) $learner->getFirstName(), (string) $learner->getLastName()));
+        $learnerFirstName = trim((string) $learner->getFirstName());
         $daysRemaining = $this->daysRemaining($absence);
 
-        $subject = 'TrackUp - Absence constatée : ' . $sessionLabel;
-        $text = "Bonjour {$learnerName},\n\n"
-            . "Nous constatons votre absence à la session \"{$sessionLabel}\" du {$sessionDate}.\n"
+        $subject = 'Absence constatée : ' . $trainingOrModuleTitle;
+        $text = "Bonjour {$learnerFirstName},\n\n"
+            . "Nous constatons votre absence à la session \"{$trainingOrModuleTitle}\" du {$sessionDate}.\n"
             . "Si vous disposez d'un justificatif, vous pouvez le déposer ici"
             . ($daysRemaining !== null ? " (encore {$daysRemaining} jour(s) pour le faire) :\n" : " :\n")
             . "{$justificationUrl}\n\n"
-            . "Sans justificatif, cette absence sera considérée comme non justifiée.\n";
+            . "Sans justificatif, cette absence sera considérée comme non justifiée.\n\n"
+            . "L’équipe pédagogique\n\n"
+            . "Ed’Up Business School\n";
 
         $message = (new Email())
             ->from($this->fromAddress)
@@ -98,11 +100,14 @@ class AbsenceNotificationService
             ->subject($subject)
             ->text($text)
             ->html(
-                "<p>Bonjour {$learnerName},</p>"
-                . "<p>Nous constatons votre absence à la session \"{$sessionLabel}\" du {$sessionDate}.</p>"
-                . "<p><a href=\"{$justificationUrl}\">Déposer un justificatif</a>"
-                . ($daysRemaining !== null ? " (encore {$daysRemaining} jour(s)).</p>" : ".</p>")
+                "<p>Bonjour {$learnerFirstName},</p>"
+                . "<p>Nous constatons votre absence à la session \"{$trainingOrModuleTitle}\" du {$sessionDate}.</p>"
+                . "<p>Si vous disposez d'un justificatif, vous pouvez le déposer ici"
+                . ($daysRemaining !== null ? " (encore {$daysRemaining} jour(s) pour le faire) :<br>" : " :<br>")
+                . "<a href=\"{$justificationUrl}\">{$justificationUrl}</a></p>"
                 . "<p>Sans justificatif, cette absence sera considérée comme non justifiée.</p>"
+                . "<p>L’équipe pédagogique</p>"
+                . "<p>Ed’Up Business School</p>"
             );
 
         try {
@@ -153,7 +158,7 @@ class AbsenceNotificationService
 
         $session = $absence->getRegistration()->getSession();
         $sessionLabel = $session->getTraining()?->getTitle() ?? $session->getModule()?->getTitle() ?? 'votre session';
-        $learnerName = trim(sprintf('%s %s', (string) $learner->getFirstName(), (string) $learner->getLastName()));
+        $learnerFirstName = trim((string) $learner->getFirstName());
 
         [$subjectLabel, $statusText] = match ($absence->getStatus()) {
             Absence::STATUS_JUSTIFIEE => ['Absence justifiée', 'a été validée comme justifiée'],
@@ -161,9 +166,11 @@ class AbsenceNotificationService
             default => ['Absence traitée', 'a été traitée'],
         };
 
-        $subject = 'TrackUp - ' . $subjectLabel . ' : ' . $sessionLabel;
-        $text = "Bonjour {$learnerName},\n\n"
-            . "Votre absence à la session \"{$sessionLabel}\" {$statusText}.\n";
+        $subject = $subjectLabel . ' : ' . $sessionLabel;
+        $text = "Bonjour {$learnerFirstName},\n\n"
+            . "Votre absence à la session \"{$sessionLabel}\" {$statusText}.\n\n"
+            . "L’équipe pédagogique\n"
+            . "Ed’Up Business School\n";
 
         $message = (new Email())
             ->from($this->fromAddress)
@@ -171,8 +178,9 @@ class AbsenceNotificationService
             ->subject($subject)
             ->text($text)
             ->html(
-                "<p>Bonjour {$learnerName},</p>"
+                "<p>Bonjour {$learnerFirstName},</p>"
                 . "<p>Votre absence à la session \"{$sessionLabel}\" {$statusText}.</p>"
+                . "<p style=\"margin-top: 24px;\">L’équipe pédagogique<br>Ed’Up Business School</p>"
             );
 
         try {
@@ -204,13 +212,16 @@ class AbsenceNotificationService
             ->text(
                 "L'apprenant {$learnerName} cumule {$count} absences masterclass non justifiées consécutives.\n\n"
                 . "Fiche apprenant : {$learnerUrl}\n\n"
-                . "Merci de déclencher la procédure disciplinaire (avertissement, courrier, suivi renforcé).\n"
+                . "Merci de déclencher la procédure disciplinaire (avertissement, courrier, suivi renforcé).\n\n"
+                . "L’équipe pédagogique\n"
+                . "Ed’Up Business School\n"
             )
             ->html(
                 "<p>L'apprenant <strong>{$learnerName}</strong> cumule <strong>{$count}</strong> absences masterclass "
                 . "non justifiées consécutives.</p>"
                 . "<p><a href=\"{$learnerUrl}\">Voir la fiche apprenant</a></p>"
                 . "<p>Merci de déclencher la procédure disciplinaire (avertissement, courrier, suivi renforcé).</p>"
+                . "<p>L’équipe pédagogique<br>Ed’Up Business School</p>"
             );
 
         try {
@@ -232,19 +243,21 @@ class AbsenceNotificationService
             return false;
         }
 
-        $learnerName = trim(sprintf('%s %s', (string) $learner->getFirstName(), (string) $learner->getLastName()));
+        $learnerFirstName = trim((string) $learner->getFirstName());
 
-        $subject = 'TrackUp - Absences répétées en masterclass : merci de régulariser votre situation';
-        $text = "Bonjour {$learnerName},\n\n"
-            . "Nous constatons que vous cumulez {$count} absences non justifiées consécutives à des sessions de masterclass.\n\n"
-            . "L'assiduité aux masterclass fait partie intégrante de votre parcours de formation. Merci de régulariser "
-            . "votre situation dans les meilleurs délais :\n"
-            . "- si vous disposez d'un justificatif pour l'une de ces absences, transmettez-le à l'équipe pédagogique ;\n"
-            . "- si votre situation le nécessite, contactez-nous pour en discuter.\n\n"
-            . "Sans régularisation, une procédure disciplinaire pourra être engagée (avertissement, courrier officiel, "
-            . "suivi renforcé).\n\n"
+        $subject = 'Absences répétées en masterclass : merci de régulariser votre situation';
+        $text = "Bonjour {$learnerFirstName},\n\n"
+            . "Nous constatons que vous cumulez {$count} absences non justifiées consécutives à vos sessions de masterclass.\n\n"
+            . "Nous vous rappelons que l’assiduité aux masterclass est obligatoire et fait partie intégrante de votre parcours de formation.\n\n"
+            . "Nous vous demandons donc de régulariser votre situation dans les meilleurs délais :\n\n"
+            . "- si vous disposez de justificatifs d'absence, merci de les transmettre à l’équipe pédagogique dans les meilleurs délais,\n"
+            . "- si vous rencontrez une difficulté particulière ayant un impact sur votre assiduité, nous vous invitons à nous contacter afin que nous puissions échanger sur votre situation.\n\n"
+            . "En l’absence de régularisation ou en cas de nouvelles absences non justifiées, une procédure disciplinaire pourra être engagée, conformément au règlement intérieur. Celle-ci pourra notamment prendre la forme d’un avertissement, d’un entretien avec l’équipe pédagogique, d’un échange tripartite avec votre entreprise d’accueil ou, selon la situation, de la saisine du conseil de discipline.\n\n"
+            . "Nous vous remercions de prendre les dispositions nécessaires afin de rétablir votre assiduité dès votre prochaine session.\n\n"
             . "Nous restons à votre disposition pour tout échange.\n\n"
-            . "Cordialement,\nL'équipe pédagogique\n";
+            . "Cordialement,\n\n\n"
+            . "L’équipe pédagogique\n\n"
+            . "Ed’Up Business School\n";
 
         $message = (new Email())
             ->from($this->fromAddress)
@@ -252,19 +265,26 @@ class AbsenceNotificationService
             ->subject($subject)
             ->text($text)
             ->html(
-                "<p>Bonjour {$learnerName},</p>"
+                "<p>Bonjour {$learnerFirstName},</p>"
                 . "<p>Nous constatons que vous cumulez <strong>{$count}</strong> absences non justifiées consécutives "
-                . "à des sessions de masterclass.</p>"
-                . "<p>L'assiduité aux masterclass fait partie intégrante de votre parcours de formation. Merci de "
-                . "régulariser votre situation dans les meilleurs délais :</p>"
+                . "à vos sessions de masterclass.</p>"
+                . "<p>Nous vous rappelons que l’assiduité aux masterclass est obligatoire et fait partie intégrante "
+                . "de votre parcours de formation.</p>"
+                . "<p>Nous vous demandons donc de régulariser votre situation dans les meilleurs délais :</p>"
                 . "<ul>"
-                . "<li>si vous disposez d'un justificatif pour l'une de ces absences, transmettez-le à l'équipe pédagogique ;</li>"
-                . "<li>si votre situation le nécessite, contactez-nous pour en discuter.</li>"
+                . "<li>si vous disposez de justificatifs d'absence, merci de les transmettre à l’équipe pédagogique dans les meilleurs délais,</li>"
+                . "<li>si vous rencontrez une difficulté particulière ayant un impact sur votre assiduité, nous vous invitons à nous contacter afin que nous puissions échanger sur votre situation.</li>"
                 . "</ul>"
-                . "<p>Sans régularisation, une procédure disciplinaire pourra être engagée (avertissement, courrier "
-                . "officiel, suivi renforcé).</p>"
+                . "<p>En l’absence de régularisation ou en cas de nouvelles absences non justifiées, une procédure "
+                . "disciplinaire pourra être engagée, conformément au règlement intérieur. Celle-ci pourra notamment "
+                . "prendre la forme d’un avertissement, d’un entretien avec l’équipe pédagogique, d’un échange "
+                . "tripartite avec votre entreprise d’accueil ou, selon la situation, de la saisine du conseil de discipline.</p>"
+                . "<p>Nous vous remercions de prendre les dispositions nécessaires afin de rétablir votre assiduité "
+                . "dès votre prochaine session.</p>"
                 . "<p>Nous restons à votre disposition pour tout échange.</p>"
-                . "<p>Cordialement,<br>L'équipe pédagogique</p>"
+                . "<p>Cordialement,</p>"
+                . "<p style=\"margin-top: 24px;\">L’équipe pédagogique</p>"
+                . "<p>Ed’Up Business School</p>"
             );
 
         try {

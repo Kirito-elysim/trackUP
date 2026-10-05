@@ -78,8 +78,8 @@ class LearnerLogDeliveryController extends AbstractController
             $problem = (!$tutor || $tutor->isDeleted()) ? 'Aucun tuteur associé' : (!filter_var($email, FILTER_VALIDATE_EMAIL) ? 'Email du tuteur absent ou invalide' : null);
             // Where to fix it: tutor assignment lives on the learner page, the email on the tutor page.
             $fix = $problem === null ? null : (($tutor && !$tutor->isDeleted()) ? 'tutor' : 'learner');
-            $subject = "TrackUp - Logs et signatures de {$name} - {$pathTitle}";
-            $text = "Bonjour " . ($tutor?->getFullName() ?? '') . ",\n\nVeuillez trouver en pièce jointe le relevé des signatures des classes virtuelles et des logs d’activité de {$name} ({$pathTitle}).\n\nCordialement,\nL’équipe pédagogique";
+            $subject = "Logs et signatures de {$name} - {$pathTitle}";
+            $text = "Bonjour " . ($tutor?->getFirstName() ?? '') . ",\n\nVeuillez trouver en pièce jointe le relevé des signatures des classes virtuelles et des logs d’activité de {$name} ({$pathTitle}).\n\nCordialement,\nL’équipe pédagogique\nEd’Up Business School";
             $items[] = ['learningPathIds' => $pathIds, 'pathTitle' => $pathTitle, 'learnerId' => $id, 'name' => $name, 'tutorId' => $tutor?->getId(), 'tutor' => $tutor?->getFullName(), 'email' => $email, 'problem' => $problem, 'fix' => $fix, 'subject' => $subject, 'text' => $text, 'filename' => "logs-{$id}.pdf", 'status' => 'pending'];
         }
         $token = bin2hex(random_bytes(24));

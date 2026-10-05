@@ -35,8 +35,8 @@ class LearnerReminderService
             return false;
         }
 
-        $learnerName = trim(sprintf('%s %s', (string) $learner->getFirstName(), (string) $learner->getLastName()));
-        [$subject, $text, $html] = $this->buildMessage($reason, $learnerName);
+        $learnerFirstName = trim((string) $learner->getFirstName());
+        [$subject, $text, $html] = $this->buildMessage($reason, $learnerFirstName);
 
         $message = (new Email())
             ->from($this->fromAddress)
@@ -64,44 +64,60 @@ class LearnerReminderService
     /**
      * @return array{0: string, 1: string, 2: string} [subject, text, html]
      */
-    private function buildMessage(string $reason, string $learnerName): array
+    private function buildMessage(string $reason, string $learnerFirstName): array
     {
         if ($reason === self::REASON_SCHEDULE) {
-            $subject = 'TrackUp - Respect des horaires de connexion e-learning';
-            $text = "Bonjour {$learnerName},\n\n"
-                . "Nous vous rappelons que, lors des sessions e-learning, vous devez rester connecté(e) sur "
-                . "les créneaux prévus :\n"
+            $subject = 'Respect des horaires de connexion e-learning';
+            $text = "Bonjour {$learnerFirstName},\n\n"
+                . "Nous constatons que les horaires de connexion prévus lors de vos journées de formation en e-learning ne sont pas pleinement respectés.\n\n"
+                . "Nous vous rappelons que, lors de ces journées, vous devez être connecté(e) à votre espace de formation et réaliser vos activités pédagogiques sur les créneaux prévus :\n\n"
                 . "- 8h00 à 12h00\n"
                 . "- 14h00 à 17h00\n\n"
-                . "Merci de veiller au respect de ces horaires pour la suite de votre parcours.\n\n"
-                . "Pour toute question, n'hésitez pas à contacter l'équipe pédagogique.\n\n"
-                . "Cordialement,\nL'équipe pédagogique\n";
-            $html = "<p>Bonjour {$learnerName},</p>"
-                . "<p>Nous vous rappelons que, lors des sessions e-learning, vous devez rester connecté(e) sur "
-                . "les créneaux prévus :</p>"
+                . "Ces horaires correspondent à votre temps de formation et doivent être respectés au même titre que les horaires des masterclass.\n\n"
+                . "Nous vous demandons donc de veiller à leur respect dès votre prochaine journée de formation.\n\n"
+                . "Si vous rencontrez une difficulté particulière vous empêchant de respecter ces créneaux, merci de vous rapprocher de l’équipe pédagogique afin que nous puissions échanger sur votre situation.\n\n"
+                . "Cordialement,\n\n"
+                . "L’équipe pédagogique\n\n"
+                . "Ed’Up Business School\n";
+            $html = "<p>Bonjour {$learnerFirstName},</p>"
+                . "<p>Nous constatons que les horaires de connexion prévus lors de vos journées de formation en "
+                . "e-learning ne sont pas pleinement respectés.</p>"
+                . "<p>Nous vous rappelons que, lors de ces journées, vous devez être connecté(e) à votre espace de "
+                . "formation et réaliser vos activités pédagogiques sur les créneaux prévus :</p>"
                 . "<ul><li>8h00 à 12h00</li><li>14h00 à 17h00</li></ul>"
-                . "<p>Merci de veiller au respect de ces horaires pour la suite de votre parcours.</p>"
-                . "<p>Pour toute question, n'hésitez pas à contacter l'équipe pédagogique.</p>"
-                . "<p>Cordialement,<br>L'équipe pédagogique</p>";
+                . "<p>Ces horaires correspondent à votre temps de formation et doivent être respectés au même titre "
+                . "que les horaires des masterclass.</p>"
+                . "<p>Nous vous demandons donc de veiller à leur respect dès votre prochaine journée de formation.</p>"
+                . "<p>Si vous rencontrez une difficulté particulière vous empêchant de respecter ces créneaux, merci "
+                . "de vous rapprocher de l’équipe pédagogique afin que nous puissions échanger sur votre situation.</p>"
+                . "<p>Cordialement,</p>"
+                . "<p style=\"margin-top: 24px;\">L’équipe pédagogique<br>Ed’Up Business School</p>";
 
             return [$subject, $text, $html];
         }
 
-        $subject = 'TrackUp - Avancement e-learning insuffisant';
-        $text = "Bonjour {$learnerName},\n\n"
-            . "Nous constatons que votre avancement dans les modules e-learning n'est pas conforme à ce qui "
-            . "est attendu à ce stade de votre parcours.\n\n"
-            . "Merci de vous connecter à votre espace de formation pour finaliser les modules en cours dans "
-            . "les meilleurs délais.\n\n"
-            . "Pour toute difficulté, n'hésitez pas à contacter l'équipe pédagogique.\n\n"
-            . "Cordialement,\nL'équipe pédagogique\n";
-        $html = "<p>Bonjour {$learnerName},</p>"
-            . "<p>Nous constatons que votre avancement dans les modules e-learning n'est pas conforme à ce "
-            . "qui est attendu à ce stade de votre parcours.</p>"
-            . "<p>Merci de vous connecter à votre espace de formation pour finaliser les modules en cours "
-            . "dans les meilleurs délais.</p>"
-            . "<p>Pour toute difficulté, n'hésitez pas à contacter l'équipe pédagogique.</p>"
-            . "<p>Cordialement,<br>L'équipe pédagogique</p>";
+        $subject = 'Avancement e-learning insuffisant';
+        $text = "Bonjour {$learnerFirstName},\n\n"
+            . "Nous constatons que votre avancement dans les modules e-learning est actuellement insuffisant au regard de la progression attendue à ce stade de votre parcours de formation.\n\n"
+            . "Nous vous invitons à vous connecter dès que possible à votre espace de formation afin de reprendre les modules en cours et de régulariser votre avancement dans les meilleurs délais.\n\n"
+            . "Nous vous rappelons que le travail réalisé en e-learning fait pleinement partie de votre parcours et de votre temps de formation. Une progression régulière est donc indispensable.\n\n"
+            . "Si vous rencontrez une difficulté particulière (accès à la plateforme, compréhension des contenus, organisation ou autre), n’hésitez pas à contacter l’équipe pédagogique afin que nous puissions vous accompagner.\n\n"
+            . "Merci de prendre les dispositions nécessaires pour reprendre votre progression.\n\n"
+            . "Cordialement,\n\n"
+            . "L’équipe pédagogique\n\n"
+            . "Ed’Up Business School\n";
+        $html = "<p>Bonjour {$learnerFirstName},</p>"
+            . "<p>Nous constatons que votre avancement dans les modules e-learning est actuellement insuffisant au "
+            . "regard de la progression attendue à ce stade de votre parcours de formation.</p>"
+            . "<p>Nous vous invitons à vous connecter dès que possible à votre espace de formation afin de reprendre "
+            . "les modules en cours et de régulariser votre avancement dans les meilleurs délais.</p>"
+            . "<p>Nous vous rappelons que le travail réalisé en e-learning fait pleinement partie de votre parcours "
+            . "et de votre temps de formation. Une progression régulière est donc indispensable.</p>"
+            . "<p>Si vous rencontrez une difficulté particulière (accès à la plateforme, compréhension des contenus, "
+            . "organisation ou autre), n’hésitez pas à contacter l’équipe pédagogique afin que nous puissions vous accompagner.</p>"
+            . "<p>Merci de prendre les dispositions nécessaires pour reprendre votre progression.</p>"
+            . "<p>Cordialement,</p>"
+            . "<p style=\"margin-top: 24px;\">L’équipe pédagogique<br>Ed’Up Business School</p>";
 
         return [$subject, $text, $html];
     }

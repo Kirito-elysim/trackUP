@@ -188,7 +188,7 @@ class SyncOrchestratorService
         }
 
         $text = sprintf(
-            "%s %s\n\nSynchronisation %s.\nDurée totale : %s.\n\n%s\n",
+            "%s %s\n\nSynchronisation %s.\nDurée totale : %s.\n\n%s\n\nL’équipe pédagogique\nEd’Up Business School\n",
             $icon,
             $subject,
             $triggerLabel,
@@ -197,7 +197,7 @@ class SyncOrchestratorService
         );
 
         $html = sprintf(
-            '<p><strong>%s %s</strong></p><p>Synchronisation %s.<br>Durée totale : %s.</p><ul>%s</ul>',
+            '<p><strong>%s %s</strong></p><p>Synchronisation %s.<br>Durée totale : %s.</p><ul>%s</ul><p>L’équipe pédagogique<br>Ed’Up Business School</p>',
             $icon,
             htmlspecialchars($subject),
             htmlspecialchars($triggerLabel),
@@ -213,7 +213,7 @@ class SyncOrchestratorService
             $email = (new Email())
                 ->from($this->fromAddress)
                 ->to($recipient->getEmail())
-                ->subject('TrackUp - ' . $subject)
+                ->subject($subject)
                 ->text($text)
                 ->html($html);
 

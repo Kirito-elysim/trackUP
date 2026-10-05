@@ -164,19 +164,22 @@ class AuthController extends AbstractController
         $email = (new Email())
             ->from($this->fromAddress)
             ->to($user->getEmail())
-            ->subject('TrackUp - Réinitialisation de votre mot de passe')
+            ->subject('Réinitialisation de votre mot de passe')
             ->text(
                 "Bonjour {$user->getFirstName()},\n\n"
                 . "Une demande de réinitialisation de mot de passe a été effectuée pour votre compte TrackUp.\n"
                 . "Cliquez sur le lien suivant pour choisir un nouveau mot de passe (valable 1 heure) :\n"
                 . "{$resetUrl}\n\n"
-                . "Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.\n"
+                . "Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.\n\n"
+                . "L’équipe pédagogique\n"
+                . "Ed’Up Business School\n"
             )
             ->html(
                 "<p>Bonjour {$user->getFirstName()},</p>"
                 . "<p>Une demande de réinitialisation de mot de passe a été effectuée pour votre compte TrackUp.</p>"
                 . "<p><a href=\"{$resetUrl}\">Cliquez ici pour choisir un nouveau mot de passe</a> (lien valable 1 heure).</p>"
                 . "<p>Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.</p>"
+                . "<p>L’équipe pédagogique<br>Ed’Up Business School</p>"
             );
 
         try {
