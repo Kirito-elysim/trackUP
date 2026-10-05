@@ -186,7 +186,7 @@ absences des apprenants aux sessions de formation (webinaires/masterclass ou ses
 **Notification et justification (sans compte apprenant)**
 - Dès la détection d'une absence, un email est envoyé automatiquement à l'apprenant l'informant de
   son absence et l'invitant à déposer un justificatif via un lien sécurisé, valable un temps limité
-  (14 jours).
+  (7 jours).
 - Ce lien ouvre une page publique, sans connexion requise, où l'apprenant peut déposer un document
   (PDF ou image). Une fois le délai dépassé sans dépôt, l'absence passe automatiquement au statut "non
   justifiée".

@@ -132,8 +132,8 @@ class AbsenceNotificationService
 
         $secondsRemaining = $expiresAt->getTimestamp() - (new \DateTimeImmutable())->getTimestamp();
 
-        // Arrondi au jour supérieur (pas tronqué) : juste après un envoi avec expiresAt = now + 14
-        // jours, quelques millisecondes se sont écoulées, donc un calcul tronqué afficherait déjà 13.
+        // Arrondi au jour supérieur (pas tronqué) : juste après un envoi avec expiresAt = now + 7
+        // jours, quelques millisecondes se sont écoulées, donc un calcul tronqué afficherait déjà 6.
         return max(0, (int) ceil($secondsRemaining / 86400));
     }
 

@@ -444,14 +444,14 @@ les cas particuliers). **Type** : `masterclass` (session `virtual`) vs `presenti
    `en_attente`. Une seule période signée sur une session à périodes multiples suffit à ne **pas**
    déclencher d'absence.
 2. **Notification** : email automatique à l'apprenant avec un lien de dépôt sécurisé à token
-   (`bin2hex(random_bytes(32))`, expiration 14 jours), à la création de l'absence.
+   (`bin2hex(random_bytes(32))`, expiration 7 jours), à la création de l'absence.
 3. **Réponse apprenant** : page **publique** (`/absences/justificatif?token=...`, aucune connexion
    requise) — dépôt PDF/JPG/PNG (10 Mo max), stocké sur disque local (`var/uploads/absences/`).
 4. **Validation admin** : `PATCH /api/admin/absences/{id}` (valider/rejeter/reclasser + note interne)
    → email de confirmation à l'apprenant.
 
 **Passage automatique en `non_justifiee`** (2ᵉ déclencheur, en plus du rejet admin explicite) :
-expiration du délai de 14 jours sans dépôt (cron quotidien 4h00, `AbsenceExpiryService`).
+expiration du délai de 7 jours sans dépôt (cron quotidien 4h00, `AbsenceExpiryService`).
 
 **Alerte disciplinaire (3 absences masterclass injustifiées consécutives)** :
 - Le compteur (`Learner.consecutiveUnjustifiedMasterclassAbsences`) est **recalculé** (jamais
