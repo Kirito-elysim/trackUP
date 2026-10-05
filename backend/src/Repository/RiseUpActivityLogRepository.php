@@ -45,6 +45,12 @@ final class RiseUpActivityLogRepository
         $params = [];
         $types = [];
 
+        if ($filters->learnerId !== null) {
+            $conditions[] = "EXISTS (SELECT 1 FROM learners exact_l WHERE exact_l.id = :learnerId AND (exact_l.external_id = ral.learner_external_id OR (ral.learner_external_id IS NULL AND exact_l.email = ral.learner_email)))";
+            $params['learnerId'] = $filters->learnerId;
+            $types['learnerId'] = ParameterType::INTEGER;
+        }
+
         if ($filters->learnerQuery !== null) {
             // Si la requête contient un @, c'est probablement un email exact
             $isEmail = str_contains($filters->learnerQuery, '@');
@@ -189,6 +195,12 @@ final class RiseUpActivityLogRepository
         if ($filters->dateTo instanceof \DateTimeImmutable) {
             $conditions[] = 'ral.login_at <= :dateTo';
             $params['dateTo'] = $filters->dateTo->format('Y-m-d H:i:s');
+        }
+
+        if ($filters->learningPathIds !== []) {
+            $conditions[] = 'EXISTS (SELECT 1 FROM trainings scoped_t INNER JOIN learning_path_trainings scoped_p ON scoped_p.training_id = scoped_t.id WHERE scoped_t.external_id = ral.training_external_id AND scoped_p.learning_path_id IN (:learningPathIds))';
+            $params['learningPathIds'] = $filters->learningPathIds;
+            $types['learningPathIds'] = \Doctrine\DBAL\ArrayParameterType::INTEGER;
         }
 
         return [
@@ -584,6 +596,24 @@ final class RiseUpActivityLogRepository
     private function buildSessionWhereSql(RiseUpActivityLogFilters $filters, string $learnerAlias, string $sessionAlias): string
     {
         $conditions = ['css.has_signed = 1'];
+        if ($filters->learningPathIds !== []) {
+            $conditions[] = "EXISTS (SELECT 1 FROM learning_path_trainings scoped_p WHERE scoped_p.training_id = $sessionAlias.training_id AND scoped_p.learning_path_id IN (:learningPathIds))";
+        }
+
+        if ($filters->learnerId !== null) {
+            $conditions[] = "$learnerAlias.id = :learnerId";
+        }
+        if ($filters->learningPathId !== null) {
+            $conditions[] = "EXISTS (SELECT 1 FROM learning_path_trainings slpt WHERE slpt.training_id = $sessionAlias.training_id AND slpt.learning_path_id = :learningPathId)";
+            $conditions[] = "EXISTS (SELECT 1 FROM learning_path_registrations slpr WHERE slpr.learner_id = $learnerAlias.id AND slpr.learning_path_id = :learningPathId)";
+        }
+        if ($filters->groupExternalId !== null) {
+            $conditions[] = "EXISTS (SELECT 1 FROM riseup_learner_groups slg INNER JOIN riseup_groups sg ON sg.id = slg.group_id WHERE slg.learner_id = $learnerAlias.id AND sg.external_id = :groupExternalId)";
+        }
+        if ($filters->trainingExternalId !== null) {
+            $conditions[] = "EXISTS (SELECT 1 FROM trainings st WHERE st.id = $sessionAlias.training_id AND st.external_id = :trainingExternalId)";
+        }
+
 
         if ($filters->learnerQuery !== null) {
             $isEmail = str_contains($filters->learnerQuery, '@');

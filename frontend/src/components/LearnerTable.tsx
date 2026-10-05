@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { LearnerLogDeliveryDialog, type LogPath } from './LearnerLogDeliveryDialog';
 import { Search, Send } from 'lucide-react';
 import { useAuth } from '../contexts/useAuth';
 import { apiRequest, ApiError } from '../lib/api';
@@ -40,6 +41,9 @@ type SortDirection = 'asc' | 'desc';
 
 type LearnerTableProps = {
   data: LearnerTableData[];
+  logPaths?: LogPath[];
+  logGroupId?: number;
+  logContextLabel?: string;
   title?: string;
   showProgress?: boolean;
   onRowClick?: (learner: LearnerTableData) => void;
@@ -68,8 +72,10 @@ const HEAD_CLASS = 'whitespace-normal break-words px-2 py-2 leading-tight';
 const COLUMN_WIDTHS_WITH_PROGRESS = [3, 15, 7, 8, 13, 7, 8, 13, 12, 14];
 const COLUMN_WIDTHS_WITHOUT_PROGRESS = [3, 17, 8, 9, 15, 8, 9, 15, 16];
 
-export function LearnerTable({ data, title = 'Apprenants', showProgress = true, onRowClick }: LearnerTableProps) {
-  const { token } = useAuth();
+export function LearnerTable({ data, title = 'Apprenants', showProgress = true, onRowClick, logPaths, logGroupId, logContextLabel }: LearnerTableProps) {
+  const { token, canAccess } = useAuth();
+  const [logTargets, setLogTargets] = useState<number[] | null>(null);
+  const canSendLogs = logPaths !== undefined && canAccess('learners.manage') && canAccess('exports.view');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -230,6 +236,7 @@ export function LearnerTable({ data, title = 'Apprenants', showProgress = true, 
                 Envoyer une relance ({selectedIds.size})
               </Button>
             ) : null}
+            {canSendLogs && selectedIds.size > 0 && <Button size="sm" variant="outline" onClick={() => setLogTargets(data.filter(learner => selectedIds.has(learner.id)).map(learner => learner.learnerId))}>Envoyer les logs ({selectedIds.size})</Button>}
             <div className="relative w-full max-w-xs">
               <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -326,10 +333,13 @@ export function LearnerTable({ data, title = 'Apprenants', showProgress = true, 
                     </TableCell>
                   ) : null}
                   <TableCell className={cn(CELL_CLASS, 'text-right')} onClick={(event) => event.stopPropagation()}>
+                    <div className="flex flex-wrap justify-end gap-1">
                     <Button variant="outline" size="sm" onClick={() => openReminder([learner])}>
                       <Send size={13} />
                       Relance
                     </Button>
+                    {canSendLogs && <Button variant="outline" size="sm" onClick={() => setLogTargets([learner.learnerId])}>Logs</Button>}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -343,6 +353,8 @@ export function LearnerTable({ data, title = 'Apprenants', showProgress = true, 
           </p>
         )}
       </CardContent>
+
+      {logTargets && logPaths && <LearnerLogDeliveryDialog learnerIds={logTargets} paths={logPaths} groupId={logGroupId} contextLabel={logContextLabel} onClose={() => setLogTargets(null)} />}
 
       <Dialog open={reminderTargets !== null} onOpenChange={(open) => !open && setReminderTargets(null)}>
         <DialogContent>

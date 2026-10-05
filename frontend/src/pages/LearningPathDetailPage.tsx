@@ -106,6 +106,7 @@ export function LearningPathDetailPage() {
 
           <LearnerTable
             data={learnerTableData}
+            logPaths={[data.learningPath]}
             title="Apprenants"
             showProgress={true}
             onRowClick={(learner) => setSelectedLearner({ id: learner.learnerId, name: learner.fullName })}

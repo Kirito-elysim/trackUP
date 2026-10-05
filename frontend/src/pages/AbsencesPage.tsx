@@ -41,6 +41,16 @@ const STATUS_TABS: Array<{ key: AbsenceStatus | 'all'; label: string }> = [
 ];
 
 type SortKey = 'date' | 'learner' | 'status';
+const SORT_KEYS: SortKey[] = ['date', 'learner', 'status'];
+const FILTERS_STORAGE_KEY = 'trackup.absences.filters';
+
+function readStoredFilters(): URLSearchParams {
+  try {
+    return new URLSearchParams(sessionStorage.getItem(FILTERS_STORAGE_KEY) ?? '');
+  } catch {
+    return new URLSearchParams();
+  }
+}
 
 function periodToDateFrom(period: string): string {
   if (period === '') return '';
@@ -78,25 +88,47 @@ function downloadCsv(rows: Absence[]) {
 export function AbsencesPage() {
   const { token } = useAuth();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const initialStatus = searchParams.get('status');
-  const [learnerQuery, setLearnerQuery] = useState('');
-  const [groupExternalId, setGroupExternalId] = useState('');
-  const [type, setType] = useState('');
-  const [period, setPeriod] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Filters live in the URL; a bare /absences (menu, "Retour à la liste") restores the last search.
+  const [initial] = useState(() => (searchParams.toString() !== '' ? searchParams : readStoredFilters()));
+  const initialStatus = initial.get('status');
+  const initialSort = initial.get('sort');
+  const [learnerQuery, setLearnerQuery] = useState(initial.get('learnerQuery') ?? '');
+  const [groupExternalId, setGroupExternalId] = useState(initial.get('groupExternalId') ?? '');
+  const [type, setType] = useState(initial.get('type') ?? '');
+  const [period, setPeriod] = useState(initial.get('period') ?? '');
   const [status, setStatus] = useState<AbsenceStatus | 'all'>(
     initialStatus && (STATUS_TABS as Array<{ key: string }>).some((tab) => tab.key === initialStatus)
       ? (initialStatus as AbsenceStatus)
       : 'all',
   );
-  const [pendingReviewOnly, setPendingReviewOnly] = useState(searchParams.get('pendingReview') === '1');
-  const [sort, setSort] = useState<SortKey>('date');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [pendingReviewOnly, setPendingReviewOnly] = useState(initial.get('pendingReview') === '1');
+  const [sort, setSort] = useState<SortKey>(SORT_KEYS.includes(initialSort as SortKey) ? (initialSort as SortKey) : 'date');
+  const [page, setPage] = useState(Math.max(1, Number(initial.get('page')) || 1));
+  const [pageSize, setPageSize] = useState(Number(initial.get('pageSize')) || 50);
   const [payload, setPayload] = useState<AbsencesPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (learnerQuery !== '') params.set('learnerQuery', learnerQuery);
+    if (groupExternalId !== '') params.set('groupExternalId', groupExternalId);
+    if (type !== '') params.set('type', type);
+    if (period !== '') params.set('period', period);
+    if (status !== 'all') params.set('status', status);
+    if (pendingReviewOnly) params.set('pendingReview', '1');
+    if (sort !== 'date') params.set('sort', sort);
+    if (page !== 1) params.set('page', String(page));
+    if (pageSize !== 50) params.set('pageSize', String(pageSize));
+    setSearchParams(params, { replace: true });
+    try {
+      sessionStorage.setItem(FILTERS_STORAGE_KEY, params.toString());
+    } catch {
+      // Storage unavailable (private mode): the URL still keeps the filters.
+    }
+  }, [groupExternalId, learnerQuery, page, pageSize, pendingReviewOnly, period, setSearchParams, sort, status, type]);
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams();

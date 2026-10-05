@@ -59,7 +59,7 @@ services:
         arguments:
             $uploadDir: '%app.absences_upload_dir%'
 
-    App\Controller\Api\RiseUpActivityLogController:
+    App\Service\ActivityLogPdfService:
         arguments:
             $logoPath: '%app.logo_path%'
 
@@ -69,3 +69,7 @@ services:
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
+
+    App\Controller\Api\LearnerLogDeliveryController:
+        arguments:
+            $fromAddress: '%app.mailer_from_address%'

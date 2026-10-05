@@ -8,6 +8,8 @@ final class RiseUpActivityLogFilters
 {
     public function __construct(
         public readonly ?string $learnerQuery = null,
+        public readonly ?int $learnerId = null,
+        public readonly array $learningPathIds = [],
         public readonly ?int $groupExternalId = null,
         public readonly ?int $learningPathId = null,
         public readonly ?int $trainingExternalId = null,

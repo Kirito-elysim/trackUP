@@ -136,6 +136,9 @@ export function GroupDetailPage() {
 
       <LearnerTable
         data={memberTableData}
+        logPaths={data.learningPaths}
+        logGroupId={Number(id)}
+        logContextLabel={data.group.name}
         title="Membres"
         showProgress={false}
         onRowClick={(member) => setSelectedMember({ id: member.learnerId, name: member.fullName })}

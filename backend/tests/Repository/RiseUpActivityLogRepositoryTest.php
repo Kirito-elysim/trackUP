@@ -102,6 +102,35 @@ final class RiseUpActivityLogRepositoryTest extends TestCase
         $this->assertCount(2, $result['params']);
     }
 
+    public function testDeliveryScopesBothLogSourcesToExactLearnerAndPath(): void
+    {
+        $connection = $this->createMock(Connection::class);
+        $connection->expects($this->once())->method('fetchAllAssociative')->willReturnCallback(function (string $sql, array $params): array {
+            $this->assertSame(17, $params['learnerId']);
+            $this->assertSame(9, $params['learningPathId']);
+            $this->assertStringContainsString('exact_l.id = :learnerId', $sql);
+            $this->assertStringContainsString('ral.learner_external_id IS NULL', $sql);
+            $this->assertStringContainsString('l2.id = :learnerId', $sql);
+            $this->assertStringContainsString('slpt.training_id = cs.training_id', $sql);
+            $this->assertStringContainsString('slpt.learning_path_id = :learningPathId', $sql);
+            return [];
+        });
+        (new RiseUpActivityLogRepository($connection))->findFiltered(new RiseUpActivityLogFilters(learnerId: 17, learningPathId: 9));
+    }
+
+    public function testGroupDeliveryScopesBothSourcesToResolvedPaths(): void
+    {
+        $connection = $this->createMock(Connection::class);
+        $connection->expects($this->once())->method('fetchAllAssociative')->willReturnCallback(function (string $sql, array $params, array $types): array {
+            $this->assertSame([9, 10], $params['learningPathIds']);
+            $this->assertSame(\Doctrine\DBAL\ArrayParameterType::INTEGER, $types['learningPathIds']);
+            $this->assertSame(2, substr_count($sql, 'scoped_p.learning_path_id IN (:learningPathIds)'));
+            $this->assertStringContainsString('l2.id = :learnerId', $sql);
+            return [];
+        });
+        (new RiseUpActivityLogRepository($connection))->findFiltered(new RiseUpActivityLogFilters(learnerId: 17, learningPathIds: [9, 10]));
+    }
+
     private function makeRepository(): RiseUpActivityLogRepository
     {
         return new RiseUpActivityLogRepository($this->createStub(Connection::class));
