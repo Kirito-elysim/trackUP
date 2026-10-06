@@ -28,6 +28,8 @@ class AbsenceDetectionService
 
     public function detect(): int
     {
+        $this->cancelSignedAbsences();
+
         $qb = $this->entityManager->createQueryBuilder();
         $registrations = $qb->select('r')
             ->from(ClassroomSessionRegistration::class, 'r')
@@ -81,5 +83,45 @@ class AbsenceDetectionService
         $this->logger->info('Absence detection completed.', ['detected' => $detected]);
 
         return $detected;
+    }
+
+    // Une signature peut arriver après la détection (synchro Rise Up en échec ou en retard la nuit
+    // de la détection) : l'apprenant était bien présent, l'absence est classée "autre" et son lien
+    // de dépôt désactivé. Les absences justifiées sont laissées telles quelles.
+    public function cancelSignedAbsences(): int
+    {
+        /** @var Absence[] $absences */
+        $absences = $this->entityManager->createQueryBuilder()
+            ->select('a')
+            ->from(Absence::class, 'a')
+            ->where('a.status IN (:statuses)')
+            ->andWhere('EXISTS (SELECT 1 FROM App\Entity\ClassroomSessionSignature sig WHERE sig.registration = a.registration AND sig.hasSigned = true)')
+            ->setParameter('statuses', [Absence::STATUS_EN_ATTENTE, Absence::STATUS_NON_JUSTIFIEE])
+            ->getQuery()
+            ->getResult();
+
+        $affectedLearners = [];
+        foreach ($absences as $absence) {
+            $absence
+                ->setStatus(Absence::STATUS_AUTRE)
+                ->setJustificationToken(null)
+                ->setAdminNote(trim(($absence->getAdminNote() ?? '') . "\nSignature reçue après la détection : absence annulée automatiquement."));
+
+            if ($absence->getType() === Absence::TYPE_MASTERCLASS) {
+                $learner = $absence->getRegistration()->getLearner();
+                $affectedLearners[$learner->getId()] = $learner;
+            }
+        }
+
+        if ($absences !== []) {
+            $this->entityManager->flush();
+            foreach ($affectedLearners as $learner) {
+                $this->absenceStreakService->recompute($learner);
+            }
+            $this->entityManager->flush();
+            $this->logger->info('Absences cancelled after a late signature.', ['count' => count($absences)]);
+        }
+
+        return count($absences);
     }
 }
