@@ -10,12 +10,15 @@ use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Component\RateLimiter\RateLimiterFactoryInterface;
 
+// Throttles the public endpoints: authentication and the token-based absence justification page.
 #[AsEventListener(event: KernelEvents::REQUEST, priority: 9)]
 final class AuthRateLimitListener
 {
     public function __construct(
         #[Autowire(service: 'limiter.auth_requests')] private readonly RateLimiterFactoryInterface $authRequests,
         #[Autowire(service: 'limiter.password_reset')] private readonly RateLimiterFactoryInterface $passwordReset,
+        #[Autowire(service: 'limiter.justification_requests')] private readonly RateLimiterFactoryInterface $justificationRequests,
+        #[Autowire(service: 'limiter.justification_upload')] private readonly RateLimiterFactoryInterface $justificationUpload,
     ) {
     }
 
@@ -23,6 +26,10 @@ final class AuthRateLimitListener
     {
         $request = $event->getRequest();
         $path = $request->getPathInfo();
+        if ($event->isMainRequest() && str_starts_with($path, '/api/absences/justification')) {
+            $this->limitJustification($event);
+            return;
+        }
         if (!$event->isMainRequest() || !$request->isMethod('POST') || !in_array($path, ['/api/auth/login', '/api/auth/forgot-password', '/api/auth/reset-password'], true)) {
             return;
         }
@@ -47,12 +54,29 @@ final class AuthRateLimitListener
         }
     }
 
-    private function consume(RateLimiterFactoryInterface $factory, string $key): ?JsonResponse
+    private function limitJustification(RequestEvent $event): void
+    {
+        $request = $event->getRequest();
+        $ip = $request->getClientIp() ?? 'unknown';
+        $unavailable = 'Le dépôt de justificatif est temporairement indisponible. Merci de réessayer.';
+        // Every justification call checks a token: cap them per IP to stop token guessing.
+        $response = $this->consume($this->justificationRequests, hash('sha256', $ip), $unavailable);
+        if (!$response && $request->isMethod('POST')) {
+            // Uploads carry up to 10 MB each: cap them per IP and per justification link.
+            $response = $this->consume($this->justificationUpload, hash('sha256', 'ip:' . $ip), $unavailable)
+                ?? $this->consume($this->justificationUpload, hash('sha256', 'token:' . (string) $request->request->get('token', '')), $unavailable);
+        }
+        if ($response) {
+            $event->setResponse($response);
+        }
+    }
+
+    private function consume(RateLimiterFactoryInterface $factory, string $key, string $unavailable = 'Authentification temporairement indisponible. Merci de réessayer.'): ?JsonResponse
     {
         try {
             $limit = $factory->create($key)->consume();
         } catch (\Throwable) {
-            return new JsonResponse(['message' => 'Authentification temporairement indisponible. Merci de réessayer.'], 503, ['Retry-After' => '30']);
+            return new JsonResponse(['message' => $unavailable], 503, ['Retry-After' => '30']);
         }
         if ($limit->isAccepted()) {
             return null;

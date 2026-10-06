@@ -66,9 +66,50 @@ final class AuthRateLimitListenerTest extends TestCase
         $factory = $this->createStub(\Symfony\Component\RateLimiter\RateLimiterFactoryInterface::class);
         $factory->method('create')->willThrowException(new \RuntimeException('sensitive connection details'));
         $event = $this->event('/api/auth/login', []);
-        (new AuthRateLimitListener($factory, $factory))($event);
+        (new AuthRateLimitListener($factory, $factory, $factory, $factory))($event);
         self::assertSame(503, $event->getResponse()?->getStatusCode());
         self::assertStringNotContainsString('sensitive', $event->getResponse()->getContent());
+    }
+
+    public function testJustificationUploadsAreLimitedPerLink(): void
+    {
+        $listener = $this->listener();
+        for ($i = 0; $i < 11; ++$i) {
+            $event = $this->formEvent('/api/absences/justification', ['token' => 'same-link'], '203.0.113.' . ($i + 1));
+            $listener($event);
+            self::assertSame($i < 10 ? null : 429, $event->getResponse()?->getStatusCode());
+        }
+        self::assertNotNull($event->getResponse()?->headers->get('Retry-After'));
+    }
+
+    public function testJustificationUploadsAreLimitedPerAddress(): void
+    {
+        $listener = $this->listener();
+        for ($i = 0; $i < 11; ++$i) {
+            $event = $this->formEvent('/api/absences/justification', ['token' => 'link-' . $i]);
+            $listener($event);
+        }
+        self::assertSame(429, $event->getResponse()?->getStatusCode());
+    }
+
+    public function testJustificationTokenGuessingIsLimitedPerAddress(): void
+    {
+        $listener = $this->listener();
+        for ($i = 0; $i < 61; ++$i) {
+            $event = new RequestEvent($this->createStub(HttpKernelInterface::class), Request::create('/api/absences/justification', 'GET', ['token' => 'guess-' . $i], [], [], ['REMOTE_ADDR' => '203.0.113.1']), HttpKernelInterface::MAIN_REQUEST);
+            $listener($event);
+            self::assertSame($i < 60 ? null : 429, $event->getResponse()?->getStatusCode());
+        }
+    }
+
+    public function testUnavailableJustificationLimiterFailsClosedWithItsOwnMessage(): void
+    {
+        $factory = $this->createStub(\Symfony\Component\RateLimiter\RateLimiterFactoryInterface::class);
+        $factory->method('create')->willThrowException(new \RuntimeException('down'));
+        $event = $this->formEvent('/api/absences/justification', ['token' => 'link']);
+        (new AuthRateLimitListener($factory, $factory, $factory, $factory))($event);
+        self::assertSame(503, $event->getResponse()?->getStatusCode());
+        self::assertStringContainsString('justificatif', $event->getResponse()->getContent());
     }
 
     private function listener(int $ipLimit = 30): AuthRateLimitListener
@@ -76,7 +117,15 @@ final class AuthRateLimitListenerTest extends TestCase
         return new AuthRateLimitListener(
             new RateLimiterFactory(['id' => 'auth', 'policy' => 'sliding_window', 'limit' => $ipLimit, 'interval' => '15 minutes'], new InMemoryStorage()),
             new RateLimiterFactory(['id' => 'reset', 'policy' => 'sliding_window', 'limit' => 3, 'interval' => '15 minutes'], new InMemoryStorage()),
+            new RateLimiterFactory(['id' => 'justification_requests', 'policy' => 'sliding_window', 'limit' => 60, 'interval' => '15 minutes'], new InMemoryStorage()),
+            new RateLimiterFactory(['id' => 'justification_upload', 'policy' => 'sliding_window', 'limit' => 10, 'interval' => '15 minutes'], new InMemoryStorage()),
         );
+    }
+
+    private function formEvent(string $path, array $fields, string $ip = '203.0.113.1'): RequestEvent
+    {
+        $request = Request::create($path, 'POST', $fields, [], [], ['REMOTE_ADDR' => $ip]);
+        return new RequestEvent($this->createStub(HttpKernelInterface::class), $request, HttpKernelInterface::MAIN_REQUEST);
     }
 
     private function event(string $path, array $data, string $ip = '203.0.113.1'): RequestEvent

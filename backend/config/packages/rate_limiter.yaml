@@ -12,3 +12,15 @@ framework:
             interval: '15 minutes'
             cache_pool: cache.auth_limits
             lock_factory: app.auth_lock_factory
+        justification_requests:
+            policy: sliding_window
+            limit: 60
+            interval: '15 minutes'
+            cache_pool: cache.auth_limits
+            lock_factory: app.auth_lock_factory
+        justification_upload:
+            policy: sliding_window
+            limit: 10
+            interval: '15 minutes'
+            cache_pool: cache.auth_limits
+            lock_factory: app.auth_lock_factory

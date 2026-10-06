@@ -202,6 +202,11 @@ utiliser une confiance universelle. Ne pas exposer le backend directement. Le pr
 l'adresse réelle du client à `X-Forwarded-For` pour éviter de regrouper tous les utilisateurs sous la
 même IP et empêcher la falsification des compteurs.
 
+La page publique de dépôt de justificatif (`/api/absences/justification*`) accepte au maximum
+60 requêtes par IP sur 15 minutes (consultation, dépôt et fichier confondus), ce qui empêche de tester
+des liens en masse. Les dépôts eux-mêmes sont limités à 10 par IP et 10 par lien sur 15 minutes. Le
+dépassement renvoie 429 avec `Retry-After` ; si Redis est indisponible, le dépôt répond 503.
+
 Les justificatifs sont limités à 10 Mio ; PHP et Nginx autorisent 12 Mio pour le corps multipart.
 Le type MIME réel doit correspondre à l'extension PDF/JPG/PNG. Après traitement d'une absence,
 le lien reste consultable jusqu'à expiration mais le dépôt/remplacement est bloqué côté serveur.
