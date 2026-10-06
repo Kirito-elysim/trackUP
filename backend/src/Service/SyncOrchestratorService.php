@@ -16,6 +16,7 @@ use App\Entity\Role;
 use App\Entity\SyncRun;
 use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\Persistence\ManagerRegistry;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -46,6 +47,7 @@ class SyncOrchestratorService
         private readonly SyncLearnerStepStatesCommand $syncLearnerStepStatesCommand,
         private readonly SyncClassroomSessionsCommand $syncClassroomSessionsCommand,
         private readonly WorkerHeartbeat $heartbeat,
+        private readonly ManagerRegistry $doctrine,
     ) {
     }
 
@@ -103,6 +105,12 @@ class SyncOrchestratorService
             }
 
             $status === 'success' ? $successCount++ : $failureCount++;
+
+            // A failed SQL statement closes the EntityManager: reopen it, otherwise every following
+            // step (and the run's own bookkeeping) fails with "The EntityManager is closed".
+            if (!$this->entityManager->isOpen()) {
+                $this->doctrine->resetManager();
+            }
 
             // Écrit le résultat de cette étape immédiatement (au lieu d'accumuler en mémoire pour
             // tout flusher à la fin) pour que la liste des étapes terminées se remplisse en direct

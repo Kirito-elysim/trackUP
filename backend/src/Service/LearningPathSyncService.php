@@ -98,17 +98,22 @@ class LearningPathSyncService
         $learningPathsByExternalId = $this->learningPathMap();
         $learnersByExternalId = $this->learnerMap();
         $existingRegistrations = $this->learningPathRegistrationMap();
-        $seenRegistrationIds = [];
+        $existingByPair = [];
+        foreach ($existingRegistrations as $registration) {
+            $existingByPair[$registration->getLearningPath()->getId() . '-' . $registration->getLearner()->getId()] = $registration;
+        }
         $registrationsCreated = 0;
         $registrationsUpdated = 0;
         $registrationsSkipped = 0;
 
+        // Rise Up keeps every (re)registration of a learner to the same path, while TrackUp stores one
+        // per path/learner pair (unique key): keep the most recent one (highest Rise Up id).
+        $rowsByPair = [];
         foreach ($registrationRows as $row) {
             if (!is_array($row)) {
                 continue;
             }
 
-            $externalId = $this->requireInt($row, 'id');
             $learningPath = $learningPathsByExternalId[$this->requireInt($row, 'idpath')] ?? null;
             $learner = $learnersByExternalId[$this->requireInt($row, 'iduser')] ?? null;
 
@@ -117,16 +122,32 @@ class LearningPathSyncService
                 continue;
             }
 
-            $registration = $existingRegistrations[$externalId] ?? null;
+            $pair = $learningPath->getId() . '-' . $learner->getId();
+            if (isset($rowsByPair[$pair]) && $this->requireInt($rowsByPair[$pair]['row'], 'id') > $this->requireInt($row, 'id')) {
+                ++$registrationsSkipped;
+                continue;
+            }
+            if (isset($rowsByPair[$pair])) {
+                ++$registrationsSkipped;
+            }
+            $rowsByPair[$pair] = ['row' => $row, 'learningPath' => $learningPath, 'learner' => $learner];
+        }
+
+        $kept = [];
+        foreach ($rowsByPair as $pair => ['row' => $row, 'learningPath' => $learningPath, 'learner' => $learner]) {
+            $externalId = $this->requireInt($row, 'id');
+            // Matching on the pair too reuses the row when Rise Up replaced a registration by a newer one.
+            $registration = $existingRegistrations[$externalId] ?? $existingByPair[$pair] ?? null;
 
             if (!$registration instanceof LearningPathRegistration) {
-                $registration = (new LearningPathRegistration())->setExternalId($externalId);
+                $registration = new LearningPathRegistration();
                 ++$registrationsCreated;
             } else {
                 ++$registrationsUpdated;
             }
 
             $registration
+                ->setExternalId($externalId)
                 ->setLearningPath($learningPath)
                 ->setLearner($learner)
                 ->setReference($this->stringOrNull($row['reference'] ?? null))
@@ -138,15 +159,13 @@ class LearningPathSyncService
                 ->setSyncedAt(new \DateTimeImmutable());
 
             $this->entityManager->persist($registration);
-            $seenRegistrationIds[] = $externalId;
+            $kept[spl_object_id($registration)] = true;
         }
 
-        foreach ($existingRegistrations as $externalId => $registration) {
-            if (in_array($externalId, $seenRegistrationIds, true)) {
-                continue;
+        foreach ($existingRegistrations as $registration) {
+            if (!isset($kept[spl_object_id($registration)])) {
+                $this->entityManager->remove($registration);
             }
-
-            $this->entityManager->remove($registration);
         }
 
         $this->entityManager->flush();
