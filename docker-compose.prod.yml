@@ -205,6 +205,14 @@ services:
   mailer:
     image: axllent/mailpit:latest
     restart: unless-stopped
+    environment:
+      # Sans base sur volume, Mailpit garde les mails en mémoire : chaque redéploiement vide la boîte.
+      MP_DATABASE: /data/mailpit.db
+      MP_MAX_MESSAGES: 5000
+      # L'interface est publique (reset de mot de passe, liens de justificatif...) : accès protégé.
+      MP_UI_AUTH: ${MAILPIT_UI_AUTH:?Définir MAILPIT_UI_AUTH (utilisateur:motdepasse) dans Coolify}
+    volumes:
+      - mailpit_data:/data
     expose:
       - "8025"
     networks:
@@ -233,6 +241,8 @@ services:
 
 volumes:
   mysql_data:
+    driver: local
+  mailpit_data:
     driver: local
   redis_data:
     driver: local
