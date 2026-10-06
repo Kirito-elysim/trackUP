@@ -57,6 +57,7 @@ services:
     # que les services qui ont un `build:` ; `worker` récupère simplement l'image déjà taguée par
     # celui de `backend`, construite juste avant lui dans la même passe de déploiement.
     image: trackup-backend-prod:latest
+    pull_policy: never
     restart: unless-stopped
     command: php bin/console messenger:consume async --time-limit=3600 --memory-limit=256M -vv
     environment:
@@ -98,6 +99,7 @@ services:
   # que `backend`/`worker`, juste une commande différente.
   scheduler:
     image: trackup-backend-prod:latest
+    pull_policy: never
     restart: unless-stopped
     command: php bin/console messenger:consume scheduler_default --time-limit=3600 --memory-limit=256M -vv
     environment:
