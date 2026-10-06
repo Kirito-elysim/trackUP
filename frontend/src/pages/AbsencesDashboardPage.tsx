@@ -212,9 +212,8 @@ export function AbsencesDashboardPage() {
               <Info size={16} className="mt-0.5 shrink-0" />
               <div className="flex flex-1 flex-col gap-2.5">
                 <p className="text-xs text-abs-warning-700">
-                  {payload.streakTracking.resetAt
-                    ? `Nouvelle date de départ du suivi, appliquée aux ${payload.streakTracking.affectedLearnersCount} apprenant(s) déjà suivi(s).`
-                    : "Aucun apprenant n'est encore suivi (aucun compteur n'a jamais été réinitialisé) — cette date sera appliquée à tous les apprenants."}
+                  Nouvelle date de départ du suivi, appliquée à tous les apprenants, y compris ceux ajoutés plus tard par la synchronisation.
+                  Les compteurs sont recalculés aussitôt.
                 </p>
                 <div className="flex flex-wrap items-center gap-2.5">
                   <Input
@@ -240,10 +239,9 @@ export function AbsencesDashboardPage() {
               <p className="flex-1">
                 Le suivi des relances disciplinaires (3 absences masterclass consécutives) ne compte que
                 les absences dont la session a lieu à partir du{' '}
-                <strong>{formatDateTime(payload.streakTracking.resetAt)}</strong> pour{' '}
-                {payload.streakTracking.affectedLearnersCount} apprenant(s) dont le compteur a été
-                réinitialisé — les absences dont la session est antérieure à cette date, même en
-                attente, ne déclenchent pas d&rsquo;alerte.
+                <strong>{formatDateTime(payload.streakTracking.resetAt)}</strong>, pour tous les
+                apprenants ({payload.streakTracking.affectedLearnersCount}) — les absences dont la
+                session est antérieure à cette date, même en attente, ne déclenchent pas d&rsquo;alerte.
               </p>
             </div>
           ) : null}

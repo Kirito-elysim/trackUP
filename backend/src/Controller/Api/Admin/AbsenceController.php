@@ -468,8 +468,7 @@ class AbsenceController extends AbstractController
         // prises en compte pour le déclenchement d'une alerte. Affiché tel quel côté admin pour éviter
         // la confusion "pourquoi pas d'alerte alors qu'il y a plein d'absences en attente ?".
         $streakTrackingRow = $connection->fetchAssociative(
-            'SELECT MAX(absence_counter_reset_at) AS resetAt, COUNT(*) AS affectedCount
-             FROM learners WHERE absence_counter_reset_at IS NOT NULL'
+            'SELECT MAX(absence_counter_reset_at) AS resetAt, COUNT(*) AS affectedCount FROM learners'
         );
 
         return $this->json([
@@ -497,14 +496,14 @@ class AbsenceController extends AbstractController
                 'consecutiveCount' => (int) $row['consecutiveCount'],
             ], $alertsPreviewRows),
             'streakTracking' => [
-                'resetAt' => $streakTrackingRow['resetAt'] ?: null,
+                'resetAt' => $this->absenceStreakService->getTrackingDate()?->format('Y-m-d H:i:s') ?? ($streakTrackingRow['resetAt'] ?: null),
                 'affectedLearnersCount' => (int) ($streakTrackingRow['affectedCount'] ?? 0),
             ],
         ]);
     }
 
     // Décale la date de suivi affichée dans la bannière ci-dessus (streakTracking) pour tous les
-    // apprenants déjà suivis, sans passer par une requête SQL manuelle — voir
+    // apprenants, sans passer par une requête SQL manuelle — voir
     // AbsenceStreakService::bulkShiftTrackingDate(). `resetAt` est une date ISO (YYYY-MM-DD ou
     // datetime complet) ; minuit est utilisé si seule la date est fournie.
     #[Route('/streak-tracking/reset', name: 'api_admin_absences_streak_tracking_reset', methods: ['POST'])]

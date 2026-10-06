@@ -23,6 +23,7 @@ use Doctrine\ORM\EntityManagerInterface;
 class AbsenceStreakService
 {
     private const ALERT_THRESHOLD = 3;
+    private const TRACKING_DATE_SETTING = 'absences.streak_tracking_date';
 
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
@@ -44,7 +45,9 @@ class AbsenceStreakService
             ->setParameter('learner', $learner)
             ->setParameter('type', Absence::TYPE_MASTERCLASS);
 
-        $resetAt = $learner->getAbsenceCounterResetAt();
+        // A learner without their own reset date (typically created by a later RiseUp sync) follows
+        // the global tracking date, otherwise their whole imported history would count.
+        $resetAt = $learner->getAbsenceCounterResetAt() ?? $this->getTrackingDate();
         if ($resetAt !== null) {
             // Filtre sur la date réelle de la session (s.startAt), pas sur detectedAt : detectedAt
             // est le moment où `app:absences:detect` a tourné, pas la date de la session manquée. Une
@@ -92,25 +95,18 @@ class AbsenceStreakService
     // s'être passé après), la nouvelle date pouvant être dans le passé, on recalcule via recompute()
     // pour compter correctement les absences déjà survenues entre cette date et maintenant.
     //
-    // Cible normalement les apprenants déjà suivis (absenceCounterResetAt non nul). Si personne n'est
-    // encore suivi (typiquement : tout premier réglage, avant qu'aucun reset individuel n'ait jamais
-    // été fait), cible tous les apprenants à la place — sinon l'action ne ferait rien du tout, ce qui
-    // serait surprenant pour un admin qui vient d'importer des données et veut fixer une date de
-    // départ avant même qu'une alerte n'ait pu se déclencher.
+    // Cible tous les apprenants, et mémorise la date comme réglage global : les apprenants créés
+    // ensuite par la synchro (sans date propre) la suivent aussi. Ne cibler que les apprenants déjà
+    // suivis laissait de côté tous ceux arrivés après le premier réglage, avec tout leur historique.
     public function bulkShiftTrackingDate(\DateTimeImmutable $resetAt): int
     {
-        $repository = $this->entityManager->getRepository(Learner::class);
+        $this->entityManager->getConnection()->executeStatement(
+            'INSERT INTO app_settings (name, value) VALUES (:name, :value) ON DUPLICATE KEY UPDATE value = VALUES(value)',
+            ['name' => self::TRACKING_DATE_SETTING, 'value' => $resetAt->format('Y-m-d H:i:s')],
+        );
 
         /** @var Learner[] $learners */
-        $learners = $repository->createQueryBuilder('l')
-            ->where('l.absenceCounterResetAt IS NOT NULL')
-            ->getQuery()
-            ->getResult();
-
-        if ($learners === []) {
-            /** @var Learner[] $learners */
-            $learners = $repository->createQueryBuilder('l')->getQuery()->getResult();
-        }
+        $learners = $this->entityManager->getRepository(Learner::class)->findAll();
 
         foreach ($learners as $learner) {
             $learner->setAbsenceCounterResetAt($resetAt);
@@ -123,5 +119,15 @@ class AbsenceStreakService
         $this->entityManager->flush();
 
         return count($learners);
+    }
+
+    public function getTrackingDate(): ?\DateTimeImmutable
+    {
+        $value = $this->entityManager->getConnection()->fetchOne(
+            'SELECT value FROM app_settings WHERE name = ?',
+            [self::TRACKING_DATE_SETTING],
+        );
+
+        return is_string($value) && $value !== '' ? new \DateTimeImmutable($value) : null;
     }
 }
