@@ -198,6 +198,7 @@ export function AbsenceDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
+  const [notificationWarning, setNotificationWarning] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
   const [resendFeedback, setResendFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -236,13 +237,18 @@ export function AbsenceDetailPage() {
     if (!token || !absence) return;
 
     setSaving(true);
+    setError(null);
+    setNotificationWarning(null);
     try {
-      const updated = await apiRequest<AbsenceDetail>(`/api/admin/absences/${absence.id}`, {
+      const updated = await apiRequest<AbsenceDetail & { confirmationDelivered: boolean | null }>(`/api/admin/absences/${absence.id}`, {
         method: 'PATCH',
         token,
         body: changes,
       });
       setAbsence((current) => (current ? { ...current, ...updated, learner: current.learner, session: current.session } : current));
+      if (updated.confirmationDelivered === false) {
+        setNotificationWarning("Le statut a été enregistré, mais l'email de confirmation n'a pas pu être envoyé.");
+      }
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : 'Mise à jour impossible.');
     } finally {
@@ -329,6 +335,8 @@ export function AbsenceDetailPage() {
       >
         <ArrowLeft size={15} /> Retour aux absences
       </button>
+
+      {notificationWarning ? <p role="alert" className="rounded-xl border border-border bg-muted p-4 text-sm">{notificationWarning}</p> : null}
 
       <Card>
         <CardContent className="flex flex-col gap-5 p-6 lg:flex-row lg:items-start lg:justify-between">

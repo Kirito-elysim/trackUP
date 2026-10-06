@@ -186,7 +186,7 @@ Puis dans le container :
 php bin/console doctrine:migrations:migrate --no-interaction
 
 # Bootstrap RBAC + Admin
-php bin/console app:bootstrap-rbac
+php bin/console app:bootstrap-rbac --admin-email admin@votredomaine.com
 
 # Vérifier
 php bin/console doctrine:schema:validate
@@ -203,9 +203,8 @@ curl https://trackup.votredomaine.com/api/health
 #### Frontend
 Ouvrez dans votre navigateur : `https://trackup.votredomaine.com`
 
-**Login par défaut** :
-- Email : `admin@trackup.local`
-- Password : `TrackUp123!`
+Utilisez l'adresse choisie lors du bootstrap et le mot de passe saisi de façon masquée
+(12 caractères minimum). Aucun mot de passe par défaut n'est fourni.
 
 ### 3. (Optionnel) Synchroniser Rise Up
 

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Integration\RiseUp;
 
+use App\Service\WorkerHeartbeat;
 use Psr\Log\LoggerInterface;
 use Symfony\Contracts\HttpClient\Exception\ExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
@@ -31,6 +32,7 @@ class RiseUpApiClient
         private readonly RiseUpAuthClient $authClient,
         private readonly LoggerInterface $logger,
         private readonly string $baseUrl,
+        private readonly WorkerHeartbeat $heartbeat,
     ) {
     }
 
@@ -146,6 +148,7 @@ class RiseUpApiClient
                 throw new \RuntimeException('Rise Up API response is not a JSON object or array.');
             }
 
+            $this->heartbeat->progress();
             return $payload;
         } catch (ExceptionInterface $exception) {
             throw new \RuntimeException('Rise Up API request failed: ' . $exception->getMessage(), 0, $exception);

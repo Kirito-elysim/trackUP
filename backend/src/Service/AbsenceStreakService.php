@@ -70,8 +70,9 @@ class AbsenceStreakService
         $learner->setConsecutiveUnjustifiedMasterclassAbsences($count);
 
         if ($count >= self::ALERT_THRESHOLD && $learner->getDisciplinaryAlertSentAt() === null) {
-            $this->absenceNotificationService->sendDisciplinaryAlert($learner, $count);
-            $learner->setDisciplinaryAlertSentAt(new \DateTimeImmutable());
+            if ($this->absenceNotificationService->sendDisciplinaryAlert($learner, $count)) {
+                $learner->setDisciplinaryAlertSentAt(new \DateTimeImmutable());
+            }
         } elseif ($count < self::ALERT_THRESHOLD) {
             $learner->setDisciplinaryAlertSentAt(null);
         }

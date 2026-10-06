@@ -25,13 +25,12 @@ docker compose exec backend php bin/console doctrine:migrations:migrate --no-int
 3. Initialiser les rôles, features et le compte admin :
 
 ```bash
-docker compose exec backend php bin/console app:bootstrap-rbac
+docker compose exec backend php bin/console app:bootstrap-rbac --admin-email admin@votredomaine.com
 ```
 
-Compte admin par défaut :
-
-- email : `admin@trackup.local`
-- mot de passe : `TrackUp123!`
+Remplacez l'adresse par celle de votre administrateur. Le mot de passe est demandé en saisie
+masquée (12 caractères minimum). Aucun identifiant par défaut n'est créé ; relancer la commande
+préserve le mot de passe, le nom et l'état actif/inactif d'un compte existant.
 
 ## URLs
 
@@ -243,7 +242,7 @@ Puis dans le container backend :
 php bin/console doctrine:migrations:migrate --no-interaction
 
 # 2. Initialiser RBAC et créer l'admin
-php bin/console app:bootstrap-rbac
+php bin/console app:bootstrap-rbac --admin-email admin@votredomaine.com
 
 # 3. Synchroniser le schéma (si nécessaire)
 php bin/console doctrine:schema:update --force
@@ -263,9 +262,8 @@ curl https://trackup.votredomaine.com/api/health
 #### Frontend
 Ouvrez dans votre navigateur : `https://trackup.votredomaine.com`
 
-**Credentials par défaut** :
-- Email : `admin@trackup.local`
-- Password : `TrackUp123!`
+Connectez-vous avec l'adresse et le mot de passe choisis lors de l'initialisation RBAC.
+Il n'existe pas de mot de passe administrateur par défaut.
 
 ### Mises à jour
 

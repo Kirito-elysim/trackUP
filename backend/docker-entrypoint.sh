@@ -47,4 +47,9 @@ else
     done
 fi
 
+if [ "$1" = "php-fpm" ]; then
+    mkdir -p /app/var/cache /app/var/log /app/var/uploads/absences /app/var/log-deliveries
+    chown -R www-data:www-data /app/var
+fi
+
 exec "$@"

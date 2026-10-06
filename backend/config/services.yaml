@@ -16,6 +16,19 @@ parameters:
     app.logo_path: '%kernel.project_dir%/assets/logo/trackup-logo.png'
 
 services:
+    app.redis:
+        class: Redis
+        factory: ['App\Service\RedisConnectionFactory', 'create']
+        arguments: ['%env(MESSENGER_TRANSPORT_DSN)%']
+
+    app.auth_lock_store:
+        class: Symfony\Component\Lock\Store\RedisStore
+        arguments: ['@app.redis']
+
+    app.auth_lock_factory:
+        class: Symfony\Component\Lock\LockFactory
+        arguments: ['@app.auth_lock_store']
+
     # default configuration for services in *this* file
     _defaults:
         autowire: true      # Automatically injects dependencies in your services.

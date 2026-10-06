@@ -88,7 +88,7 @@ final class RiseUpApiClientTest extends TestCase
         $authClient = $this->createStub(RiseUpAuthClient::class);
         $authClient->method('fetchAccessToken')->willReturn(['access_token' => 'test-token', 'expires_in' => 3600, 'token_type' => 'Bearer', 'scope' => null]);
 
-        return new RiseUpApiClient($this->wrapWithConfiguredRetry($httpClient), $authClient, new NullLogger(), 'https://riseup.example.test');
+        return new RiseUpApiClient($this->wrapWithConfiguredRetry($httpClient), $authClient, new NullLogger(), 'https://riseup.example.test', new \App\Service\WorkerHeartbeat('/unused'));
     }
 
     private function wrapWithConfiguredRetry(HttpClientInterface $httpClient): HttpClientInterface

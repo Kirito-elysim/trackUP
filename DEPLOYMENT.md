@@ -149,10 +149,15 @@ php bin/console doctrine:migrations:migrate --no-interaction
 
 ```bash
 # Dans le container backend :
-php bin/console app:create-admin
+php bin/console app:bootstrap-rbac --admin-email admin@votredomaine.com
 
 # Ou créez manuellement via la console Symfony
 ```
+
+Le mot de passe du nouveau compte est demandé en saisie masquée (12 caractères minimum).
+Un compte existant conserve son mot de passe, son nom et son état actif/inactif. Pour une exécution
+non interactive, utilisez `--admin-password-stdin --no-interaction` et fournissez le secret via
+l'entrée standard depuis votre gestionnaire de secrets, jamais dans les arguments ou les logs.
 
 ### 3. Warm up du cache
 
@@ -166,10 +171,40 @@ php bin/console cache:warmup --env=prod
 
 ### Healthchecks configurés
 
-- **Backend** : `GET https://trackup.votredomaine.com/api/health` (via le proxy frontend)
+- **Backend** : requête FastCGI vers `/api/health`, avec contrôle MySQL (`SELECT 1`) et Redis (`PING`), toutes les 30s. L'API répond 503 si une dépendance est indisponible, sans exposer d'erreur technique.
+- **Worker / scheduler** : `php bin/console app:health:worker`, toutes les 30s. Vérifie MySQL, Redis et la progression du processus : heartbeat de moins de 90 secondes au repos, moins de 900 secondes sans progression pendant un traitement. Les seuils se règlent avec `--max-idle` et `--max-stall`.
 - **Frontend** : `GET https://trackup.votredomaine.com/health` (toutes les 30s)
 - **MySQL** : `mysqladmin ping` (toutes les 10s)
 - **Redis** : `redis-cli ping` (toutes les 10s)
+
+En production, Nginx transmet `/api/*` à PHP-FPM sur `backend:9000`, en exécutant uniquement
+`/app/public/index.php`. Le port FastCGI reste sur le réseau interne : ne pas lui attribuer de domaine
+Coolify ni le publier sur l'hôte. Le frontend attend que le backend soit healthy avant de démarrer.
+Le pool PHP-FPM utilise jusqu'à 5 processus, configurés dans `backend/docker/php-fpm.conf`.
+Les workers Messenger et le scheduler utilisent toujours PHP CLI dans la même image.
+
+Vérifier le chemin HTTP complet après déploiement avec
+`GET https://trackup.votredomaine.com/api/health`. Configurer une alerte Coolify sur tout état `unhealthy` :
+`restart: unless-stopped` ne redémarre pas automatiquement un processus bloqué encore vivant.
+
+### Protection des comptes et des dépôts
+
+Les compteurs de limitation et leurs verrous sont partagés dans Redis, à partir du même DSN que
+Messenger. Connexion : 5 échecs par couple adresse IP/identifiant sur 15 minutes, plus la limite IP
+globale de Symfony. Les endpoints login/reset acceptent au maximum 30 requêtes par IP sur 15 minutes.
+Les demandes de réinitialisation sont limitées à 3 par adresse email sur 15 minutes ; les tentatives
+de validation d'un lien de reset à 3 par IP sur 15 minutes. Le dépassement renvoie 429 avec `Retry-After`.
+Si Redis est indisponible, les endpoints d'authentification refusent les requêtes avec 503.
+
+Dans Coolify, `SYMFONY_TRUSTED_PROXIES` vaut `private_ranges` par défaut pour le proxy Docker.
+Restreindre cette valeur aux adresses/CIDR exacts de votre reverse proxy si possible ; ne jamais
+utiliser une confiance universelle. Ne pas exposer le backend directement. Le proxy doit ajouter
+l'adresse réelle du client à `X-Forwarded-For` pour éviter de regrouper tous les utilisateurs sous la
+même IP et empêcher la falsification des compteurs.
+
+Les justificatifs sont limités à 10 Mio ; PHP et Nginx autorisent 12 Mio pour le corps multipart.
+Le type MIME réel doit correspondre à l'extension PDF/JPG/PNG. Après traitement d'une absence,
+le lien reste consultable jusqu'à expiration mais le dépôt/remplacement est bloqué côté serveur.
 
 ### Logs
 
@@ -276,7 +311,7 @@ docker compose -f docker-compose.prod.yml exec backend php bin/console debug:sch
 
 Si vous voyez `no available server` (souvent une réponse Traefik/Coolify), vérifiez :
 
-- Le domaine pointe vers le bon service (**backend** port `8000` / **frontend** port `80`)
+- Le domaine pointe vers le service **frontend** port `80` (le backend port `9000` parle FastCGI, pas HTTP)
 - Les conteneurs `backend`/`frontend` sont `healthy`
 - Les services exposés sont joignables depuis le réseau reverse-proxy Coolify (réseau Docker `coolify`)
 

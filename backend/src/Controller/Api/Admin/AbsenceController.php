@@ -901,10 +901,16 @@ class AbsenceController extends AbstractController
             return $this->json(['message' => 'Apprenant introuvable.'], JsonResponse::HTTP_NOT_FOUND);
         }
 
-        $this->absenceNotificationService->sendDisciplinaryAlert(
+        $delivered = $this->absenceNotificationService->sendDisciplinaryAlert(
             $learner,
             $learner->getConsecutiveUnjustifiedMasterclassAbsences()
         );
+        if (!$delivered) {
+            return $this->json(['message' => "L'email d'alerte n'a pas pu être envoyé. Merci de réessayer."], JsonResponse::HTTP_BAD_GATEWAY);
+        }
+
+        $learner->setDisciplinaryAlertSentAt(new \DateTimeImmutable());
+        $this->entityManager->flush();
 
         return $this->json(['message' => "Email d'alerte renvoyé."]);
     }
@@ -935,12 +941,16 @@ class AbsenceController extends AbstractController
             );
         }
 
-        $this->absenceNotificationService->sendDisciplinaryEmailToLearner(
+        $delivered = $this->absenceNotificationService->sendDisciplinaryEmailToLearner(
             $learner,
             $learner->getConsecutiveUnjustifiedMasterclassAbsences(),
             $user
         );
         $this->entityManager->flush();
+
+        if (!$delivered) {
+            return $this->json(['message' => "L'email n'a pas pu être envoyé. Merci de réessayer."], JsonResponse::HTTP_BAD_GATEWAY);
+        }
 
         return $this->json(['message' => 'Email envoyé à ' . $learner->getEmail() . '.']);
     }
@@ -983,15 +993,17 @@ class AbsenceController extends AbstractController
         }
 
         $extend = $request->getContent() !== '' ? (bool) ($request->toArray()['extend'] ?? false) : false;
-        $renewed = $this->absenceNotificationService->resend($absence, $user, $extend);
+        $result = $this->absenceNotificationService->resend($absence, $user, $extend);
         $this->entityManager->flush();
 
         return $this->json([
             'notificationSentAt' => $absence->getNotificationSentAt()?->format(DATE_ATOM),
             'hasActiveJustificationToken' => $absence->getJustificationToken() !== null,
             'justificationTokenExpiresAt' => $absence->getJustificationTokenExpiresAt()?->format(DATE_ATOM),
-            'renewed' => $renewed,
-        ]);
+            'renewed' => $result['renewed'],
+            'delivered' => $result['delivered'],
+            'message' => $result['delivered'] ? 'Email de relance envoyé.' : "La relance n'a pas pu être envoyée. Merci de réessayer.",
+        ], $result['delivered'] ? JsonResponse::HTTP_OK : JsonResponse::HTTP_BAD_GATEWAY);
     }
 
     // Valide, rejette, remet en attente ou reclasse une absence, et/ou met à jour la note interne
@@ -1036,16 +1048,17 @@ class AbsenceController extends AbstractController
         $statusChangedToFinal = $statusChanged && in_array($absence->getStatus(), self::FINAL_STATUSES, true);
         $noteChanged = $absence->getAdminNote() !== $previousNote;
 
+        $confirmationDelivered = null;
         if ($statusChangedToFinal) {
             $absence->setValidation(new \DateTimeImmutable(), $user);
-            $this->absenceNotificationService->sendConfirmation($absence, $user);
+            $confirmationDelivered = $this->absenceNotificationService->sendConfirmation($absence, $user);
         }
 
         if ($statusChanged) {
             $this->absenceEventLogger->log($absence, AbsenceEvent::TYPE_STATUS_CHANGED, $user, [
                 'from' => $previousStatus,
                 'to' => $absence->getStatus(),
-                'emailSent' => $statusChangedToFinal,
+                'emailSent' => $confirmationDelivered === true,
             ]);
         } elseif ($noteChanged) {
             $this->absenceEventLogger->log($absence, AbsenceEvent::TYPE_NOTE_ADDED, $user, [
@@ -1062,7 +1075,7 @@ class AbsenceController extends AbstractController
             $this->entityManager->flush();
         }
 
-        return $this->json($this->normalize($absence));
+        return $this->json([...$this->normalize($absence), 'confirmationDelivered' => $confirmationDelivered]);
     }
 
     /**

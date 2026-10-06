@@ -16,6 +16,7 @@ type JustificationStatus = {
   fileOriginalName: string | null;
   submittedAt: string | null;
   daysRemaining: number | null;
+  canSubmit: boolean;
 };
 
 export function AbsenceJustificationPage() {
@@ -124,6 +125,15 @@ export function AbsenceJustificationPage() {
               <CheckCircle2 size={17} className="mt-0.5 shrink-0" />
               <span>Votre justificatif a bien été transmis. Il sera examiné par l&rsquo;équipe pédagogique.</span>
             </div>
+          </div>
+        ) : status && !status.canSubmit ? (
+          <div className="mt-8 flex flex-col gap-6">
+            <p className="text-sm text-muted-foreground">Cette absence a déjà été traitée. Le justificatif ne peut plus être modifié.</p>
+            {status.alreadySubmitted ? (
+              <a href={fileViewUrl} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-primary hover:underline">
+                Voir le justificatif transmis
+              </a>
+            ) : null}
           </div>
         ) : status?.alreadySubmitted && !showForm ? (
           <div className="mt-8 flex flex-col gap-6">

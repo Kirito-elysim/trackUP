@@ -20,6 +20,7 @@ class AbsenceExpiryService
         private readonly AbsenceStreakService $absenceStreakService,
         private readonly AbsenceEventLogger $absenceEventLogger,
         private readonly LoggerInterface $logger,
+        private readonly WorkerHeartbeat $heartbeat,
     ) {
     }
 
@@ -31,6 +32,7 @@ class AbsenceExpiryService
             ->where('a.status = :status')
             ->andWhere('a.justificationTokenExpiresAt IS NOT NULL')
             ->andWhere('a.justificationTokenExpiresAt < :now')
+            ->andWhere('a.justificationSubmittedAt IS NULL')
             ->setParameter('status', Absence::STATUS_EN_ATTENTE)
             ->setParameter('now', new \DateTimeImmutable())
             ->getQuery()
@@ -41,14 +43,15 @@ class AbsenceExpiryService
 
         /** @var Absence $absence */
         foreach ($overdue as $absence) {
+            $this->heartbeat->progress();
             $previousStatus = $absence->getStatus();
             $absence->setStatus(Absence::STATUS_NON_JUSTIFIEE);
             $absence->setValidation(new \DateTimeImmutable(), null);
-            $this->absenceNotificationService->sendConfirmation($absence);
+            $delivered = $this->absenceNotificationService->sendConfirmation($absence);
             $this->absenceEventLogger->log($absence, AbsenceEvent::TYPE_STATUS_CHANGED, null, [
                 'from' => $previousStatus,
                 'to' => Absence::STATUS_NON_JUSTIFIEE,
-                'emailSent' => true,
+                'emailSent' => $delivered,
                 'reason' => 'expired',
             ]);
             ++$expired;

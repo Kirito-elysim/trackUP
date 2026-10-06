@@ -1,5 +1,5 @@
 # Build stage
-FROM php:8.4-cli-alpine AS builder
+FROM php:8.4-fpm-alpine AS builder
 
 RUN apk add --no-cache \
     bash \
@@ -33,7 +33,7 @@ COPY . .
 RUN composer dump-autoload --no-dev --optimize --classmap-authoritative
 
 # Production stage
-FROM php:8.4-cli-alpine
+FROM php:8.4-fpm-alpine
 
 # Install runtime dependencies only
 RUN apk add --no-cache \
@@ -42,11 +42,13 @@ RUN apk add --no-cache \
     libzip \
     oniguruma \
     libpng \
-    openssl
+    openssl \
+    fcgi
 
 # Copy PHP extensions from builder
 COPY --from=builder /usr/local/lib/php/extensions/ /usr/local/lib/php/extensions/
 COPY --from=builder /usr/local/etc/php/conf.d/ /usr/local/etc/php/conf.d/
+COPY docker/php-fpm.conf /usr/local/etc/php-fpm.d/zz-trackup.conf
 
 # Configure PHP for production
 RUN { \
@@ -56,6 +58,8 @@ RUN { \
     echo 'opcache.validate_timestamps=0'; \
     echo 'opcache.enable=1'; \
     echo 'opcache.enable_cli=1'; \
+    echo 'upload_max_filesize=10M'; \
+    echo 'post_max_size=12M'; \
 } > /usr/local/etc/php/conf.d/opcache-prod.ini
 
 WORKDIR /app
@@ -68,12 +72,14 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Warm up cache
 RUN php bin/console cache:clear --env=prod --no-debug --no-warmup \
- && php bin/console cache:warmup --env=prod --no-debug
+ && php bin/console cache:warmup --env=prod --no-debug \
+ && mkdir -p var/log var/uploads/absences var/log-deliveries \
+ && chown -R www-data:www-data var
 
-EXPOSE 8000
+EXPOSE 9000
 
 # The JWT keypair is generated at container startup (not build time) into the
 # jwt_keys volume shared by the backend and worker services, so every rebuild
 # doesn't invalidate every issued token and both services always share one key.
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-CMD ["php", "-S", "0.0.0.0:8000", "-t", "public"]
+CMD ["php-fpm", "-F"]

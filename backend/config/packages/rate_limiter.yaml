@@ -1,0 +1,14 @@
+framework:
+    rate_limiter:
+        auth_requests:
+            policy: sliding_window
+            limit: 30
+            interval: '15 minutes'
+            cache_pool: cache.auth_limits
+            lock_factory: app.auth_lock_factory
+        password_reset:
+            policy: sliding_window
+            limit: 3
+            interval: '15 minutes'
+            cache_pool: cache.auth_limits
+            lock_factory: app.auth_lock_factory

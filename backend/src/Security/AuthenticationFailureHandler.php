@@ -7,6 +7,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Security\Core\Exception\AccountStatusException;
 use Symfony\Component\Security\Core\Exception\AuthenticationException;
+use Symfony\Component\Security\Core\Exception\TooManyLoginAttemptsAuthenticationException;
 use Symfony\Component\Security\Http\Authentication\AuthenticationFailureHandlerInterface;
 
 // Account-status failures (e.g. inactive user, thrown by UserChecker) already carry
@@ -17,6 +18,10 @@ class AuthenticationFailureHandler implements AuthenticationFailureHandlerInterf
 {
     public function onAuthenticationFailure(Request $request, AuthenticationException $exception): JsonResponse
     {
+        if ($exception instanceof TooManyLoginAttemptsAuthenticationException) {
+            return new JsonResponse(['message' => 'Trop de tentatives de connexion. Merci de réessayer plus tard.'], 429, ['Retry-After' => '900']);
+        }
+
         $message = $exception instanceof AccountStatusException
             ? $exception->getMessageKey()
             : 'Email ou mot de passe incorrect.';

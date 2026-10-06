@@ -12,6 +12,7 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       MESSENGER_TRANSPORT_DSN: ${MESSENGER_TRANSPORT_DSN}
       CORS_ALLOW_ORIGIN: ${CORS_ALLOW_ORIGIN}
+      SYMFONY_TRUSTED_PROXIES: ${SYMFONY_TRUSTED_PROXIES:-private_ranges}
       JWT_PASSPHRASE: ${JWT_PASSPHRASE}
       RISEUP_API_BASE_URL: ${RISEUP_API_BASE_URL}
       RISEUP_API_PUBLIC_KEY: ${RISEUP_API_PUBLIC_KEY}
@@ -22,23 +23,24 @@ services:
       ABSENCES_DISCIPLINARY_ALERT_EMAIL: ${ABSENCES_DISCIPLINARY_ALERT_EMAIL}
     volumes:
       - jwt_keys:/app/config/jwt
+      - absence_uploads:/app/var/uploads/absences
     depends_on:
       mysql:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
       mailer:
         condition: service_started
     expose:
-      - "8000"
+      - "9000"
     healthcheck:
       test:
-        [
-          "CMD",
-          "php",
-          "-r",
-          "exit((int)(@file_get_contents('http://127.0.0.1:8000/api/health') === false));",
-        ]
+        - CMD-SHELL
+        - >-
+          SCRIPT_NAME=/index.php SCRIPT_FILENAME=/app/public/index.php REQUEST_METHOD=GET
+          REQUEST_URI=/api/health SERVER_PROTOCOL=HTTP/1.1 SERVER_NAME=localhost SERVER_PORT=80
+          cgi-fcgi -bind -connect 127.0.0.1:9000 |
+          php -r 'exit(str_contains(stream_get_contents(STDIN), "\"status\":\"ok\"") ? 0 : 1);'
       interval: 30s
       timeout: 10s
       retries: 3
@@ -77,11 +79,11 @@ services:
       mysql:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
       mailer:
         condition: service_started
     healthcheck:
-      test: ["CMD", "php", "-v"]
+      test: ["CMD", "php", "bin/console", "app:health:worker", "--no-interaction"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -118,11 +120,11 @@ services:
       mysql:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
       mailer:
         condition: service_started
     healthcheck:
-      test: ["CMD", "php", "-v"]
+      test: ["CMD", "php", "bin/console", "app:health:worker", "--no-interaction"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -138,7 +140,8 @@ services:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL}
     restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     expose:
       - "80"
     healthcheck:
@@ -232,6 +235,8 @@ volumes:
   redis_data:
     driver: local
   jwt_keys:
+    driver: local
+  absence_uploads:
     driver: local
 
 networks:

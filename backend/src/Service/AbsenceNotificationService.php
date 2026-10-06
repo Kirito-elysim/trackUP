@@ -8,6 +8,7 @@ use App\Entity\AbsenceEvent;
 use App\Entity\Learner;
 use App\Entity\LearnerCommunication;
 use App\Entity\User;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 use Symfony\Component\Mailer\MailerInterface;
 use Symfony\Component\Mime\Email;
@@ -23,6 +24,7 @@ class AbsenceNotificationService
         private readonly MailerInterface $mailer,
         private readonly AbsenceEventLogger $eventLogger,
         private readonly LearnerCommunicationLogger $communicationLogger,
+        private readonly LoggerInterface $logger,
         private readonly string $frontendUrl,
         private readonly string $fromAddress,
         private readonly string $disciplinaryAlertEmail,
@@ -31,12 +33,12 @@ class AbsenceNotificationService
 
     // Notification initiale, appelée une seule fois à la détection (AbsenceDetectionService) :
     // l'absence n'a jamais eu de token, on en génère toujours un nouveau.
-    public function notify(Absence $absence): void
+    public function notify(Absence $absence): bool
     {
         $token = bin2hex(random_bytes(32));
         $absence->setJustificationToken($token, new \DateTimeImmutable(self::JUSTIFICATION_TOKEN_TTL));
 
-        $this->sendNotificationEmail($absence, null, false);
+        return $this->sendNotificationEmail($absence, null, false);
     }
 
     // Relance manuelle depuis la fiche absence (roadmap : bouton "Renvoyer la relance"). Décision
@@ -46,7 +48,8 @@ class AbsenceNotificationService
     // "Prolonger" séparé) repousse explicitement l'expiration à 7 jours à partir de maintenant, en
     // conservant le même token. Si aucun token valide n'existe (jamais envoyé, ou expiré), un nouveau
     // token est généré dans tous les cas puisqu'il n'y a rien à réutiliser.
-    public function resend(Absence $absence, ?User $actor, bool $extend = false): bool
+    /** @return array{renewed: bool, delivered: bool} */
+    public function resend(Absence $absence, ?User $actor, bool $extend = false): array
     {
         $hasValidToken = $absence->getJustificationToken() !== null
             && $absence->getJustificationTokenExpiresAt() !== null
@@ -59,22 +62,22 @@ class AbsenceNotificationService
             $absence->setJustificationToken($token, new \DateTimeImmutable(self::JUSTIFICATION_TOKEN_TTL));
         }
 
-        $this->sendNotificationEmail($absence, $actor, $renewed);
-
-        return $renewed;
+        return [
+            'renewed' => $renewed,
+            'delivered' => $this->sendNotificationEmail($absence, $actor, $renewed),
+        ];
     }
 
-    private function sendNotificationEmail(Absence $absence, ?User $actor, bool $renewed): void
+    private function sendNotificationEmail(Absence $absence, ?User $actor, bool $renewed): bool
     {
         $token = $absence->getJustificationToken();
         $learner = $absence->getRegistration()->getLearner();
         $email = $learner->getEmail();
 
         if ($email === null || $email === '') {
-            $absence->setNotificationSentAt(new \DateTimeImmutable());
             $this->eventLogger->log($absence, AbsenceEvent::TYPE_NOTIFICATION_SENT, $actor, ['delivered' => false, 'reason' => 'no_email']);
 
-            return;
+            return false;
         }
 
         $session = $absence->getRegistration()->getSession();
@@ -112,10 +115,21 @@ class AbsenceNotificationService
 
         try {
             $this->mailer->send($message);
-        } catch (TransportExceptionInterface) {
-            // Swallowed on purpose, matching AuthController::sendResetEmail(): the absence still
-            // gets its token so the learner can be pointed to the link manually if needed, and
-            // delivery failures are for ops monitoring, not something this call site can act on.
+        } catch (TransportExceptionInterface $exception) {
+            $this->logger->error('Failed to send absence notification email.', [
+                'absenceId' => $absence->getId(),
+                'recipient' => $email,
+                'exception' => $exception,
+            ]);
+            $this->eventLogger->log($absence, AbsenceEvent::TYPE_NOTIFICATION_SENT, $actor, [
+                'delivered' => false,
+                'to' => $email,
+                'subject' => $subject,
+                'renewed' => $renewed,
+                'reason' => 'transport_error',
+            ]);
+
+            return false;
         }
 
         $absence->setNotificationSentAt(new \DateTimeImmutable());
@@ -126,6 +140,8 @@ class AbsenceNotificationService
             'text' => $text,
             'renewed' => $renewed,
         ]);
+
+        return true;
     }
 
     private function daysRemaining(Absence $absence): ?int
@@ -145,15 +161,18 @@ class AbsenceNotificationService
     // Roadmap 3.2, étape 4 : email de confirmation envoyé à l'apprenant après décision admin
     // (validation ou rejet du justificatif, ou changement de statut manuel). $actor = l'admin à
     // l'origine de la décision, ou null si déclenché automatiquement (expiration du délai).
-    public function sendConfirmation(Absence $absence, ?User $actor = null): void
+    public function sendConfirmation(Absence $absence, ?User $actor = null): bool
     {
         $learner = $absence->getRegistration()->getLearner();
         $email = $learner->getEmail();
 
         if ($email === null || $email === '') {
-            $absence->setConfirmationSentAt(new \DateTimeImmutable());
+            $this->eventLogger->log($absence, AbsenceEvent::TYPE_CONFIRMATION_SENT, $actor, [
+                'delivered' => false,
+                'reason' => 'no_email',
+            ]);
 
-            return;
+            return false;
         }
 
         $session = $absence->getRegistration()->getSession();
@@ -185,8 +204,20 @@ class AbsenceNotificationService
 
         try {
             $this->mailer->send($message);
-        } catch (TransportExceptionInterface) {
-            // Swallowed on purpose, même raisonnement que notify().
+        } catch (TransportExceptionInterface $exception) {
+            $this->logger->error('Failed to send absence confirmation email.', [
+                'absenceId' => $absence->getId(),
+                'recipient' => $email,
+                'exception' => $exception,
+            ]);
+            $this->eventLogger->log($absence, AbsenceEvent::TYPE_CONFIRMATION_SENT, $actor, [
+                'delivered' => false,
+                'to' => $email,
+                'subject' => $subject,
+                'reason' => 'transport_error',
+            ]);
+
+            return false;
         }
 
         $absence->setConfirmationSentAt(new \DateTimeImmutable());
@@ -196,11 +227,13 @@ class AbsenceNotificationService
             'subject' => $subject,
             'text' => $text,
         ]);
+
+        return true;
     }
 
     // Roadmap 3.4 : alerte à l'équipe pédagogique au 3ème dépassement d'absences masterclass non
     // justifiées consécutives, pour déclencher la procédure disciplinaire.
-    public function sendDisciplinaryAlert(Learner $learner, int $count): void
+    public function sendDisciplinaryAlert(Learner $learner, int $count): bool
     {
         $learnerName = trim(sprintf('%s %s', (string) $learner->getFirstName(), (string) $learner->getLastName()));
         $learnerUrl = sprintf('%s/learners/%d', rtrim($this->frontendUrl, '/'), $learner->getId());
@@ -226,9 +259,17 @@ class AbsenceNotificationService
 
         try {
             $this->mailer->send($message);
-        } catch (TransportExceptionInterface) {
-            // Swallowed on purpose, même raisonnement que notify().
+        } catch (TransportExceptionInterface $exception) {
+            $this->logger->error('Failed to send disciplinary alert email.', [
+                'learnerId' => $learner->getId(),
+                'recipient' => $this->disciplinaryAlertEmail,
+                'exception' => $exception,
+            ]);
+
+            return false;
         }
+
+        return true;
     }
 
     // Email disciplinaire envoyé DIRECTEMENT à l'apprenant (distinct de sendDisciplinaryAlert(), qui
@@ -289,8 +330,22 @@ class AbsenceNotificationService
 
         try {
             $this->mailer->send($message);
-        } catch (TransportExceptionInterface) {
-            // Swallowed on purpose, même raisonnement que notify().
+        } catch (TransportExceptionInterface $exception) {
+            $this->logger->error('Failed to send disciplinary email to learner.', [
+                'learnerId' => $learner->getId(),
+                'recipient' => $email,
+                'exception' => $exception,
+            ]);
+            $this->communicationLogger->log($learner, LearnerCommunication::TYPE_DISCIPLINARY_EMAIL, $actor, [
+                'to' => $email,
+                'subject' => $subject,
+                'text' => $text,
+                'consecutiveCount' => $count,
+                'delivered' => false,
+                'reason' => 'transport_error',
+            ]);
+
+            return false;
         }
 
         $this->communicationLogger->log($learner, LearnerCommunication::TYPE_DISCIPLINARY_EMAIL, $actor, [
@@ -298,6 +353,7 @@ class AbsenceNotificationService
             'subject' => $subject,
             'text' => $text,
             'consecutiveCount' => $count,
+            'delivered' => true,
         ]);
 
         return true;

@@ -45,6 +45,7 @@ class SyncOrchestratorService
         private readonly SyncTrainingRegistrationsCommand $syncTrainingRegistrationsCommand,
         private readonly SyncLearnerStepStatesCommand $syncLearnerStepStatesCommand,
         private readonly SyncClassroomSessionsCommand $syncClassroomSessionsCommand,
+        private readonly WorkerHeartbeat $heartbeat,
     ) {
     }
 
@@ -84,6 +85,7 @@ class SyncOrchestratorService
             // une progression en temps réel au lieu de rester figé pendant les dizaines de secondes
             // que peut prendre une étape (sessions notamment).
             $this->markCurrentStep($runId, $index + 1, $step['label']);
+            $this->heartbeat->progress();
 
             $output = new BufferedOutput();
             $startedAt = microtime(true);

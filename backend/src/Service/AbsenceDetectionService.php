@@ -15,11 +15,14 @@ use Psr\Log\LoggerInterface;
 // (matin/après-midi).
 class AbsenceDetectionService
 {
+    private const TRACKING_START_AT = '2026-10-06 00:00:00';
+
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly AbsenceNotificationService $absenceNotificationService,
         private readonly AbsenceStreakService $absenceStreakService,
         private readonly LoggerInterface $logger,
+        private readonly WorkerHeartbeat $heartbeat,
     ) {
     }
 
@@ -31,6 +34,7 @@ class AbsenceDetectionService
             ->join('r.session', 's')
             ->where('s.endAt IS NOT NULL')
             ->andWhere('s.endAt < :now')
+            ->andWhere('s.startAt >= :trackingStartAt')
             ->andWhere($qb->expr()->not($qb->expr()->exists(
                 'SELECT 1 FROM App\Entity\Absence a WHERE a.registration = r'
             )))
@@ -38,6 +42,7 @@ class AbsenceDetectionService
                 'SELECT 1 FROM App\Entity\ClassroomSessionSignature sig WHERE sig.registration = r AND sig.hasSigned = true'
             )))
             ->setParameter('now', new \DateTimeImmutable())
+            ->setParameter('trackingStartAt', new \DateTimeImmutable(self::TRACKING_START_AT))
             ->getQuery()
             ->getResult();
 
@@ -46,6 +51,7 @@ class AbsenceDetectionService
 
         /** @var ClassroomSessionRegistration $registration */
         foreach ($registrations as $registration) {
+            $this->heartbeat->progress();
             $type = $registration->getSession()->getSessionType() === 'virtual'
                 ? Absence::TYPE_MASTERCLASS
                 : Absence::TYPE_PRESENTIEL;

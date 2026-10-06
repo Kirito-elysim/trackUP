@@ -11,6 +11,8 @@ use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Console\Input\StreamableInputInterface;
+use Symfony\Component\Console\Question\Question;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
@@ -28,13 +30,41 @@ class BootstrapRbacCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addOption('admin-email', null, InputOption::VALUE_REQUIRED, 'Admin email', 'admin@trackup.local')
-            ->addOption('admin-password', null, InputOption::VALUE_REQUIRED, 'Admin password', 'TrackUp123!');
+            ->addOption('admin-email', null, InputOption::VALUE_REQUIRED, 'Admin email')
+            ->addOption('admin-password-stdin', null, InputOption::VALUE_NONE, 'Read the new admin password from standard input');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
+        $adminEmail = strtolower(trim((string) $input->getOption('admin-email')));
+        if (!filter_var($adminEmail, FILTER_VALIDATE_EMAIL)) {
+            $io->error('Une adresse valide est obligatoire via --admin-email.');
+            return Command::INVALID;
+        }
+
+        $adminUser = $this->entityManager->getRepository(User::class)->findOneBy(['email' => $adminEmail]);
+        if (!$adminUser instanceof User) {
+            if ($input->getOption('admin-password-stdin')) {
+                $stream = $input instanceof StreamableInputInterface ? $input->getStream() : null;
+                $adminPassword = rtrim((string) fgets($stream ?? STDIN, 4098), "\r\n");
+            } elseif ($input->isInteractive()) {
+                $question = (new Question('Mot de passe du nouvel administrateur (12 caractères minimum)'))
+                    ->setHidden(true)->setHiddenFallback(false);
+                $adminPassword = (string) $io->askQuestion($question);
+            } else {
+                $io->error('Utilisez le mode interactif ou --admin-password-stdin pour créer un administrateur.');
+                return Command::INVALID;
+            }
+
+            if (mb_strlen($adminPassword) < 12 || strlen($adminPassword) > 4096) {
+                $io->error('Le mot de passe doit contenir au moins 12 caractères et au plus 4096 octets.');
+                return Command::INVALID;
+            }
+            $adminUser = (new User())->setEmail($adminEmail)->setFirstName('Track')->setLastName('Admin')->setActive(true);
+            $adminUser->setPassword($this->passwordHasher->hashPassword($adminUser, $adminPassword));
+            unset($adminPassword);
+        }
 
         $featureMap = [
             ['code' => 'dashboard.view', 'name' => 'Dashboard', 'category' => 'Pilotage', 'description' => 'Voir le tableau de bord global.'],
@@ -86,17 +116,6 @@ class BootstrapRbacCommand extends Command
         }
         $this->entityManager->persist($managerRole);
 
-        $adminEmail = (string) $input->getOption('admin-email');
-        $adminPassword = (string) $input->getOption('admin-password');
-
-        $adminUser = $this->entityManager->getRepository(User::class)->findOneBy(['email' => strtolower($adminEmail)]) ?? new User();
-        $adminUser
-            ->setEmail($adminEmail)
-            ->setFirstName('Track')
-            ->setLastName('Admin')
-            ->setActive(true)
-            ->setPassword($this->passwordHasher->hashPassword($adminUser, $adminPassword));
-
         if (!$adminUser->getRoleEntities()->contains($adminRole)) {
             $adminUser->addRoleEntity($adminRole);
         }
@@ -104,7 +123,7 @@ class BootstrapRbacCommand extends Command
         $this->entityManager->persist($adminUser);
         $this->entityManager->flush();
 
-        $io->success(sprintf('RBAC initialisé. Compte admin: %s / %s', $adminEmail, $adminPassword));
+        $io->success(sprintf('RBAC initialisé pour %s. Les identifiants des comptes existants sont conservés.', $adminEmail));
 
         return Command::SUCCESS;
     }

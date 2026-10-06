@@ -1,6 +1,8 @@
 doctrine:
     dbal:
         url: '%env(resolve:DATABASE_URL)%'
+        options:
+            !php/const PDO::ATTR_TIMEOUT: 3
         profiling_collect_backtrace: '%kernel.debug%'
     orm:
         validate_xml_mapping: true
