@@ -7,7 +7,10 @@ framework:
                 enabled: true
                 http_codes:
                     429: {} # rate limited — worth retrying with backoff
-                max_retries: 3
-                delay: 1000
+                # 2+4+8+16+32 s ≈ 1 min: long enough for Rise Up's 60s moving window to free up
+                # (Retry-After is honoured when sent). 3 retries from 1s gave up after ~7s.
+                max_retries: 5
+                delay: 2000
                 multiplier: 2
+                max_delay: 32000
                 jitter: 0.3

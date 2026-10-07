@@ -27,12 +27,17 @@ class RiseUpApiClient
 
     private ?string $accessToken = null;
 
+    /** @var list<float> Start times of the requests sent during the last 60 seconds. */
+    private array $recentRequests = [];
+
     public function __construct(
         private readonly HttpClientInterface $httpClient,
         private readonly RiseUpAuthClient $authClient,
         private readonly LoggerInterface $logger,
         private readonly string $baseUrl,
         private readonly WorkerHeartbeat $heartbeat,
+        // Under Rise Up's 300/min so retries and a concurrent run keep some headroom.
+        private readonly int $maxRequestsPerMinute = 240,
     ) {
     }
 
@@ -117,6 +122,7 @@ class RiseUpApiClient
             $headers['Authorization'] = 'Bearer ' . $this->getAccessToken();
             $headers['Accept'] = 'application/json';
 
+            $this->throttle();
             $response = $this->httpClient->request($method, $this->buildUrl($path), [
                 ...$options,
                 'headers' => $headers,
@@ -153,6 +159,35 @@ class RiseUpApiClient
         } catch (ExceptionInterface $exception) {
             throw new \RuntimeException('Rise Up API request failed: ' . $exception->getMessage(), 0, $exception);
         }
+    }
+
+    // Proactive pacing on Rise Up's moving 60s window: bursts of one-request-per-row loops (users,
+    // group memberships...) used to hit 429 and exhaust the retries within a few seconds.
+    private function throttle(): void
+    {
+        $now = $this->now();
+        $this->recentRequests = array_values(array_filter($this->recentRequests, static fn (float $sentAt): bool => $sentAt > $now - 60));
+
+        if (count($this->recentRequests) >= $this->maxRequestsPerMinute) {
+            $wait = $this->recentRequests[0] + 60 - $now;
+            if ($wait > 0) {
+                $this->heartbeat->progress();
+                $this->pause($wait);
+            }
+            array_shift($this->recentRequests);
+        }
+
+        $this->recentRequests[] = $this->now();
+    }
+
+    protected function now(): float
+    {
+        return microtime(true);
+    }
+
+    protected function pause(float $seconds): void
+    {
+        usleep((int) ceil($seconds * 1_000_000));
     }
 
     private function getAccessToken(): string

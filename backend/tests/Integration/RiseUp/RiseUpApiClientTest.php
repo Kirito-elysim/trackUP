@@ -83,12 +83,36 @@ final class RiseUpApiClientTest extends TestCase
         $client->getCollection('/v3/whatever', [], 1);
     }
 
-    private function makeClient(HttpClientInterface $httpClient): RiseUpApiClient
+    private function makeClient(HttpClientInterface $httpClient, int $maxRequestsPerMinute = 10_000): RiseUpApiClient
     {
         $authClient = $this->createStub(RiseUpAuthClient::class);
         $authClient->method('fetchAccessToken')->willReturn(['access_token' => 'test-token', 'expires_in' => 3600, 'token_type' => 'Bearer', 'scope' => null]);
 
-        return new RiseUpApiClient($this->wrapWithConfiguredRetry($httpClient), $authClient, new NullLogger(), 'https://riseup.example.test', new \App\Service\WorkerHeartbeat('/unused'));
+        return new RiseUpApiClient($this->wrapWithConfiguredRetry($httpClient), $authClient, new NullLogger(), 'https://riseup.example.test', new \App\Service\WorkerHeartbeat('/unused'), $maxRequestsPerMinute);
+    }
+
+    public function testThrottlesBeforeExceedingThePerMinuteQuota(): void
+    {
+        $authClient = $this->createStub(RiseUpAuthClient::class);
+        $authClient->method('fetchAccessToken')->willReturn(['access_token' => 'test-token', 'expires_in' => 3600, 'token_type' => 'Bearer', 'scope' => null]);
+        $mockClient = new MockHttpClient(array_fill(0, 3, new MockResponse('{"id":1}', ['http_code' => 200])));
+        // Fake clock: pausing advances time instead of sleeping.
+        $client = new class($mockClient, $authClient, new NullLogger(), 'https://riseup.example.test', new \App\Service\WorkerHeartbeat('/unused'), 2) extends RiseUpApiClient {
+            public float $clock = 1000.0;
+            public array $pauses = [];
+            protected function now(): float { return $this->clock; }
+            protected function pause(float $seconds): void { $this->pauses[] = $seconds; $this->clock += $seconds; }
+        };
+
+        $client->get('/v3/whatever');
+        $client->clock += 10;
+        $client->get('/v3/whatever');
+        $this->assertSame([], $client->pauses);
+
+        // Third call within the window: waits until the first request is 60s old.
+        $client->get('/v3/whatever');
+        $this->assertEqualsWithDelta([50.0], $client->pauses, 0.001);
+        $this->assertSame(3, $mockClient->getRequestsCount());
     }
 
     private function wrapWithConfiguredRetry(HttpClientInterface $httpClient): HttpClientInterface
