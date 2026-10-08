@@ -26,17 +26,26 @@ class AbsenceExpiryService
 
     public function expireOverdue(): int
     {
-        $overdue = $this->entityManager->createQueryBuilder()
+        $qb = $this->entityManager->createQueryBuilder()
             ->select('a')
             ->from(Absence::class, 'a')
+            ->join('a.registration', 'r')
+            ->join('r.session', 's')
             ->where('a.status = :status')
             ->andWhere('a.justificationTokenExpiresAt IS NOT NULL')
             ->andWhere('a.justificationTokenExpiresAt < :now')
             ->andWhere('a.justificationSubmittedAt IS NULL')
             ->setParameter('status', Absence::STATUS_EN_ATTENTE)
-            ->setParameter('now', new \DateTimeImmutable())
-            ->getQuery()
-            ->getResult();
+            ->setParameter('now', new \DateTimeImmutable());
+
+        // Une absence antérieure à la date de suivi ne doit jamais devenir "non justifiée" ni
+        // déclencher de mail, même si elle est restée en attente (réimport de base, par exemple).
+        $trackingDate = $this->absenceStreakService->getTrackingDate();
+        if ($trackingDate !== null) {
+            $qb->andWhere('s.startAt >= :trackingStartAt')->setParameter('trackingStartAt', $trackingDate);
+        }
+
+        $overdue = $qb->getQuery()->getResult();
 
         $expired = 0;
         $affectedLearners = [];

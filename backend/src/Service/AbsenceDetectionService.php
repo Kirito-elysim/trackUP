@@ -13,9 +13,13 @@ use Psr\Log\LoggerInterface;
 // déjà détectée pour cette inscription. Une seule période signée sur la session suffit à ne pas
 // déclencher d'absence — décision validée avec l'utilisateur pour les sessions à périodes multiples
 // (matin/après-midi).
+//
+// Une session où personne n'a signé n'est pas traitée : l'émargement n'était pas ouvert (ex. la
+// "Réunion de rentrée" de "Démarre ton aventure Ed'Up") ou les signatures ne sont pas encore
+// synchronisées. Créer une absence pour chaque inscrit enverrait un mail de justificatif à tous ;
+// la session sera reprise automatiquement une nuit suivante dès qu'une signature arrive.
 class AbsenceDetectionService
 {
-    private const TRACKING_START_AT = '2026-10-06 00:00:00';
 
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
@@ -31,22 +35,29 @@ class AbsenceDetectionService
         $this->cancelSignedAbsences();
 
         $qb = $this->entityManager->createQueryBuilder();
-        $registrations = $qb->select('r')
+        $qb->select('r')
             ->from(ClassroomSessionRegistration::class, 'r')
             ->join('r.session', 's')
             ->where('s.endAt IS NOT NULL')
             ->andWhere('s.endAt < :now')
-            ->andWhere('s.startAt >= :trackingStartAt')
+            ->andWhere($qb->expr()->exists(
+                'SELECT 1 FROM App\Entity\ClassroomSessionSignature anySig JOIN anySig.registration anyReg WHERE anyReg.session = s AND anySig.hasSigned = true'
+            ))
             ->andWhere($qb->expr()->not($qb->expr()->exists(
                 'SELECT 1 FROM App\Entity\Absence a WHERE a.registration = r'
             )))
             ->andWhere($qb->expr()->not($qb->expr()->exists(
                 'SELECT 1 FROM App\Entity\ClassroomSessionSignature sig WHERE sig.registration = r AND sig.hasSigned = true'
             )))
-            ->setParameter('now', new \DateTimeImmutable())
-            ->setParameter('trackingStartAt', new \DateTimeImmutable(self::TRACKING_START_AT))
-            ->getQuery()
-            ->getResult();
+            ->setParameter('now', new \DateTimeImmutable());
+
+        // Même date de départ que les séries et l'expiration (réglage du dashboard).
+        $trackingDate = $this->absenceStreakService->getTrackingDate();
+        if ($trackingDate !== null) {
+            $qb->andWhere('s.startAt >= :trackingStartAt')->setParameter('trackingStartAt', $trackingDate);
+        }
+
+        $registrations = $qb->getQuery()->getResult();
 
         $detected = 0;
         $affectedLearners = [];
