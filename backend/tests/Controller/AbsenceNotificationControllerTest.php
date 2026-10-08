@@ -66,7 +66,7 @@ final class AbsenceNotificationControllerTest extends TestCase
         $permissions->method('userHasFeature')->willReturn(true);
         $notifications = $this->createStub(AbsenceNotificationService::class);
         $controller = $this->getMockBuilder(AbsenceController::class)
-            ->setConstructorArgs([$em, $permissions, $notifications, $this->createStub(AbsenceStreakService::class), $this->createStub(AbsenceEventLogger::class), '/unused'])
+            ->setConstructorArgs([$em, $permissions, $notifications, $this->createStub(AbsenceStreakService::class), $this->createStub(AbsenceEventLogger::class), new \App\Service\JustificationFileStorage('/unused'), '/unused'])
             ->onlyMethods(['getUser'])->getMock();
         $controller->expects(self::atLeastOnce())->method('getUser')->willReturn(new User());
         $controller->setContainer(new ContainerBuilder());

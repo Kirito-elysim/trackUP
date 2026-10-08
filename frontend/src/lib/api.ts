@@ -40,13 +40,15 @@ export function setUnauthorizedHandler(handler: (() => void) | null): void {
 }
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  // FormData (file uploads) must go as-is: the browser sets the multipart boundary itself.
+  const isFormData = options.body instanceof FormData;
   const response = await fetch(buildUrl(path), {
     method: options.method ?? 'GET',
     headers: {
-      'Content-Type': 'application/json',
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
     },
-    body: options.body ? JSON.stringify(options.body) : undefined,
+    body: isFormData ? (options.body as FormData) : options.body ? JSON.stringify(options.body) : undefined,
   });
 
   const isJson = response.headers.get('content-type')?.includes('application/json');

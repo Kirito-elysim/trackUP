@@ -10,11 +10,14 @@ use App\Entity\User;
 use App\Service\AbsenceEventLogger;
 use App\Service\AbsenceNotificationService;
 use App\Service\AbsenceStreakService;
+use App\Service\JustificationFileStorage;
 use App\Service\UserPermissionResolver;
 use Doctrine\DBAL\ParameterType;
+use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -43,6 +46,7 @@ class AbsenceController extends AbstractController
         private readonly AbsenceNotificationService $absenceNotificationService,
         private readonly AbsenceStreakService $absenceStreakService,
         private readonly AbsenceEventLogger $absenceEventLogger,
+        private readonly JustificationFileStorage $fileStorage,
         private readonly string $uploadDir,
     ) {
     }
@@ -382,6 +386,59 @@ class AbsenceController extends AbstractController
         );
 
         return $response;
+    }
+
+    // Dépôt par l'équipe d'un justificatif reçu hors plateforme (email, papier...). Accepté quel que
+    // soit le statut — un justificatif peut arriver après l'expiration du lien — et sans changer le
+    // statut : l'équipe valide ensuite comme pour un dépôt de l'apprenant. Le lien de l'apprenant
+    // reste inchangé ; l'historique indique qui a déposé le fichier.
+    #[Route('/{id}/justification-file', name: 'api_admin_absences_justification_upload', methods: ['POST'], requirements: ['id' => '\d+'])]
+    public function uploadJustificationFile(int $id, Request $request): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = $this->getUser();
+
+        if (!$this->permissionResolver->userHasFeature($user, 'absences.manage')) {
+            return $this->json(['message' => 'Forbidden.'], JsonResponse::HTTP_FORBIDDEN);
+        }
+
+        $absence = $this->entityManager->getRepository(Absence::class)->find($id);
+        if (!$absence instanceof Absence) {
+            return $this->json(['message' => 'Absence introuvable.'], JsonResponse::HTTP_NOT_FOUND);
+        }
+
+        $file = $request->files->get('file');
+        if ($error = $this->fileStorage->validate($file)) {
+            return $this->json(['message' => $error['message']], $error['status']);
+        }
+        /** @var UploadedFile $file */
+
+        $stored = null;
+        $this->entityManager->beginTransaction();
+        try {
+            // Same lock as the learner upload: a simultaneous learner deposit cannot interleave.
+            $this->entityManager->refresh($absence, LockMode::PESSIMISTIC_WRITE);
+            $stored = $this->fileStorage->store($absence, $file);
+            $this->absenceEventLogger->log($absence, AbsenceEvent::TYPE_JUSTIFICATION_SUBMITTED, $user, [
+                'fileOriginalName' => $file->getClientOriginalName(),
+                'replacement' => $stored['previous'] !== null,
+                'uploadedByTeam' => true,
+            ]);
+            $this->entityManager->flush();
+            $this->entityManager->commit();
+        } catch (\Throwable $exception) {
+            $this->entityManager->rollback();
+            $this->fileStorage->delete($stored['stored'] ?? null);
+            throw $exception;
+        }
+
+        $this->fileStorage->delete($stored['previous']);
+
+        return $this->json([
+            ...$this->normalize($absence),
+            'justificationFileOriginalName' => $absence->getJustificationFileOriginalName(),
+            'justificationFileAvailable' => true,
+        ]);
     }
 
     // Sous-section Absences : agrégats pour la page /absences/dashboard.

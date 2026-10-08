@@ -72,6 +72,10 @@ services:
         arguments:
             $uploadDir: '%app.absences_upload_dir%'
 
+    App\Service\JustificationFileStorage:
+        arguments:
+            $uploadDir: '%app.absences_upload_dir%'
+
     App\Service\ActivityLogPdfService:
         arguments:
             $logoPath: '%app.logo_path%'

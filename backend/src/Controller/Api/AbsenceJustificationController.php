@@ -6,6 +6,7 @@ namespace App\Controller\Api;
 use App\Entity\Absence;
 use App\Entity\AbsenceEvent;
 use App\Service\AbsenceEventLogger;
+use App\Service\JustificationFileStorage;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -23,19 +24,10 @@ use Symfony\Component\Routing\Attribute\Route;
 #[Route('/api/absences')]
 class AbsenceJustificationController extends AbstractController
 {
-    private const ALLOWED_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png'];
-    private const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
-
-    private const MIME_TYPES = [
-        'pdf' => 'application/pdf',
-        'jpg' => 'image/jpeg',
-        'jpeg' => 'image/jpeg',
-        'png' => 'image/png',
-    ];
-
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly AbsenceEventLogger $absenceEventLogger,
+        private readonly JustificationFileStorage $fileStorage,
         private readonly string $uploadDir,
     ) {
     }
@@ -88,38 +80,13 @@ class AbsenceJustificationController extends AbstractController
             return $this->json(['message' => 'Cette absence a déjà été traitée. Le justificatif ne peut plus être modifié.'], JsonResponse::HTTP_CONFLICT);
         }
 
-        /** @var UploadedFile|null $file */
         $file = $request->files->get('file');
-
-        if (!$file instanceof UploadedFile) {
-            return $this->json(['message' => 'Aucun fichier fourni.'], JsonResponse::HTTP_BAD_REQUEST);
+        if ($error = $this->fileStorage->validate($file)) {
+            return $this->json(['message' => $error['message']], $error['status']);
         }
+        /** @var UploadedFile $file */
 
-        if (!$file->isValid()) {
-            $tooLarge = in_array($file->getError(), [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true);
-            return $this->json(['message' => $tooLarge ? 'Le fichier dépasse la taille maximale autorisée (10 Mo).' : 'Le transfert du fichier a échoué. Merci de réessayer.'], $tooLarge ? JsonResponse::HTTP_REQUEST_ENTITY_TOO_LARGE : JsonResponse::HTTP_BAD_REQUEST);
-        }
-
-        $extension = strtolower((string) $file->getClientOriginalExtension());
-        if (!in_array($extension, self::ALLOWED_EXTENSIONS, true)) {
-            return $this->json(
-                ['message' => 'Le fichier doit être au format PDF, JPG ou PNG.'],
-                JsonResponse::HTTP_BAD_REQUEST
-            );
-        }
-
-        if ($file->getSize() > self::MAX_FILE_SIZE_BYTES) {
-            return $this->json(
-                ['message' => 'Le fichier dépasse la taille maximale autorisée (10 Mo).'],
-                JsonResponse::HTTP_BAD_REQUEST
-            );
-        }
-
-        if ($file->getMimeType() !== self::MIME_TYPES[$extension]) {
-            return $this->json(['message' => 'Le contenu du fichier ne correspond pas à un PDF, JPG ou PNG valide.'], JsonResponse::HTTP_BAD_REQUEST);
-        }
-
-        $storedFileName = null;
+        $stored = null;
         $this->entityManager->beginTransaction();
         try {
             $this->entityManager->refresh($absence, LockMode::PESSIMISTIC_WRITE);
@@ -130,39 +97,22 @@ class AbsenceJustificationController extends AbstractController
                 return $this->json(['message' => 'Le dépôt est fermé ou le lien a expiré.'], JsonResponse::HTTP_CONFLICT);
             }
 
-            if (!is_dir($this->uploadDir)) {
-                mkdir($this->uploadDir, 0775, true);
-            }
-
             // Remplacement d'un dépôt existant (l'apprenant revient sur le lien pour corriger) : on
             // retire l'ancien fichier du disque pour ne pas accumuler d'orphelins.
-            $previousFilePath = $absence->getJustificationFilePath();
-            $isReplacement = $previousFilePath !== null;
-
-            $storedFileName = sprintf('%d-%s.%s', $absence->getId(), bin2hex(random_bytes(8)), $extension);
-            $file->move($this->uploadDir, $storedFileName);
-            $absence->setJustificationFile($storedFileName, $file->getClientOriginalName());
-            $absence->setJustificationSubmittedAt(new \DateTimeImmutable());
+            $stored = $this->fileStorage->store($absence, $file);
             $this->absenceEventLogger->log($absence, AbsenceEvent::TYPE_JUSTIFICATION_SUBMITTED, null, [
                 'fileOriginalName' => $file->getClientOriginalName(),
-                'replacement' => $isReplacement,
+                'replacement' => $stored['previous'] !== null,
             ]);
             $this->entityManager->flush();
             $this->entityManager->commit();
         } catch (\Throwable $exception) {
             $this->entityManager->rollback();
-            if ($storedFileName !== null && is_file($this->uploadDir . '/' . $storedFileName)) {
-                unlink($this->uploadDir . '/' . $storedFileName);
-            }
+            $this->fileStorage->delete($stored['stored'] ?? null);
             throw $exception;
         }
 
-        if ($previousFilePath !== null) {
-            $previousFullPath = $this->uploadDir . '/' . $previousFilePath;
-            if (is_file($previousFullPath)) {
-                @unlink($previousFullPath);
-            }
-        }
+        $this->fileStorage->delete($stored['previous']);
 
         return $this->json(['message' => 'Votre justificatif a bien été transmis.']);
     }
@@ -209,7 +159,7 @@ class AbsenceJustificationController extends AbstractController
     {
         $extension = strtolower(pathinfo($fullPath, PATHINFO_EXTENSION));
         $response = new BinaryFileResponse($fullPath);
-        $response->headers->set('Content-Type', self::MIME_TYPES[$extension] ?? 'application/octet-stream');
+        $response->headers->set('Content-Type', JustificationFileStorage::MIME_TYPES[$extension] ?? 'application/octet-stream');
         $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_INLINE, $downloadName);
 
         return $response;

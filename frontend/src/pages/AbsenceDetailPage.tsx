@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -10,8 +10,10 @@ import {
   FileUp,
   Mail,
   MapPin,
+  Loader2,
   Send,
   ShieldAlert,
+  Upload,
   StickyNote,
   User,
   XCircle,
@@ -145,10 +147,13 @@ function describeEvent(event: AbsenceEventEntry, absence: AbsenceDetail): EventD
       const fileName = typeof meta.fileOriginalName === 'string' ? meta.fileOriginalName : null;
       const isCurrentFile = absence.justificationFileAvailable && fileName === absence.justificationFileOriginalName;
 
+      const byTeam = meta.uploadedByTeam === true;
+      const author = byTeam ? (event.actorName ?? "l'équipe") : "l'apprenant";
+
       return {
         icon: FileUp,
-        tone: 'bg-abs-accent-100 text-abs-accent-800',
-        label: meta.replacement ? "Justificatif remplacé par l'apprenant" : "Justificatif déposé par l'apprenant",
+        tone: byTeam ? 'bg-abs-success-100 text-abs-success-700' : 'bg-abs-accent-100 text-abs-accent-800',
+        label: `${meta.replacement ? 'Justificatif remplacé' : 'Justificatif déposé'} par ${author}`,
         detail: fileName,
         canViewFile: isCurrentFile,
         email: null,
@@ -191,8 +196,12 @@ function describeEvent(event: AbsenceEventEntry, absence: AbsenceDetail): EventD
 
 export function AbsenceDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { token } = useAuth();
+  const { token, canAccess } = useAuth();
+  const canManage = canAccess('absences.manage');
   const navigate = useNavigate();
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadFeedback, setUploadFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [absence, setAbsence] = useState<AbsenceDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -297,6 +306,35 @@ export function AbsenceDetailPage() {
       });
     } finally {
       setResending(false);
+    }
+  };
+
+  // Justificatif reçu hors plateforme (email, papier) : déposé par l'équipe, statut inchangé.
+  const uploadJustification = async (file: File) => {
+    if (!token || !absence) return;
+
+    setUploading(true);
+    setUploadFeedback(null);
+    const body = new FormData();
+    body.append('file', file);
+    try {
+      const updated = await apiRequest<Partial<AbsenceDetail>>(`/api/admin/absences/${absence.id}/justification-file`, {
+        method: 'POST',
+        token,
+        body,
+      });
+      setAbsence((current) => (current ? { ...current, ...updated, learner: current.learner, session: current.session } : current));
+      setUploadFeedback({
+        type: 'success',
+        message: absence.status === 'en_attente'
+          ? 'Justificatif ajouté. Vous pouvez maintenant valider ou rejeter l’absence.'
+          : 'Justificatif ajouté. Le statut n’a pas changé : modifiez-le si besoin.',
+      });
+    } catch (caught) {
+      setUploadFeedback({ type: 'error', message: caught instanceof ApiError ? caught.message : 'Dépôt impossible.' });
+    } finally {
+      setUploading(false);
+      if (fileInput.current) fileInput.current.value = '';
     }
   };
 
@@ -436,9 +474,43 @@ export function AbsenceDetailPage() {
           <Card>
             <CardContent className="flex flex-col gap-4 p-6">
               <div>
-                <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Document fourni par l'apprenant</p>
-                <h3 className="font-display text-base font-bold tracking-tight">Justificatif déposé</h3>
+                <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Document justificatif</p>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="font-display text-base font-bold tracking-tight">Justificatif déposé</h3>
+                  {canManage ? (
+                    <>
+                      <input
+                        ref={fileInput}
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                        className="hidden"
+                        data-testid="justification-upload-input"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) void uploadJustification(file);
+                        }}
+                      />
+                      <Button size="sm" variant="outline" disabled={uploading} onClick={() => fileInput.current?.click()}>
+                        {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                        {uploading ? 'Envoi…' : absence.justificationFileOriginalName ? 'Remplacer le justificatif' : 'Déposer un justificatif'}
+                      </Button>
+                    </>
+                  ) : null}
+                </div>
+                {canManage ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Reçu par email ou en main propre ? Déposez-le ici (PDF, JPG ou PNG, 10 Mo max).
+                  </p>
+                ) : null}
               </div>
+              {uploadFeedback ? (
+                <p
+                  role={uploadFeedback.type === 'error' ? 'alert' : 'status'}
+                  className={`text-xs font-medium ${uploadFeedback.type === 'error' ? 'text-abs-danger-700' : 'text-abs-success-700'}`}
+                >
+                  {uploadFeedback.message}
+                </p>
+              ) : null}
               {absence.justificationFileOriginalName ? (
                 <div className="flex items-center gap-4 rounded-xl border border-abs-ink-100 bg-abs-ink-50/60 p-4">
                   <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-abs-ink-200 bg-card">

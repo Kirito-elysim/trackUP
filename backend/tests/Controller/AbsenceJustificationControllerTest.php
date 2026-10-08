@@ -138,7 +138,7 @@ final class AbsenceJustificationControllerTest extends TestCase
         $em->expects(self::atLeastOnce())->method('getRepository')->willReturn($repository);
         $directory = sys_get_temp_dir() . '/trackup-documents-' . bin2hex(random_bytes(8));
         $this->directories[] = $directory;
-        $controller = new AbsenceJustificationController($em, $this->createStub(AbsenceEventLogger::class), $directory);
+        $controller = new AbsenceJustificationController($em, $this->createStub(AbsenceEventLogger::class), new \App\Service\JustificationFileStorage($directory), $directory);
         $controller->setContainer(new ContainerBuilder());
         return [$controller, $absence, $em, $directory];
     }
