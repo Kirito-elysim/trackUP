@@ -78,6 +78,29 @@ class UserController extends AbstractController
         }
 
         $data = $request->toArray();
+        $actor = $this->getUser();
+
+        // Never let an admin lock themselves out of this screen.
+        if ($actor instanceof User && $actor->getId() === $user->getId()) {
+            if (\array_key_exists('active', $data) && !$data['active']) {
+                return $this->json(['message' => 'Vous ne pouvez pas désactiver votre propre compte.'], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+            }
+            if (\array_key_exists('roleIds', $data) && !$this->rolesGrantUserManagement((array) $data['roleIds'])) {
+                return $this->json(['message' => 'Vous ne pouvez pas retirer vos propres droits de gestion des utilisateurs.'], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+            }
+        }
+
+        if (isset($data['email'])) {
+            $email = strtolower(trim((string) $data['email']));
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                return $this->json(['message' => 'Adresse email invalide.'], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+            }
+            $existing = $this->entityManager->getRepository(User::class)->findOneBy(['email' => $email]);
+            if ($existing instanceof User && $existing->getId() !== $user->getId()) {
+                return $this->json(['message' => 'Cette adresse email est déjà utilisée.'], JsonResponse::HTTP_UNPROCESSABLE_ENTITY);
+            }
+            $user->setEmail($email);
+        }
 
         $user
             ->setFirstName((string) ($data['firstName'] ?? $user->getFirstName()))
@@ -95,6 +118,29 @@ class UserController extends AbstractController
         $this->entityManager->flush();
 
         return $this->json($this->normalizeUser($user));
+    }
+
+    /**
+     * @param array<int, mixed> $roleIds
+     */
+    private function rolesGrantUserManagement(array $roleIds): bool
+    {
+        foreach ($roleIds as $roleId) {
+            $role = $this->entityManager->getRepository(Role::class)->find((int) $roleId);
+            if (!$role instanceof Role) {
+                continue;
+            }
+            if (strtoupper($role->getCode()) === 'ADMIN') {
+                return true;
+            }
+            foreach ($role->getFeatures() as $feature) {
+                if ($feature->getCode() === 'settings.users') {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**

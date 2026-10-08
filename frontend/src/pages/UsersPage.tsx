@@ -10,6 +10,10 @@ import { Badge } from '@/components/ui/badge';
 import { CountUp } from '@/components/ui/stat';
 import { FormError } from '@/components/ui/form-error';
 import { FormSuccess } from '@/components/ui/form-success';
+import { cn } from '@/lib/utils';
+import { Pencil } from 'lucide-react';
+
+const EMPTY_FORM = { firstName: '', lastName: '', email: '', password: '', active: true, roleIds: [] as number[] };
 
 export function UsersPage() {
   const { token } = useAuth();
@@ -17,14 +21,28 @@ export function UsersPage() {
   const [roles, setRoles] = useState<Role[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [form, setForm] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    password: '',
-    active: true,
-    roleIds: [] as number[],
-  });
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [form, setForm] = useState(EMPTY_FORM);
+
+  const startEdit = (user: UserSummary) => {
+    setEditingId(user.id);
+    setFormError(null);
+    setSuccessMessage(null);
+    setForm({
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      password: '',
+      active: user.active,
+      roleIds: user.roles.map((role) => role.id),
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setFormError(null);
+    setForm(EMPTY_FORM);
+  };
 
   const load = async () => {
     if (!token) {
@@ -89,30 +107,31 @@ export function UsersPage() {
     setFormError(null);
     setSuccessMessage(null);
 
-    if (form.password.trim() === '') {
+    if (editingId === null && form.password.trim() === '') {
       setFormError('Le mot de passe est obligatoire.');
       return;
     }
 
     try {
-      await apiRequest<UserSummary>('/api/admin/users', {
-        method: 'POST',
-        token,
-        body: form,
-      });
+      if (editingId === null) {
+        await apiRequest<UserSummary>('/api/admin/users', { method: 'POST', token, body: form });
+        setSuccessMessage('Utilisateur créé.');
+      } else {
+        // Empty password = keep the current one.
+        const { password, ...changes } = form;
+        await apiRequest<UserSummary>(`/api/admin/users/${editingId}`, {
+          method: 'PUT',
+          token,
+          body: password.trim() === '' ? changes : form,
+        });
+        setSuccessMessage('Utilisateur mis à jour.');
+      }
 
-      setForm({
-        firstName: '',
-        lastName: '',
-        email: '',
-        password: '',
-        active: true,
-        roleIds: [],
-      });
-      setSuccessMessage('Utilisateur créé.');
+      setEditingId(null);
+      setForm(EMPTY_FORM);
       await load();
     } catch (caught) {
-      setFormError(caught instanceof ApiError ? caught.message : 'Création impossible.');
+      setFormError(caught instanceof ApiError ? caught.message : editingId === null ? 'Création impossible.' : 'Mise à jour impossible.');
     }
   };
 
@@ -179,7 +198,10 @@ export function UsersPage() {
 
               <div className="flex flex-col gap-4">
                 {users.map((user) => (
-                  <div className="rounded-md border border-border p-4" key={user.id}>
+                  <div
+                    className={cn('rounded-md border p-4 transition-colors', editingId === user.id ? 'border-primary bg-primary/5 ring-2 ring-primary/20' : 'border-border')}
+                    key={user.id}
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <strong className="text-sm font-semibold">
@@ -187,7 +209,13 @@ export function UsersPage() {
                         </strong>
                         <p className="text-xs text-muted-foreground">{user.email}</p>
                       </div>
-                      <Chip variant={user.active ? 'success' : 'destructive'}>{user.active ? 'Actif' : 'Inactif'}</Chip>
+                      <div className="flex items-center gap-2">
+                        <Chip variant={user.active ? 'success' : 'destructive'}>{user.active ? 'Actif' : 'Inactif'}</Chip>
+                        <Button size="sm" variant="outline" onClick={() => startEdit(user)}>
+                          <Pencil />
+                          Modifier
+                        </Button>
+                      </div>
                     </div>
                     <div className="mt-3 flex flex-wrap gap-1.5">
                       {user.roles.map((role) => (
@@ -206,8 +234,10 @@ export function UsersPage() {
         <Card>
           <CardContent className="p-6">
             <div className="mb-5">
-              <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Provisioning</p>
-              <h3 className="font-display text-lg font-bold tracking-tight">Nouvel utilisateur</h3>
+              <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">{editingId === null ? 'Provisioning' : 'Modification'}</p>
+              <h3 className="font-display text-lg font-bold tracking-tight">
+                {editingId === null ? 'Nouvel utilisateur' : `Modifier ${form.firstName} ${form.lastName}`.trim()}
+              </h3>
             </div>
 
             <form className="flex flex-col gap-5" noValidate onSubmit={handleSubmit}>
@@ -241,7 +271,8 @@ export function UsersPage() {
               <label className="flex flex-col gap-2">
                 <span className="text-sm font-semibold">Mot de passe</span>
                 <Input
-                  required
+                  required={editingId === null}
+                  placeholder={editingId === null ? undefined : 'Laisser vide pour conserver le mot de passe actuel'}
                   type="password"
                   value={form.password}
                   onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
@@ -255,7 +286,7 @@ export function UsersPage() {
                   type="checkbox"
                   className="accent-primary"
                 />
-                Compte actif dès la création
+                {editingId === null ? 'Compte actif dès la création' : 'Compte actif'}
               </label>
 
               <div className="flex flex-col gap-3">
@@ -281,7 +312,14 @@ export function UsersPage() {
               <FormError message={formError} />
               <FormSuccess message={successMessage} />
 
-              <Button type="submit">Créer l&rsquo;utilisateur</Button>
+              <div className="flex gap-2">
+                <Button type="submit">{editingId === null ? 'Créer l\u2019utilisateur' : 'Enregistrer les modifications'}</Button>
+                {editingId !== null && (
+                  <Button type="button" variant="outline" onClick={cancelEdit}>
+                    Annuler
+                  </Button>
+                )}
+              </div>
             </form>
           </CardContent>
         </Card>

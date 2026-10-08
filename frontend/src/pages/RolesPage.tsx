@@ -11,6 +11,10 @@ import { Badge } from '@/components/ui/badge';
 import { CountUp } from '@/components/ui/stat';
 import { FormError } from '@/components/ui/form-error';
 import { FormSuccess } from '@/components/ui/form-success';
+import { cn } from '@/lib/utils';
+import { Pencil } from 'lucide-react';
+
+const EMPTY_FORM = { code: '', name: '', description: '', featureCodes: [] as string[] };
 
 export function RolesPage() {
   const { token } = useAuth();
@@ -18,12 +22,21 @@ export function RolesPage() {
   const [features, setFeatures] = useState<Feature[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [form, setForm] = useState({
-    code: '',
-    name: '',
-    description: '',
-    featureCodes: [] as string[],
-  });
+  const [editing, setEditing] = useState<Role | null>(null);
+  const [form, setForm] = useState(EMPTY_FORM);
+
+  const startEdit = (role: Role) => {
+    setEditing(role);
+    setFormError(null);
+    setSuccessMessage(null);
+    setForm({ code: role.code, name: role.name, description: role.description ?? '', featureCodes: [...role.featureCodes] });
+  };
+
+  const cancelEdit = () => {
+    setEditing(null);
+    setFormError(null);
+    setForm(EMPTY_FORM);
+  };
 
   const load = async () => {
     if (!token) {
@@ -94,17 +107,19 @@ export function RolesPage() {
     setSuccessMessage(null);
 
     try {
-      await apiRequest<Role>('/api/admin/roles', {
-        method: 'POST',
-        token,
-        body: form,
-      });
+      if (editing === null) {
+        await apiRequest<Role>('/api/admin/roles', { method: 'POST', token, body: form });
+        setSuccessMessage('Rôle créé.');
+      } else {
+        await apiRequest<Role>(`/api/admin/roles/${editing.id}`, { method: 'PUT', token, body: form });
+        setSuccessMessage('Rôle mis à jour. Les utilisateurs concernés verront leurs nouveaux droits au prochain chargement de page.');
+      }
 
-      setForm({ code: '', name: '', description: '', featureCodes: [] });
-      setSuccessMessage('Rôle créé.');
+      setEditing(null);
+      setForm(EMPTY_FORM);
       await load();
     } catch (caught) {
-      setFormError(caught instanceof ApiError ? caught.message : 'Création impossible.');
+      setFormError(caught instanceof ApiError ? caught.message : editing === null ? 'Création impossible.' : 'Mise à jour impossible.');
     }
   };
 
@@ -171,13 +186,22 @@ export function RolesPage() {
 
               <div className="flex flex-col gap-4">
                 {roles.map((role) => (
-                  <div className="rounded-md border border-border p-4" key={role.id}>
+                  <div
+                    className={cn('rounded-md border p-4 transition-colors', editing?.id === role.id ? 'border-primary bg-primary/5 ring-2 ring-primary/20' : 'border-border')}
+                    key={role.id}
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <strong className="text-sm font-semibold">{role.name}</strong>
                         <p className="text-xs text-muted-foreground">{role.code}</p>
                       </div>
-                      {role.system ? <Chip variant="neutral">Système</Chip> : <Chip variant="primary">Custom</Chip>}
+                      <div className="flex items-center gap-2">
+                        {role.system ? <Chip variant="neutral">Système</Chip> : <Chip variant="primary">Custom</Chip>}
+                        <Button size="sm" variant="outline" onClick={() => startEdit(role)}>
+                          <Pencil />
+                          Modifier
+                        </Button>
+                      </div>
                     </div>
                     <p className="mt-2 text-sm text-muted-foreground">{role.description ?? 'Aucune description.'}</p>
                     <div className="mt-3 flex flex-wrap gap-1.5">
@@ -197,8 +221,8 @@ export function RolesPage() {
         <Card>
           <CardContent className="p-6">
             <div className="mb-5">
-              <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Création</p>
-              <h3 className="font-display text-lg font-bold tracking-tight">Nouveau rôle</h3>
+              <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">{editing === null ? 'Création' : 'Modification'}</p>
+              <h3 className="font-display text-lg font-bold tracking-tight">{editing === null ? 'Nouveau rôle' : `Modifier « ${editing.name} »`}</h3>
             </div>
 
             <form className="flex flex-col gap-5" noValidate onSubmit={handleSubmit}>
@@ -206,6 +230,8 @@ export function RolesPage() {
                 <span className="text-sm font-semibold">Code</span>
                 <Input
                   placeholder="ex: coach"
+                  disabled={editing?.system ?? false}
+                  title={editing?.system ? 'Le code d’un rôle système ne peut pas être modifié.' : undefined}
                   value={form.code}
                   onChange={(event) => setForm((current) => ({ ...current, code: event.target.value }))}
                 />
@@ -264,7 +290,14 @@ export function RolesPage() {
               <FormError message={formError} />
               <FormSuccess message={successMessage} />
 
-              <Button type="submit">Créer le rôle</Button>
+              <div className="flex gap-2">
+                <Button type="submit">{editing === null ? 'Créer le rôle' : 'Enregistrer les modifications'}</Button>
+                {editing !== null && (
+                  <Button type="button" variant="outline" onClick={cancelEdit}>
+                    Annuler
+                  </Button>
+                )}
+              </div>
             </form>
           </CardContent>
         </Card>
